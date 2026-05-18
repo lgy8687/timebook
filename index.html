@@ -338,6 +338,18 @@
         </div>
     </div>
 
+    <!-- 确认弹窗（统一样式：左灰取消，右蓝确认） -->
+    <div id="confirm-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in" onclick="if(event.target===this)closeConfirm(false)">
+        <div class="bg-white rounded-3xl p-5 w-4/5 max-w-xs shadow-xl">
+            <h3 id="confirm-title" class="text-sm font-black mb-2">确认</h3>
+            <p id="confirm-message" class="text-sm text-slate-500 mb-4 leading-relaxed"></p>
+            <div class="flex space-x-3">
+                <button onclick="closeConfirm(false)" class="flex-1 py-3 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
+                <button onclick="closeConfirm(true)" id="confirm-ok-btn" class="flex-1 py-3 text-sm font-bold text-white bg-indigo-600 rounded-2xl">确定</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 自定义输入弹窗 (替代 prompt, 移动端友好) -->
     <div id="prompt-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in">
         <div class="bg-white rounded-3xl p-5 w-4/5 max-w-xs shadow-xl" id="prompt-modal-body">
@@ -691,6 +703,22 @@
             });
         });
 
+        let confirmCallback = null;
+        function showConfirm(title, message, okText, callback) {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-message').innerText = message;
+            const okBtn = document.getElementById('confirm-ok-btn');
+            okBtn.innerText = okText || '确定';
+            okBtn.className = 'flex-1 py-3 text-sm font-bold text-white ' + (okText === '删除' ? 'bg-red-500' : 'bg-indigo-600') + ' rounded-2xl';
+            confirmCallback = callback;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+        function closeConfirm(result) {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            if (confirmCallback) confirmCallback(result);
+            confirmCallback = null;
+        }
+
         // --- 全局键盘避让 (贴键盘上方留足选字区) ---
         let keyboardActiveModal = null;
         let keyboardShifts = new WeakMap();
@@ -893,14 +921,6 @@
                 executeAddShortcut(l1, l2);
             } else if (pickerMode === 'shortcut-edit') {
                 executeEditShortcut(l1, l2);
-            } else if (pickerMode === 'parallel-shortcut') {
-                // 添加并行快捷
-                if (parallelShortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
-                const cat = getCat(l1);
-                parallelShortcuts.push({ l1, l2: l2 || '', icon: cat?.icon || '📌' });
-                localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
-                closeDrawer();
-                renderAll();
             } else if (pickerMode === 'parallel-record') {
                 // 补录并行：从抽屉取时间
                 const cat = getCat(l1);
@@ -925,7 +945,12 @@
                 localStorage.setItem('v9_logs', JSON.stringify(logs));
                 closeDrawer();
                 renderAll();
-            } else if (pickerMode === 'edit' || (pickerMode && pickerMode.startsWith('parallel-'))) {
+            } else if (pickerMode === 'parallel-toggle') {
+                // 并行 toggle：通过 _parallelCallback 启动
+                const cb = _parallelCallback;
+                closeDrawer();
+                if (cb) { cb(l1, l2); }
+            } else if (pickerMode === 'edit' || (pickerMode && pickerMode.startsWith('parallel-backfill'))) {
                 const cb = _parallelCallback;
                 closeDrawer();
                 if (cb) { cb(l1, l2); }
@@ -941,18 +966,24 @@
             // 左侧 ＋ 按钮（竖着 stretch 跨所有行）
             const addBtn = document.createElement('button');
             addBtn.type = 'button';
-            addBtn.className = "bg-indigo-50 rounded-xl w-7 flex items-center justify-center text-lg font-black text-indigo-500 btn-active shrink-0 self-stretch min-h-[52px]";
+            addBtn.className = "bg-indigo-50 rounded-xl w-6 flex items-center justify-center text-base font-black text-indigo-500 btn-active shrink-0 self-stretch min-h-[44px]";
             addBtn.innerText = "＋";
             addBtn.title = "记一笔活动";
             addBtn.addEventListener('click', () => { openDrawerForRecord(); });
             container.appendChild(addBtn);
-            // 右侧 grid 3 列
+            // 根据数量计算列数
+            const n = shortcuts.length;
+            let cols = 3;
+            if (n <= 2) cols = n;
+            else if (n === 3 || n === 4) cols = 2;
+            else if (n >= 7 && n <= 8) cols = 4;
+            // 右侧 grid
             const grid = document.createElement('div');
-            grid.className = "grid grid-cols-3 gap-1.5 flex-1";
+            grid.className = `grid grid-cols-${cols} gap-1 flex-1`;
             shortcuts.forEach((s, idx) => {
                 const item = document.createElement('button');
                 item.type = 'button';
-                item.className = "bg-white rounded-xl py-3 flex flex-col items-center justify-center text-[11px] font-bold text-slate-700 shadow-sm btn-active min-h-[52px]";
+                item.className = "bg-white rounded-xl py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-700 shadow-sm btn-active min-h-[44px]";
                 let pressTimer = null;
                 let longPressed = false;
                 const clearPress = () => { if (pressTimer) clearTimeout(pressTimer); pressTimer = null; };
@@ -969,10 +1000,10 @@
                     executeRecord(s.l1, s.l2, "", "");
                 });
                 const icon = document.createElement('div');
-                icon.className = "text-lg leading-none mb-1";
+                icon.className = "text-base leading-none";
                 icon.innerText = s.icon;
                 const label = document.createElement('div');
-                label.className = "text-[9px] font-bold leading-tight";
+                label.className = "text-[8px] font-bold leading-tight mt-0.5";
                 label.innerText = s.l2 || s.l1;
                 item.append(icon, label);
                 grid.appendChild(item);
@@ -990,21 +1021,22 @@
             addBtn.innerText = "＋";
             addBtn.title = "展开并行活动目录";
             addBtn.addEventListener('click', () => {
-                // 打开分类抽屉，选中的活动调用 toggleParallel
-                _parallelCallback = (l1, l2) => {
-                    const icon = getCat(l1)?.icon || '📌';
-                    toggleParallel(l1, l2, icon);
-                };
                 pickerMode = 'parallel-toggle';
                 document.getElementById('drawer-title').innerText = "选择并行活动";
                 document.getElementById('drawer-footer').classList.add('hidden');
+                document.getElementById('drawer-note').value = "";
                 document.getElementById('drawer').classList.remove('hidden');
                 renderPicker();
             });
             container.appendChild(addBtn);
             // 右侧 grid 3 列
+            const n = parallelShortcuts.length;
+            let cols = 3;
+            if (n <= 2) cols = n;
+            else if (n === 3 || n === 4) cols = 2;
+            else if (n >= 7 && n <= 8) cols = 4;
             const grid = document.createElement('div');
-            grid.className = "grid grid-cols-3 gap-1.5 flex-1";
+            grid.className = `grid grid-cols-${cols} gap-1 flex-1`;
             parallelShortcuts.forEach((s, idx) => {
                 const item = document.createElement('button');
                 item.type = 'button';
@@ -1435,9 +1467,10 @@
                 if (isSwiping) {
                     if (currentDx > 55) {
                         // 左滑 → 确认删除
-                        if (confirm(`确认删除「${displayName(log)}」？`)) {
-                            deleteLogEntry(log.id);
-                        }
+                        const logName = displayName(log);
+                        showConfirm("确认删除", `删除「${logName}」？这条记录将被永久移除。`, "删除", (ok) => {
+                            if (ok) deleteLogEntry(log.id);
+                        });
                     } else if (currentDx < -55) {
                         // 右滑 → 修改
                         openEdit(idx);
@@ -1796,6 +1829,14 @@
             renderPicker();
             renderAll();
         }
+        function addParallelShortcut(l1, l2, icon) {
+            if (parallelShortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
+            const cat = getCat(l1);
+            parallelShortcuts.push({ l1, l2: l2 || '', icon: cat?.icon || '📌' });
+            localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
+            renderPicker();
+            renderAll();
+        }
         function removeShortcut(l1, l2) {
             shortcuts = shortcuts.filter(s => !(s.l1 === l1 && s.l2 === l2));
             localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
@@ -1909,7 +1950,7 @@
                                 renderPicker(); renderAll();
                             });
                         } else {
-                            btn.addEventListener('click', () => { drawerPick(c.name, ""); });
+                            btn.addEventListener('click', () => addParallelShortcut(c.name, "", getSubIcon("", c.icon)));
                         }
                         l2Box.appendChild(btn);
                         return;
@@ -1929,7 +1970,7 @@
                                 renderPicker(); renderAll();
                             });
                         } else {
-                            btn.addEventListener('click', () => drawerPick(c.name, s));
+                            btn.addEventListener('click', () => addParallelShortcut(c.name, s, getSubIcon(s, c.icon)));
                         }
                         l2Box.appendChild(btn);
                     });
@@ -1993,6 +2034,53 @@
                     });
                     l2Box.appendChild(grid);
                 });
+                return;
+            }
+
+            // parallel-toggle 模式：直接渲染分类并调用 toggleParallel
+            if (pickerMode === 'parallel-toggle') {
+                l1Box.style.display = '';
+                l2Box.className = "w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit";
+                if (!cats.some(c => c.name === selL1)) selL1 = cats[0].name;
+                cats.forEach(c => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = `w-full py-5 text-sm font-black ${selL1 === c.name ? 'bg-white text-indigo-600 border-l-4 border-indigo-600' : 'text-slate-400'}`;
+                    btn.innerText = c.icon + ' ' + c.name;
+                    btn.addEventListener('click', () => { selL1 = c.name; renderPicker(); });
+                    l1Box.appendChild(btn);
+                });
+                const selected = cats.find(c => c.name === selL1);
+                if (selected) {
+                    const direct = document.createElement('button');
+                    direct.type = 'button';
+                    direct.className = "bg-indigo-600 text-white border border-indigo-600 p-4 rounded-2xl text-sm font-black shadow-sm active:bg-indigo-700";
+                    direct.innerText = `${selected.name}（并行）`;
+                    direct.addEventListener('click', () => {
+                        closeDrawer();
+                        const icon = getCat(selected.name)?.icon || '📌';
+                        toggleParallel(selected.name, '', icon);
+                    });
+                    l2Box.appendChild(direct);
+                    selected.subs.forEach(s => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = "bg-white border border-slate-100 p-4 rounded-2xl text-sm font-black text-slate-600 shadow-sm active:bg-indigo-50";
+                        btn.innerText = (selected.icon || '') + ' ' + s;
+                        btn.addEventListener('click', () => {
+                            closeDrawer();
+                            const icon = getCat(selected.name)?.icon || '📌';
+                            toggleParallel(selected.name, s, icon);
+                        });
+                        l2Box.appendChild(btn);
+                    });
+                    if (!selected.subs.length) {
+                        const hint = document.createElement('div');
+                        hint.className = "col-span-2 text-sm text-slate-300 font-bold px-2";
+                        hint.innerText = "这个一级分类还没有子类，可以直接并行。";
+                        l2Box.appendChild(hint);
+                    }
+                }
                 return;
             }
 
@@ -2179,11 +2267,11 @@
 
             g60.innerHTML = "";
             g24.innerHTML = "";
-            // 内环背景（恒存，无并行也显示空环）
+            // 内环背景（恒存，r=38 stroke=10 明显可见）
             const innerBg = (g) => {
                 const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                c.setAttribute("cx","60"); c.setAttribute("cy","60"); c.setAttribute("r","42");
-                c.setAttribute("fill","none"); c.setAttribute("stroke","#f1f5f9"); c.setAttribute("stroke-width","4");
+                c.setAttribute("cx","60"); c.setAttribute("cy","60"); c.setAttribute("r","38");
+                c.setAttribute("fill","none"); c.setAttribute("stroke","#f1f5f9"); c.setAttribute("stroke-width","10");
                 g.appendChild(c);
             };
             innerBg(g60);
@@ -2206,7 +2294,7 @@
             hourLogs.forEach(log => {
                 const color = log.color || getCat(log.l1)?.color || "#cbd5e1";
                 if (log.parallel) {
-                    drawClockSegment(g60, 42, log.startTime, log.endTime, hourStart, hourEnd, '#8b5cf6', log, 4);
+                    drawClockSegment(g60, 38, log.startTime, log.endTime, hourStart, hourEnd, '#8b5cf6', log, 10);
                 } else {
                     drawClockSegment(g60, 50, log.startTime, log.endTime, hourStart, hourEnd, color, log);
                 }
@@ -2215,7 +2303,7 @@
             dayLogs.forEach(log => {
                 const color = log.color || getCat(log.l1)?.color || "#cbd5e1";
                 if (log.parallel) {
-                    drawClockSegment(g24, 42, log.startTime, log.endTime, dayStart, dayEnd, '#8b5cf6', log, 4);
+                    drawClockSegment(g24, 38, log.startTime, log.endTime, dayStart, dayEnd, '#8b5cf6', log, 10);
                 } else {
                     drawClockSegment(g24, 50, log.startTime, log.endTime, dayStart, dayEnd, color, log);
                 }
