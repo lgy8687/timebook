@@ -30,40 +30,35 @@
   </header>
 
   <!-- 内容区 -->
-  <main class="flex-1 overflow-y-auto p-4">
-    <div class="max-w-md mx-auto space-y-4">
+    <main class="flex-1 overflow-y-auto p-4">
+    <div class="max-w-md mx-auto space-y-3">
 
       <div class="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 py-2 border-b border-slate-100">📋 今日流水</div>
 
-      <!-- 单一条目 -->
-      <div id="log-row" class="relative overflow-hidden rounded-2xl">
-        <!-- 后面操作区 -->
-        <div class="absolute inset-0 flex items-center z-0 pointer-events-none">
-          <span class="absolute left-4 text-xs font-black text-white opacity-0" id="swipe-hint">🗑</span>
-          <span class="absolute right-4 text-xs font-black text-white opacity-0" id="swipe-hint-r">✏️</span>
-        </div>
-        <!-- 卡片 -->
-        <div id="log-card" class="swipe-card relative z-10 bg-white rounded-2xl border border-slate-50 shadow-sm p-4 flex items-center gap-3 cursor-pointer">
-          <div class="w-1.5 h-10 rounded-full shrink-0" style="background:#3b82f6"></div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center text-xs text-slate-400 font-bold">
-              <span class="font-mono shrink-0">08:30</span>
-              <span class="flex-1 font-black text-slate-700 truncate ml-2">💼 上班 / 办公</span>
-              <span class="text-indigo-500 font-black shrink-0">175min</span>
+      <!-- 单一条目 + 并行子条目容器 -->
+      <div id="log-group">
+        <!-- 主卡片 -->
+        <div id="log-row" class="relative overflow-hidden rounded-2xl mb-1">
+          <div id="log-card" class="swipe-card relative z-10 bg-white rounded-2xl border border-slate-50 shadow-sm p-4 flex items-center gap-3 cursor-pointer">
+            <div class="w-1.5 h-10 rounded-full shrink-0" style="background:#3b82f6"></div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center text-xs text-slate-400 font-bold">
+                <span class="font-mono shrink-0">08:30</span>
+                <span class="flex-1 font-black text-slate-700 truncate ml-2">💼 上班 / 办公</span>
+                <span class="text-indigo-500 font-black shrink-0">175min</span>
+              </div>
+              <div class="text-sm text-slate-400 italic truncate mt-0.5">写周报</div>
             </div>
-            <div class="text-sm text-slate-400 italic truncate mt-0.5">写周报</div>
+            <span id="parallel-count" class="hidden text-[9px] font-black text-violet-500 bg-violet-50 rounded-full px-2 py-0.5 shrink-0">⏎ 0</span>
           </div>
-          <span class="text-[9px] font-black text-indigo-400 bg-indigo-50 rounded-full px-2 py-0.5">点中间 → ⏎ 并行</span>
         </div>
-        <!-- 滑动提示条 -->
-        <div id="swipe-bar" class="absolute inset-0 flex items-center justify-between px-4 z-0 rounded-2xl pointer-events-none opacity-0" style="transition:opacity .15s">
-          <span class="text-xs font-black text-white bg-red-500 px-3 py-1.5 rounded-lg">🗑 删除</span>
-          <span class="text-xs font-black text-white bg-blue-500 px-3 py-1.5 rounded-lg">✏️ 修改</span>
-        </div>
+
+        <!-- 并行子条目渲染区 -->
+        <div id="parallel-children" class="ml-5 pl-3 border-l-2 border-dashed border-slate-200 space-y-1.5"></div>
       </div>
 
-      <div class="text-center text-[10px] text-slate-300 font-bold py-2">
-        ← 左滑删除 · 右滑修改 · 点击加并行 →
+      <div class="text-center text-[10px] text-slate-300 font-bold py-1">
+        ← 左滑删除 · 右滑修改 · 点卡片加并行 →
       </div>
 
       <!-- 说明 -->
@@ -238,6 +233,46 @@
     }
 
     let selL1 = cats[0].name;
+    let parallelEntries = [];
+    let entryId = 0;
+
+    // --- 渲染并行子条目 ---
+    function renderParallels() {
+      const box = document.getElementById('parallel-children');
+      const count = document.getElementById('parallel-count');
+      box.innerHTML = '';
+      if (parallelEntries.length === 0) {
+        count.classList.add('hidden');
+        return;
+      }
+      count.classList.remove('hidden');
+      count.innerText = '⏎ ' + parallelEntries.length;
+      parallelEntries.forEach((p, i) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 py-2 px-3 bg-white rounded-xl border border-slate-50 shadow-sm';
+        row.innerHTML = `
+          <div class="w-1 h-8 rounded-full shrink-0" style="background:${p.color}"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center text-[10px] text-slate-400 font-bold">
+              <span class="font-mono shrink-0">${p.time}</span>
+              <span class="flex-1 font-black text-slate-600 truncate ml-1.5">${p.icon} ${p.name}</span>
+              <span class="font-black shrink-0" style="color:${p.color}">${p.dur}</span>
+            </div>
+            <div class="flex items-center gap-1 mt-0.5">
+              <span class="text-[8px] font-black text-violet-500 bg-violet-50 rounded-full px-1.5 py-0.5 border border-violet-100">⏎ ${p.parentName}</span>
+              ${p.note ? '<span class="text-[10px] text-slate-400 italic truncate">' + p.note + '</span>' : ''}
+            </div>
+          </div>
+          <button class="text-slate-300 text-xs hover:text-red-400" onclick="removeParallel(${i})">✕</button>
+        `;
+        box.appendChild(row);
+      });
+    }
+
+    function removeParallel(idx) {
+      parallelEntries.splice(idx, 1);
+      renderParallels();
+    }
 
     // --- 选择分类 ---
     function pickCategory(l1, l2) {
@@ -255,9 +290,20 @@
         duration = 0;
       }
       const timeStr = String(startTime.getHours()).padStart(2,'0') + ':' + String(startTime.getMinutes()).padStart(2,'0');
-      const durStr = isBackfill ? duration + 'min' : '实时';
-      const icon = cats.find(c => c.name === l1)?.icon || '📌';
-      showToast(`✅ 已记录 ${icon} ${l2||l1} → ${parentCard.l2||parentCard.l1}\n${timeStr} · ${durStr}`);
+      const cat = cats.find(c => c.name === l1);
+      const durStr = isBackfill ? duration + 'min' : '⚡实时';
+
+      parallelEntries.push({
+        id: ++entryId,
+        time: timeStr,
+        icon: cat?.icon || '📌',
+        name: l2 || l1,
+        color: cat?.color || '#94a3b8',
+        dur: durStr,
+        parentName: parentCard.l2 || parentCard.l1,
+        note: isBackfill ? '补录' : '',
+      });
+      renderParallels();
       closeDrawer();
     }
 
