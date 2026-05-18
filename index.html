@@ -582,7 +582,7 @@
                 item.type = 'button';
                 const compact = !showShortcutIcons;
                 item.className = compact
-                    ? "bg-white rounded-xl p-2 min-h-10 flex flex-col items-center justify-center shadow-sm border border-slate-50 btn-active"
+                    ? "bg-white rounded-lg p-1.5 min-h-8 flex flex-col items-center justify-center shadow-sm border border-slate-50 btn-active"
                     : "bg-white rounded-[28px] p-5 min-h-28 flex flex-col items-center justify-center shadow-sm border border-slate-50 btn-active";
                 let pressTimer = null;
                 let longPressed = false;
@@ -616,7 +616,7 @@
                     item.appendChild(icon);
                 }
                 const label = document.createElement('span');
-                label.className = compact ? "text-sm font-black text-slate-700" : "text-base font-black text-slate-700";
+                label.className = compact ? "text-xs font-bold text-slate-700" : "text-base font-black text-slate-700";
                 label.innerText = s.l2 || s.l1;
                 item.append(label);
                 grid.appendChild(item);
@@ -674,9 +674,12 @@
             shortcutList.innerHTML = "";
             shortcuts.forEach((s, idx) => {
                 const card = document.createElement('div');
-                card.className = "bg-slate-50 rounded-2xl p-2.5 text-center text-xs font-bold relative";
+                const compact = !showShortcutIcons;
+                card.className = compact
+                    ? "bg-slate-50 rounded-xl p-1.5 text-center text-xs font-bold relative"
+                    : "bg-slate-50 rounded-2xl p-2.5 text-center text-xs font-bold relative";
                 const label = document.createElement('div');
-                label.className = "text-sm leading-tight";
+                label.className = compact ? "text-xs leading-tight" : "text-sm leading-tight";
                 const iconText = showShortcutIcons ? `${s.icon} ` : '';
                 label.innerText = `${iconText}${s.l2 || s.l1}`;
                 card.append(label);
@@ -1127,9 +1130,12 @@
         function renderPicker() {
             const l1Box = document.getElementById('drawer-l1');
             const l2Box = document.getElementById('drawer-l2');
+            const drawerFlex = l1Box?.parentElement;
             l1Box.innerHTML = "";
             l2Box.innerHTML = "";
             if (!cats.length) {
+                l1Box.style.display = '';
+                l2Box.className = "w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit";
                 const empty = document.createElement('div');
                 empty.className = "p-4 text-sm text-slate-400 font-bold";
                 empty.innerText = "暂无分类";
@@ -1137,9 +1143,10 @@
                 return;
             }
 
-            // flat 模式：直接显示所有二级目录
+            // flat 模式：全二级铺满，无左列
             if (drawerViewMode === 'flat' && pickerMode === 'record') {
-                l1Box.innerHTML = "<div class='p-4 text-[10px] text-slate-300 font-bold'>全部</div>";
+                l1Box.style.display = 'none';
+                l2Box.className = "w-full p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit";
                 cats.forEach(c => {
                     if (!c.subs.length) {
                         const btn = document.createElement('button');
@@ -1162,9 +1169,10 @@
                 return;
             }
 
-            // stacked 模式：一级在上，二级在下
+            // stacked 模式：一级标签在上，二级在下，无左列
             if (drawerViewMode === 'stacked' && pickerMode === 'record') {
-                l1Box.innerHTML = "";
+                l1Box.style.display = 'none';
+                l2Box.className = "w-full p-4 overflow-y-auto h-fit";
                 const tabs = document.createElement('div');
                 tabs.className = "flex flex-wrap gap-2 mb-4";
                 cats.forEach(c => {
@@ -1205,7 +1213,9 @@
                 return;
             }
 
-            // columns 模式：左边一级，右边二级（原默认）
+            // columns 模式：左边一级，右边二级（还原左列）
+            l1Box.style.display = '';
+            l2Box.className = "w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit";
             if (!cats.some(c => c.name === selL1)) selL1 = cats[0].name;
 
             cats.forEach(c => {
