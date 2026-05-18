@@ -329,16 +329,16 @@
                             <span id="backfill-track-end">--:--</span>
                         </div>
                     </div>
-                    <!-- 开始 + 结束时间输入 -->
+                    <!-- 开始 + 结束时间输入（纯文本数字，精确到秒，手机端友好） -->
                     <div class="flex items-center gap-2">
-                        <div class="flex items-center gap-1 bg-slate-50 rounded-xl px-2.5 py-1.5 flex-1">
+                        <div class="flex items-center gap-1 bg-slate-50 rounded-xl px-2 py-1.5 flex-1">
                             <span class="text-[9px] font-bold text-slate-400">开始</span>
-                            <input type="time" id="parallel-start" class="flex-1 bg-transparent text-xs font-mono font-bold text-slate-700 border-none focus:outline-none" step="1">
+                            <input type="text" id="parallel-start" class="flex-1 bg-transparent text-[11px] font-mono font-bold text-slate-700 border-none focus:outline-none text-center" inputmode="numeric" placeholder="08:00:00" maxlength="8">
                         </div>
                         <span class="text-slate-300 text-xs font-bold">→</span>
-                        <div class="flex items-center gap-1 bg-slate-50 rounded-xl px-2.5 py-1.5 flex-1">
+                        <div class="flex items-center gap-1 bg-slate-50 rounded-xl px-2 py-1.5 flex-1">
                             <span class="text-[9px] font-bold text-slate-400">结束</span>
-                            <input type="time" id="parallel-end" class="flex-1 bg-transparent text-xs font-mono font-bold text-slate-700 border-none focus:outline-none" step="1">
+                            <input type="text" id="parallel-end" class="flex-1 bg-transparent text-[11px] font-mono font-bold text-slate-700 border-none focus:outline-none text-center" inputmode="numeric" placeholder="18:30:00" maxlength="8">
                         </div>
                     </div>
                 </div>
@@ -534,6 +534,11 @@
         function formatBeijingClock(ms) {
             const d = new Date(ms + BJ_OFFSET);
             return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+        }
+        // 带秒的时间格式 HH:MM:SS（补录专用）
+        function formatBeijingClockSec(ms) {
+            const d = new Date(ms + BJ_OFFSET);
+            return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
         }
 
         function formatBeijingDate(ms) {
@@ -1285,7 +1290,7 @@
                             c.color = clr;
                             colorDot.style.background = clr;
                             localStorage.setItem('v9_cats', JSON.stringify(cats));
-                            renderReport();
+                            renderAll();
                             popup.remove();
                             overlay.remove();
                         });
@@ -1365,25 +1370,13 @@
             const moreWrap = document.getElementById('load-more-wrap');
             list.innerHTML = "";
 
-            // 按天分组（北京时间 00:00-24:00）
-            const dayMap = new Map(); // dayString -> {label, logs}
+            // 按天分组（北京时间 00:00-24:00，只按开始日归组）
+            const dayMap = new Map();
             const show = logs.slice(0, logLimit);
             show.forEach(log => {
                 const startDay = formatBeijingDate(log.startTime);
-                const endMs = log.endTime || log.startTime;
-                const endDay = formatBeijingDate(endMs);
-                // 不跨天：只归入开始那天
-                if (startDay === endDay) {
-                    if (!dayMap.has(startDay)) dayMap.set(startDay, []);
-                    dayMap.get(startDay).push(log);
-                } else {
-                    // 跨天：在开始那天和结束那天都保留
-                    if (!dayMap.has(startDay)) dayMap.set(startDay, []);
-                    dayMap.get(startDay).push(log);
-                    if (!dayMap.has(endDay)) dayMap.set(endDay, []);
-                    // 跨天条目在结束那天标一个"跨天"标记
-                    dayMap.get(endDay).push({ ...log, _crossDay: true });
-                }
+                if (!dayMap.has(startDay)) dayMap.set(startDay, []);
+                dayMap.get(startDay).push(log);
             });
 
             // 按天倒序显示
@@ -1461,7 +1454,6 @@
             // 卡片本身
             const card = document.createElement('div');
             card.className = "swipe-card";
-            if (log._crossDay) card.style.opacity = '0.6';
 
             // 滑动状态
             let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
@@ -1527,10 +1519,10 @@
             top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
             const time = document.createElement('span');
             time.className = "font-mono shrink-0";
-            time.innerText = formatBeijingClock(log.startTime) + (log._crossDay ? ' (跨天继续)' : '');
+            time.innerText = formatBeijingClock(log.startTime);
             const name = document.createElement('span');
             name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
-            name.innerText = displayName(log) + (log._crossDay ? ' 🌙' : '');
+            name.innerText = displayName(log);
             const dur = document.createElement('span');
             dur.className = "text-indigo-500 font-black shrink-0 text-right w-auto";
             dur.innerText = `${log.duration || Math.max(0, Math.round(((log.endTime||Date.now())-log.startTime)/60000))}min`;
@@ -1563,7 +1555,7 @@
             return wrap;
         }
 
-        // 打开补录抽屉（带进度条+开始/结束时间）
+        // 打开补录抽屉（带进度条+开始/结束时间，精确到秒）
         function openBackfillDrawer(parentLog) {
             pickerMode = 'parallel-backfill';
             document.getElementById('drawer-title').innerText = `↳ 补录并行于 ${displayName(parentLog)}`;
@@ -1571,34 +1563,40 @@
             document.getElementById('drawer-footer').classList.remove('hidden');
             document.getElementById('drawer-note').value = '';
             document.getElementById('drawer-note').placeholder = '备注（选填）';
-            // 预填：开始=父活动起点，结束=父活动终点
+            // 预填：开始=父活动起点，结束=父活动终点（带秒）
             const parentEnd = parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
-            document.getElementById('parallel-start').value = formatForTimeInput(parentLog.startTime).slice(0,5);
-            document.getElementById('parallel-end').value = formatForTimeInput(parentEnd).slice(0,5);
+            document.getElementById('parallel-start').value = formatBeijingClockSec(parentLog.startTime);
+            document.getElementById('parallel-end').value = formatBeijingClockSec(parentEnd);
             // 更新进度条
             syncBackfillProgress(parentLog);
-            // 时间输入联动进度条
-            const sync = () => syncBackfillProgress(parentLog);
-            document.getElementById('parallel-start').onchange = sync;
-            document.getElementById('parallel-end').onchange = sync;
-            // 点击进度条移动最近的滑块
-            const track = document.getElementById('backfill-track');
-            track.onclick = (e) => {
-                const rect = track.getBoundingClientRect();
-                const pct = (e.clientX - rect.left) / rect.width;
-                const total = parentEnd - parentLog.startTime;
-                const clickTime = parentLog.startTime + total * pct;
-                const curStart = parseTimeFromInput('parallel-start', parentLog.startTime);
-                const curEnd = parseTimeFromInput('parallel-end', parentLog.startTime);
-                const distToStart = Math.abs(clickTime - curStart);
-                const distToEnd = Math.abs(clickTime - curEnd);
-                if (distToStart <= distToEnd) {
-                    document.getElementById('parallel-start').value = formatForTimeInput(clickTime).slice(0,5);
-                } else {
-                    document.getElementById('parallel-end').value = formatForTimeInput(clickTime).slice(0,5);
+            // 时间输入自动格式化（输入数字自动补冒号 HH:MM:SS）
+            const fmtTimeInputSec = (el) => {
+                let v = el.value.replace(/\D/g, '');
+                if (v.length > 6) v = v.slice(0, 6);
+                if (v.length >= 5) {
+                    v = v.slice(0, 2) + ':' + v.slice(2, 4) + ':' + v.slice(4);
+                } else if (v.length >= 3) {
+                    v = v.slice(0, 2) + ':' + v.slice(2);
                 }
-                syncBackfillProgress(parentLog);
+                el.value = v;
             };
+            const startEl = document.getElementById('parallel-start');
+            const endEl = document.getElementById('parallel-end');
+            const bindFmt = (el) => {
+                // 移除旧监听器（用克隆替换）
+                const newEl = el.cloneNode(true);
+                el.parentNode.replaceChild(newEl, el);
+                newEl.addEventListener('input', () => { fmtTimeInputSec(newEl); });
+                return newEl;
+            };
+            const sEl = bindFmt(startEl);
+            const eEl = bindFmt(endEl);
+            // 时间变化时联动进度条
+            const sync = () => syncBackfillProgress(parentLog);
+            sEl.addEventListener('change', sync);
+            eEl.addEventListener('change', sync);
+            // 进度条拖拽（手机+桌面通用）
+            setupBackfillDrag(parentLog, parentEnd);
             // 存父活动 id 给回调用
             _parallelCallback = (l1, l2) => {
                 const cat = getCat(l1);
@@ -1621,7 +1619,74 @@
                 localStorage.setItem('v9_logs', JSON.stringify(logs));
                 renderAll();
             };
+            // 渲染分类选择列表（默认flat模式，手机端友好）
+            if (drawerViewMode === 'columns') drawerViewMode = 'flat';
+            renderPicker();
+            renderDrawerToggle();
             document.getElementById('drawer').classList.remove('hidden');
+        }
+        // 进度条拖拽系统（统一管理 touch + mouse，避免事件冲突）
+        function setupBackfillDrag(parentLog, parentEnd) {
+            const track = document.getElementById('backfill-track');
+            const startHandle = document.getElementById('backfill-start-handle');
+            const endHandle = document.getElementById('backfill-end-handle');
+            let dragTarget = null; // 'start' | 'end' | null
+            const total = parentEnd - parentLog.startTime;
+            const setTimeFromPct = (pct, target) => {
+                pct = Math.max(0, Math.min(1, pct));
+                const ms = parentLog.startTime + total * pct;
+                document.getElementById(target === 'start' ? 'parallel-start' : 'parallel-end').value = formatBeijingClockSec(ms);
+                syncBackfillProgress(parentLog);
+            };
+            const clientXFromEvent = (e) => {
+                if (e.touches && e.touches.length > 0) return e.touches[0].clientX;
+                return e.clientX;
+            };
+            const onMove = (e) => {
+                if (!dragTarget) return;
+                e.preventDefault();
+                const rect = track.getBoundingClientRect();
+                const pct = (clientXFromEvent(e) - rect.left) / rect.width;
+                setTimeFromPct(pct, dragTarget);
+            };
+            const onEnd = () => { dragTarget = null; };
+            // 轨道点击/触摸 → 移动最近的滑块
+            const onTrackTap = (clientX) => {
+                const rect = track.getBoundingClientRect();
+                let pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+                const clickMs = parentLog.startTime + total * pct;
+                const curStart = parseTimeFromInput('parallel-start', parentLog.startTime);
+                const curEnd = parseTimeFromInput('parallel-end', parentLog.startTime);
+                const distToStart = Math.abs(clickMs - curStart);
+                const distToEnd = Math.abs(clickMs - curEnd);
+                setTimeFromPct(pct, distToStart <= distToEnd ? 'start' : 'end');
+            };
+            // 清除旧事件（克隆节点）
+            [track, startHandle, endHandle].forEach(el => {
+                const clone = el.cloneNode(true);
+                el.parentNode.replaceChild(clone, el);
+            });
+            const newTrack = document.getElementById('backfill-track');
+            const newStartH = document.getElementById('backfill-start-handle');
+            const newEndH = document.getElementById('backfill-end-handle');
+            // 轨道点击/触摸 → 移动最近的滑块
+            newTrack.addEventListener('click', (e) => onTrackTap(e.clientX));
+            newTrack.addEventListener('touchstart', (e) => {
+                if (e.touches && e.touches.length > 0) {
+                    onTrackTap(e.touches[0].clientX);
+                }
+            }, { passive: false });
+            // 开始手柄拖拽
+            newStartH.addEventListener('mousedown', (e) => { dragTarget = 'start'; e.preventDefault(); });
+            newStartH.addEventListener('touchstart', (e) => { dragTarget = 'start'; e.preventDefault(); }, { passive: false });
+            // 结束手柄拖拽
+            newEndH.addEventListener('mousedown', (e) => { dragTarget = 'end'; e.preventDefault(); });
+            newEndH.addEventListener('touchstart', (e) => { dragTarget = 'end'; e.preventDefault(); }, { passive: false });
+            // 全局移动+释放（统一处理 mouse + touch）
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onEnd);
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onEnd);
         }
         // 进度条 ←→ 时间输入双向同步
         function syncBackfillProgress(parentLog) {
@@ -1643,7 +1708,7 @@
         function parseTimeFromInput(id, refDate) {
             const parts = document.getElementById(id).value.split(':');
             const d = new Date(refDate);
-            d.setHours(+parts[0]||0, +parts[1]||0, 0, 0);
+            d.setHours(+parts[0]||0, +parts[1]||0, +parts[2]||0, 0);
             return d.getTime();
         }
 
@@ -1919,7 +1984,7 @@
         function renderDrawerToggle() {
             const btn = document.getElementById('drawer-view-toggle');
             if (!btn) return;
-            if (pickerMode === 'record') {
+            if (pickerMode === 'record' || pickerMode === 'parallel-backfill') {
                 btn.classList.remove('hidden');
                 const modes = [
                     { key: 'columns', icon: '◧', title: '左右分栏' },
@@ -2051,8 +2116,8 @@
                 return;
             }
 
-            // flat 模式：全二级铺满5列，无左列，上下结构
-            if (drawerViewMode === 'flat' && pickerMode === 'record') {
+            // flat 模式：全二级铺满5列，无左列，上下结构（record + backfill 通用）
+            if (drawerViewMode === 'flat' && (pickerMode === 'record' || pickerMode === 'parallel-backfill')) {
                 l1Box.style.display = 'none';
                 l2Box.className = "w-full p-3 overflow-y-auto grid grid-cols-5 gap-1.5 h-fit";
                 cats.forEach(c => {
@@ -2077,8 +2142,8 @@
                 return;
             }
 
-            // stacked 模式：全部展开垂直排列，无左列，无tab切换
-            if (drawerViewMode === 'stacked' && pickerMode === 'record') {
+            // stacked 模式：全部展开垂直排列，无左列（record + backfill 通用）
+            if (drawerViewMode === 'stacked' && (pickerMode === 'record' || pickerMode === 'parallel-backfill')) {
                 l1Box.style.display = 'none';
                 l2Box.className = "w-full p-4 overflow-y-auto h-fit";
                 cats.forEach(c => {
