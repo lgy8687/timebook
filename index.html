@@ -317,17 +317,29 @@
                 <div class="w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit" id="drawer-l2"></div>
             </div>
             <div id="drawer-footer" class="p-6 bg-white shrink-0 border-t border-slate-50">
-                <!-- 并行模式时间栏 -->
-                <div id="parallel-time-row" class="hidden flex items-center gap-2 mb-3 p-2.5 bg-amber-50 rounded-2xl border border-amber-100">
-                    <span class="text-[9px] font-black text-amber-500 shrink-0">📅</span>
-                    <div class="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1.5 flex-1">
-                        <span class="text-[9px] font-bold text-slate-400">开始</span>
-                        <input type="time" id="parallel-start" class="flex-1 bg-transparent text-xs font-mono font-bold text-slate-700 border-none focus:outline-none">
+                <!-- 并行模式：进度条 + 开始/结束时间 -->
+                <div id="parallel-time-row" class="hidden space-y-3 mb-3">
+                    <!-- 父活动区间进度条 -->
+                    <div class="relative h-7 bg-slate-100 rounded-lg overflow-hidden" id="backfill-track">
+                        <div id="backfill-fill" class="absolute inset-y-0 bg-indigo-300/40 rounded-lg" style="left:0%;width:100%"></div>
+                        <div id="backfill-start-handle" class="absolute top-0.5 bottom-0.5 w-2.5 bg-indigo-500 rounded-full -ml-1.25 z-10 shadow-sm cursor-grab"></div>
+                        <div id="backfill-end-handle" class="absolute top-0.5 bottom-0.5 w-2.5 bg-indigo-500 rounded-full -ml-1.25 z-10 shadow-sm cursor-grab"></div>
+                        <div class="absolute inset-x-0 top-0 text-[8px] font-mono font-bold text-slate-400 flex justify-between px-2 leading-7 pointer-events-none">
+                            <span id="backfill-track-start">--:--</span>
+                            <span id="backfill-track-end">--:--</span>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1.5">
-                        <span class="text-[9px] font-bold text-slate-400">时长</span>
-                        <input type="number" id="parallel-dur" value="30" min="1" step="5" class="w-12 bg-transparent text-xs font-mono font-bold text-slate-700 border-none text-center focus:outline-none">
-                        <span class="text-[9px] font-bold text-slate-400">分</span>
+                    <!-- 开始 + 结束时间输入 -->
+                    <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1 bg-slate-50 rounded-xl px-2.5 py-1.5 flex-1">
+                            <span class="text-[9px] font-bold text-slate-400">开始</span>
+                            <input type="time" id="parallel-start" class="flex-1 bg-transparent text-xs font-mono font-bold text-slate-700 border-none focus:outline-none" step="1">
+                        </div>
+                        <span class="text-slate-300 text-xs font-bold">→</span>
+                        <div class="flex items-center gap-1 bg-slate-50 rounded-xl px-2.5 py-1.5 flex-1">
+                            <span class="text-[9px] font-bold text-slate-400">结束</span>
+                            <input type="time" id="parallel-end" class="flex-1 bg-transparent text-xs font-mono font-bold text-slate-700 border-none focus:outline-none" step="1">
+                        </div>
                     </div>
                 </div>
                 <input type="text" id="drawer-note" placeholder="选填备注..." class="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500">
@@ -1493,6 +1505,14 @@
                 }
             }, { passive: true });
 
+            // 点卡片弹出补录（仅非并行、非跨天）
+            if (!log.parallel && !log._crossDay) {
+                card.addEventListener('click', (e) => {
+                    if (isSwiping) return;
+                    openBackfillDrawer(log);
+                });
+            }
+
             // 卡片内容
             const inner = document.createElement('div');
             inner.className = "flex items-center";
@@ -1504,16 +1524,16 @@
             const body = document.createElement('div');
             body.className = "flex-1 min-w-0 flex flex-col gap-1";
             const top = document.createElement('div');
-            top.className = "flex items-center text-xs text-slate-400 font-bold";
+            top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
             const time = document.createElement('span');
             time.className = "font-mono shrink-0";
             time.innerText = formatBeijingClock(log.startTime) + (log._crossDay ? ' (跨天继续)' : '');
             const name = document.createElement('span');
-            name.className = "flex-1 font-black text-slate-700 truncate ml-2";
+            name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
             name.innerText = displayName(log) + (log._crossDay ? ' 🌙' : '');
             const dur = document.createElement('span');
-            dur.className = "text-indigo-500 font-black shrink-0 ml-auto";
-            dur.innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
+            dur.className = "text-indigo-500 font-black shrink-0 text-right w-auto";
+            dur.innerText = `${log.duration || Math.max(0, Math.round(((log.endTime||Date.now())-log.startTime)/60000))}min`;
             top.append(time, name, dur);
             body.appendChild(top);
 
@@ -1531,19 +1551,8 @@
             }
             noteRow.appendChild(note);
 
-            // ↳ 补录按钮（每条已完成记录都有，在颜色条外侧）
-            if (!log.parallel && !log._crossDay) {
-                const subBtn = document.createElement('button');
-                subBtn.type = 'button';
-                subBtn.className = "text-[10px] font-black text-violet-400 bg-violet-50 rounded-full px-1.5 py-0.5 border border-violet-100 shrink-0 btn-active hover:bg-violet-100";
-                subBtn.innerText = '↳';
-                subBtn.title = '补录并行活动';
-                subBtn.addEventListener('click', (e) => { e.stopPropagation(); openBackfillDrawer(log); });
-                noteRow.appendChild(subBtn);
-            }
-
             // 有内容才加 noteRow（避免空行撑gap）
-            const hasNoteContent = log.note || log.tag || (!log.parallel && !log._crossDay);
+            const hasNoteContent = log.note || log.tag;
             if (hasNoteContent) {
                 body.appendChild(noteRow);
             }
@@ -1554,7 +1563,7 @@
             return wrap;
         }
 
-        // 打开补录抽屉（带时间栏+分类）
+        // 打开补录抽屉（带进度条+开始/结束时间）
         function openBackfillDrawer(parentLog) {
             pickerMode = 'parallel-backfill';
             document.getElementById('drawer-title').innerText = `↳ 补录并行于 ${displayName(parentLog)}`;
@@ -1562,22 +1571,45 @@
             document.getElementById('drawer-footer').classList.remove('hidden');
             document.getElementById('drawer-note').value = '';
             document.getElementById('drawer-note').placeholder = '备注（选填）';
-            // 预填：开始=父活动起点，时长=1/3 父活动时长
-            const d = new Date(parentLog.startTime);
-            document.getElementById('parallel-start').value = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-            const parentDur = parentLog.duration || 60;
-            document.getElementById('parallel-dur').value = Math.round(parentDur / 3) || 15;
+            // 预填：开始=父活动起点，结束=父活动终点
+            const parentEnd = parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
+            document.getElementById('parallel-start').value = formatForTimeInput(parentLog.startTime).slice(0,5);
+            document.getElementById('parallel-end').value = formatForTimeInput(parentEnd).slice(0,5);
+            // 更新进度条
+            syncBackfillProgress(parentLog);
+            // 时间输入联动进度条
+            const sync = () => syncBackfillProgress(parentLog);
+            document.getElementById('parallel-start').onchange = sync;
+            document.getElementById('parallel-end').onchange = sync;
+            // 点击进度条移动最近的滑块
+            const track = document.getElementById('backfill-track');
+            track.onclick = (e) => {
+                const rect = track.getBoundingClientRect();
+                const pct = (e.clientX - rect.left) / rect.width;
+                const total = parentEnd - parentLog.startTime;
+                const clickTime = parentLog.startTime + total * pct;
+                const curStart = parseTimeFromInput('parallel-start', parentLog.startTime);
+                const curEnd = parseTimeFromInput('parallel-end', parentLog.startTime);
+                const distToStart = Math.abs(clickTime - curStart);
+                const distToEnd = Math.abs(clickTime - curEnd);
+                if (distToStart <= distToEnd) {
+                    document.getElementById('parallel-start').value = formatForTimeInput(clickTime).slice(0,5);
+                } else {
+                    document.getElementById('parallel-end').value = formatForTimeInput(clickTime).slice(0,5);
+                }
+                syncBackfillProgress(parentLog);
+            };
             // 存父活动 id 给回调用
             _parallelCallback = (l1, l2) => {
                 const cat = getCat(l1);
-                const t = document.getElementById('parallel-start').value.split(':');
-                const dur = parseInt(document.getElementById('parallel-dur').value) || 30;
-                const d = new Date(parentLog.startTime);
-                d.setHours(+t[0], +t[1], 0, 0);
+                const startMs = parseTimeFromInput('parallel-start', parentLog.startTime);
+                const endMs = parseTimeFromInput('parallel-end', parentLog.startTime);
+                const e = endMs > startMs ? endMs : endMs + 86400000;
+                const dur = Math.round((e - startMs) / 60000);
                 const entry = {
                     id: Date.now() + Math.random(),
-                    startTime: d.getTime(),
-                    endTime: d.getTime() + dur * 60000,
+                    startTime: startMs,
+                    endTime: e,
                     duration: dur,
                     l1, l2: l2 || '',
                     tag: '', note: document.getElementById('drawer-note').value || '并行补录',
@@ -1590,6 +1622,29 @@
                 renderAll();
             };
             document.getElementById('drawer').classList.remove('hidden');
+        }
+        // 进度条 ←→ 时间输入双向同步
+        function syncBackfillProgress(parentLog) {
+            const parentEnd = parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
+            const total = parentEnd - parentLog.startTime;
+            if (total <= 0) return;
+            const startMs = parseTimeFromInput('parallel-start', parentLog.startTime);
+            let endMs = parseTimeFromInput('parallel-end', parentLog.startTime);
+            if (endMs <= startMs) endMs = startMs + 60000;
+            const left = Math.max(0, ((startMs - parentLog.startTime) / total) * 100);
+            const right = Math.min(100, ((endMs - parentLog.startTime) / total) * 100);
+            document.getElementById('backfill-fill').style.left = left + '%';
+            document.getElementById('backfill-fill').style.width = Math.max(2, right - left) + '%';
+            document.getElementById('backfill-start-handle').style.left = left + '%';
+            document.getElementById('backfill-end-handle').style.left = right + '%';
+            document.getElementById('backfill-track-start').innerText = formatBeijingClock(parentLog.startTime);
+            document.getElementById('backfill-track-end').innerText = formatBeijingClock(parentEnd);
+        }
+        function parseTimeFromInput(id, refDate) {
+            const parts = document.getElementById(id).value.split(':');
+            const d = new Date(refDate);
+            d.setHours(+parts[0]||0, +parts[1]||0, 0, 0);
+            return d.getTime();
         }
 
         function getTodaySegments() {
@@ -1819,6 +1874,7 @@
         function openDrawer() { 
             pickerMode = 'record'; 
             document.getElementById('drawer-title').innerText = "记一笔活动";
+            document.getElementById('parallel-time-row').classList.add('hidden');
             document.getElementById('drawer').classList.remove('hidden'); 
             renderDrawerToggle();
             document.getElementById('drawer-note').value = "";
