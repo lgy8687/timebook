@@ -50,8 +50,8 @@
         .clock-segment { fill: none; stroke-width: 14; stroke-linecap: butt; transition: stroke-dasharray .3s linear, stroke-dashoffset .3s linear; cursor: pointer; }
         .donut-segment { fill: none; stroke-width: 15; stroke-linecap: butt; cursor: pointer; transition: stroke-width .18s ease, opacity .18s ease; }
         .donut-segment:hover { stroke-width: 17; opacity: .9; }
-        .day-remain-track { height: 26px; border-radius: 999px; background: linear-gradient(180deg, #e8d5a3 0%, #d4b878 100%); overflow: hidden; position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,0.12); }
-        .day-remain-fill { height: 100%; border-radius: 999px; background: linear-gradient(180deg, #3a3535 0%, #2a2a2a 100%); transition: width .35s linear; position: absolute; left: 0; top: 0; }
+        .day-remain-track { height: 26px; border-radius: 999px; background: linear-gradient(180deg, #3a3535 0%, #2a2a2a 100%); overflow: hidden; position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,0.12); }
+        .day-remain-fill { height: 100%; border-radius: 999px; background: linear-gradient(180deg, #e8d5a3 0%, #d4b878 100%); transition: width .35s linear; position: absolute; left: 0; top: 0; }
         .day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); z-index: 2; }
         #match-flame { position: absolute; top: 50%; transform: translateY(-50%); font-size: 14px; z-index: 3; pointer-events: none; transition: left .35s linear; filter: drop-shadow(0 0 4px rgba(255,80,0,0.5)); }
         @media (max-width: 720px) {
@@ -714,30 +714,39 @@
                 head.className = "flex justify-between items-center text-base font-black";
                 const titleGroup = document.createElement('div');
                 titleGroup.className = "flex items-center gap-2";
+                const PRESET_COLORS = ['#6366f1','#f59e0b','#ef4444','#10b981','#ec4899','#8b5cf6','#06b6d4','#f97316','#84cc16','#14b8a6','#a855f7','#e11d48'];
                 const colorDot = document.createElement('button');
                 colorDot.type = 'button';
                 colorDot.className = "w-3.5 h-3.5 rounded-full shrink-0 cursor-pointer";
-                colorDot.style.background = c.color || '#94a3b8';
+                colorDot.style.background = c.color || '#6366f1';
                 colorDot.title = "点击修改颜色";
                 colorDot.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const picker = document.createElement('input');
-                    picker.type = 'color';
-                    picker.value = c.color || '#94a3b8';
-                    picker.style.cssText = 'position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0;';
-                    document.body.appendChild(picker);
-                    const update = () => {
-                        c.color = picker.value;
-                        colorDot.style.background = picker.value;
-                        localStorage.setItem('v9_cats', JSON.stringify(cats));
-                        renderReport();
-                    };
-                    picker.addEventListener('input', update);
-                    picker.addEventListener('change', () => { update(); try{document.body.removeChild(picker)}catch(e){} });
-                    picker.addEventListener('blur', () => setTimeout(() => {try{document.body.removeChild(picker)}catch(e){}}, 300));
-                    // 安全兜底：30秒后强制清理
-                    setTimeout(() => {try{document.body.removeChild(picker)}catch(e){}}, 30000);
-                    (picker.showPicker?.() || picker.click());
+                    const old = document.querySelector('.color-picker-popup');
+                    if (old) { old.remove(); return; }
+                    const popup = document.createElement('div');
+                    popup.className = 'color-picker-popup';
+                    popup.style.cssText = 'position:fixed;z-index:9999;background:white;border-radius:20px;padding:12px;box-shadow:0 8px 32px rgba(0,0,0,0.15);top:50%;left:50%;transform:translate(-50%,-50%);width:200px;';
+                    const grid = document.createElement('div');
+                    grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px;';
+                    PRESET_COLORS.forEach(clr => {
+                        const swatch = document.createElement('button');
+                        swatch.type = 'button';
+                        swatch.style.cssText = `width:36px;height:36px;border-radius:50%;background:${clr};border:2px solid ${c.color === clr ? '#0f172a' : '#e2e8f0'};cursor:pointer;`;
+                        swatch.addEventListener('click', (ev) => {
+                            ev.stopPropagation();
+                            c.color = clr;
+                            colorDot.style.background = clr;
+                            localStorage.setItem('v9_cats', JSON.stringify(cats));
+                            renderReport();
+                            popup.remove();
+                        });
+                        grid.appendChild(swatch);
+                    });
+                    popup.appendChild(grid);
+                    // 点击弹窗外关闭
+                    popup.addEventListener('click', (ev) => { if (ev.target === popup) popup.remove(); });
+                    document.body.appendChild(popup);
                 });
                 const title = document.createElement('span');
                 title.innerText = `${c.icon} ${c.name}`;
@@ -1350,16 +1359,16 @@
             const dayStart = beijingPeriodStart(now, DAY_MS);
             const elapsed = Math.min(DAY_MS, Math.max(0, now - dayStart));
             const remain = Math.max(0, DAY_MS - elapsed);
-            const consumedPct = 100 - (remain / DAY_MS) * 100;
+            const remainPct = (remain / DAY_MS) * 100;
             const fill = document.getElementById('day-remain-fill');
             const flame = document.getElementById('match-flame');
             if (!fill) return;
-            fill.style.width = `${consumedPct}%`;
+            fill.style.width = `${remainPct}%`;
             if (flame) {
-                flame.style.left = `calc(${consumedPct}% - 1px)`;
-                flame.style.opacity = (consumedPct > 1 && consumedPct < 99) ? '1' : '0';
+                flame.style.left = `calc(${remainPct}% - 1px)`;
+                flame.style.opacity = (remainPct > 1 && remainPct < 99) ? '1' : '0';
             }
-            setText('day-remain-label', `今天剩余 ${Math.round(100 - consumedPct)}%`);
+            setText('day-remain-label', `今天剩余 ${Math.round(remainPct)}%`);
         }
 
         function updateUI() {
@@ -1481,7 +1490,7 @@
         function addL1() {
             showPrompt("新建一级分类", "输入大类名称", "", (n) => {
                 if (n && n.trim()) {
-                    cats.push({id:Date.now(), name:n.trim(), icon:"📁", color:"#94a3b8", subs: []});
+                    cats.push({id:Date.now(), name:n.trim(), icon:"📁", color:"#6366f1", subs: []});
                     save();
                 }
             });
