@@ -293,23 +293,30 @@
         </div>
     </div>
 
-    <!-- 自定义输入弹窗 (替代 prompt, 移动端友好) - 顶部对齐, 防键盘遮挡 -->
-    <div id="prompt-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex justify-center backdrop-blur-sm fade-in" style="padding-top: 10%;">
-        <div class="bg-white rounded-3xl p-6 w-4/5 max-w-sm shadow-xl" style="max-height: 80vh;">
-            <h3 id="prompt-title" class="text-sm font-black mb-4">输入</h3>
-            <input type="text" id="prompt-input" class="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 mb-4" autocomplete="off">
+    <!-- 自定义输入弹窗 (替代 prompt, 移动端友好) -->
+    <div id="prompt-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in">
+        <div class="bg-white rounded-3xl p-5 w-4/5 max-w-xs shadow-xl" id="prompt-modal-body">
+            <h3 id="prompt-title" class="text-sm font-black mb-3">输入</h3>
+            <input type="text" id="prompt-input" class="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 mb-3" autocomplete="off">
             <div class="flex space-x-3">
-                <button onclick="closePrompt(null)" class="flex-1 py-3 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
-                <button onclick="confirmPrompt()" class="flex-1 py-3 text-sm font-bold text-white bg-indigo-600 rounded-2xl">确定</button>
+                <button onclick="closePrompt(null)" class="flex-1 py-2.5 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
+                <button onclick="confirmPrompt()" class="flex-1 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-2xl">确定</button>
             </div>
         </div>
     </div>
 
-    <!-- 表情图标选择器 (emoji picker) - 紧凑模式 -->
-    <div id="emoji-picker" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in">
-        <div class="bg-white rounded-2xl p-4 w-4/5 max-w-xs shadow-xl h-fit">
-            <h3 id="emoji-picker-title" class="text-xs font-black mb-2 text-center text-slate-500">选择图标</h3>
-            <div id="emoji-picker-grid" class="grid grid-cols-6 gap-1.5"></div>
+    <!-- 新建分类弹窗 (名字 + emoji 一体) -->
+    <div id="new-cat-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in">
+        <div class="bg-white rounded-2xl p-4 w-4/5 max-w-xs shadow-xl flex flex-col" style="max-height: 85vh;">
+            <h3 class="text-xs font-black text-slate-500 mb-3 text-center">新建一级分类</h3>
+            <input type="text" id="new-cat-input" placeholder="输入大类名称" class="w-full bg-slate-50 border-none rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 mb-3" autocomplete="off">
+            <div class="flex-1 overflow-y-auto mb-3">
+                <div id="new-cat-emoji-grid" class="grid grid-cols-6 gap-1.5"></div>
+            </div>
+            <div class="flex space-x-3 shrink-0">
+                <button onclick="closeNewCatModal()" class="flex-1 py-2.5 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
+                <button onclick="confirmNewCatModal()" class="flex-1 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-2xl">确定</button>
+            </div>
         </div>
     </div>
 
@@ -543,40 +550,40 @@
             if (promptCallback) promptCallback(null);
             promptCallback = null;
         }
-        // --- Emoji 图标选择器 ---
-        let emojiPickerCallback = null;
-        function openEmojiPicker(title, callback) {
-            document.getElementById('emoji-picker-title').innerText = title || '选择图标';
-            emojiPickerCallback = callback;
-            const grid = document.getElementById('emoji-picker-grid');
+        // --- Emoji 图标选择器 (新建分类用) ---
+        let newCatSelectedEmoji = "📁";
+        function showNewCatModal() {
+            newCatSelectedEmoji = "📁";
+            document.getElementById('new-cat-input').value = "";
+            const grid = document.getElementById('new-cat-emoji-grid');
             grid.innerHTML = '';
             ENJOY_ICONS.forEach(emoji => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
-                btn.className = 'w-9 h-9 rounded-lg text-base flex items-center justify-center bg-slate-50 hover:bg-indigo-100 active:bg-indigo-200 transition-colors';
+                btn.className = 'w-9 h-9 rounded-lg text-base flex items-center justify-center bg-slate-50 active:bg-indigo-200 transition-colors';
                 btn.innerText = emoji;
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const cb = emojiPickerCallback;
-                    document.getElementById('emoji-picker').classList.add('hidden');
-                    emojiPickerCallback = null;
-                    if (cb) cb(emoji);
+                    // 取消之前高亮
+                    grid.querySelectorAll('.ring-2').forEach(el => el.classList.remove('ring-2', 'ring-indigo-500'));
+                    btn.classList.add('ring-2', 'ring-indigo-500');
+                    newCatSelectedEmoji = emoji;
                 });
                 grid.appendChild(btn);
             });
-            // 点击背景关闭
-            document.getElementById('emoji-picker').classList.remove('hidden');
+            document.getElementById('new-cat-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('new-cat-input').focus(), 100);
         }
-        // 点击 emoji-picker 背景关闭
-        document.addEventListener('click', (e) => {
-            const picker = document.getElementById('emoji-picker');
-            if (picker && !picker.classList.contains('hidden') && e.target === picker) {
-                const cb = emojiPickerCallback;
-                picker.classList.add('hidden');
-                emojiPickerCallback = null;
-                if (cb) cb(null);
-            }
-        });
+        function closeNewCatModal() {
+            document.getElementById('new-cat-modal').classList.add('hidden');
+        }
+        function confirmNewCatModal() {
+            const name = document.getElementById('new-cat-input').value.trim();
+            if (!name) { document.getElementById('new-cat-input').focus(); return; }
+            document.getElementById('new-cat-modal').classList.add('hidden');
+            cats.push({id:Date.now(), name:name, icon: newCatSelectedEmoji, color:"#3b82f6", subs: []});
+            save();
+        }
         // 回车触发确定
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('prompt-input').addEventListener('keydown', e => {
@@ -584,6 +591,9 @@
             });
             document.getElementById('edit-input').addEventListener('keydown', e => {
                 if (e.key === 'Enter') confirmEdit();
+            });
+            document.getElementById('new-cat-input').addEventListener('keydown', e => {
+                if (e.key === 'Enter') confirmNewCatModal();
             });
         });
 
@@ -1634,15 +1644,7 @@
             executeRecord(match.l1, match.l2, tag, val); el.value = "";
         }
         function addL1() {
-            showPrompt("新建一级分类", "输入大类名称", "", (n) => {
-                if (n && n.trim()) {
-                    const name = n.trim();
-                    openEmojiPicker("为「" + name + "」选择图标", (icon) => {
-                        cats.push({id:Date.now(), name:name, icon: icon || "📁", color:"#3b82f6", subs: []});
-                        save();
-                    });
-                }
-            });
+            showNewCatModal();
         }
         function addS(id) {
             showPrompt("新建子分类", "输入子类名称", "", (n) => {
@@ -1664,7 +1666,7 @@
                 logs.forEach(l => { if (l.l1 === oldName) l.l1 = cat.name; });
                 if (current?.l1 === oldName) current.l1 = cat.name;
                 if (selL1 === oldName) selL1 = cat.name;
-                openEmojiPicker("为「" + cat.name + "」选择图标", (icon) => {
+                showPrompt("编辑图标", "输入一个 Emoji", cat.icon || "📁", (icon) => {
                     if (icon && icon.trim()) cat.icon = icon.trim();
                     showPrompt("编辑颜色", "例如 #6366f1", cat.color || "#94a3b8", (color) => {
                         if (color && color.trim()) cat.color = color.trim();
