@@ -50,10 +50,10 @@
         .clock-segment { fill: none; stroke-width: 14; stroke-linecap: butt; transition: stroke-dasharray .3s linear, stroke-dashoffset .3s linear; cursor: pointer; }
         .donut-segment { fill: none; stroke-width: 15; stroke-linecap: butt; cursor: pointer; transition: stroke-width .18s ease, opacity .18s ease; }
         .donut-segment:hover { stroke-width: 17; opacity: .9; }
-        .day-remain-track { height: 26px; border-radius: 999px; background: #a0764a; overflow: hidden; position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,0.15); }
-        .day-remain-fill { height: 100%; border-radius: 999px; background: #5a5a5a; transition: width .35s linear; position: absolute; left: 0; top: 0; }
+        .day-remain-track { height: 26px; border-radius: 999px; background: #d4c5a9; overflow: hidden; position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,0.12); }
+        .day-remain-fill { height: 100%; border-radius: 999px; background: #2a2a2a; transition: width .35s linear; position: absolute; left: 0; top: 0; }
         .day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); z-index: 2; }
-        #match-flame { position: absolute; top: 50%; transform: translateY(-50%); font-size: 14px; z-index: 3; pointer-events: none; transition: left .35s linear; filter: drop-shadow(0 0 3px rgba(255,100,0,0.4)); }
+        #match-flame { position: absolute; top: 50%; transform: translateY(-50%); font-size: 14px; z-index: 3; pointer-events: none; transition: left .35s linear; filter: drop-shadow(0 0 4px rgba(255,80,0,0.5)); }
         @media (max-width: 720px) {
             .flow-dashboard { grid-template-columns: 1fr; max-width: 420px; }
             .clock-stage { grid-template-columns: 1fr 1fr; max-width: 360px; margin: 0 auto; gap: 8px; padding: 6px 0; }
@@ -582,7 +582,7 @@
                 const compact = !showShortcutIcons;
                 // 与设置中心同款模板（上图标下文字）
                 item.className = compact
-                    ? "bg-white rounded-xl p-1.5 text-center text-xs font-bold relative border border-slate-50 btn-active"
+                    ? "bg-white rounded-xl p-1.5 text-center text-sm font-bold relative border border-slate-50 btn-active"
                     : "bg-white rounded-2xl p-2 text-center text-sm font-bold shadow-sm relative border border-slate-50 btn-active";
                 let pressTimer = null;
                 let longPressed = false;
@@ -611,12 +611,12 @@
 
                 if (showShortcutIcons) {
                     const icon = document.createElement('div');
-                    icon.className = compact ? "text-lg leading-none mb-0.5" : "text-2xl leading-none mb-0.5";
+                    icon.className = "text-2xl leading-none mb-0.5";
                     icon.innerText = s.icon;
                     item.appendChild(icon);
                 }
                 const label = document.createElement('div');
-                label.className = compact ? "text-xs font-bold leading-tight" : "text-sm font-bold leading-tight";
+                label.className = "text-sm font-bold leading-tight";
                 label.innerText = s.l2 || s.l1;
                 item.appendChild(label);
                 grid.appendChild(item);
@@ -677,16 +677,16 @@
                 const card = document.createElement('div');
                 const compact = !showShortcutIcons;
                 card.className = compact
-                    ? "bg-slate-50 rounded-xl p-1.5 text-center text-xs font-bold relative"
+                    ? "bg-slate-50 rounded-xl p-1.5 text-center text-sm font-bold relative"
                     : "bg-slate-50 rounded-2xl p-2 text-center text-sm font-bold relative";
                 if (showShortcutIcons) {
                     const icon = document.createElement('div');
-                    icon.className = compact ? "text-lg leading-none mb-0.5" : "text-2xl leading-none mb-0.5";
+                    icon.className = "text-2xl leading-none mb-0.5";
                     icon.innerText = s.icon;
                     card.appendChild(icon);
                 }
                 const label = document.createElement('div');
-                label.className = compact ? "text-xs font-bold leading-tight" : "text-sm font-bold leading-tight";
+                label.className = "text-sm font-bold leading-tight";
                 label.innerText = s.l2 || s.l1;
                 card.appendChild(label);
                 if (configEditMode) {
@@ -714,21 +714,32 @@
                 head.className = "flex justify-between items-center text-base font-black";
                 const titleGroup = document.createElement('div');
                 titleGroup.className = "flex items-center gap-2";
-                const colorDot = document.createElement('div');
-                colorDot.className = "relative w-3.5 h-3.5 rounded-full shrink-0";
+                const colorDot = document.createElement('button');
+                colorDot.type = 'button';
+                colorDot.className = "w-3.5 h-3.5 rounded-full shrink-0 cursor-pointer";
                 colorDot.style.background = c.color || '#94a3b8';
                 colorDot.title = "点击修改颜色";
-                const colorInput = document.createElement('input');
-                colorInput.type = 'color';
-                colorInput.value = c.color || '#94a3b8';
-                colorInput.style.cssText = 'position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;padding:0;margin:0;border:none;display:block;';
-                colorInput.addEventListener('input', () => {
-                    c.color = colorInput.value;
-                    colorDot.style.background = colorInput.value;
-                    localStorage.setItem('v9_cats', JSON.stringify(cats));
-                    renderReport();
+                colorDot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const picker = document.createElement('input');
+                    picker.type = 'color';
+                    picker.value = c.color || '#94a3b8';
+                    picker.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;opacity:0;z-index:9999;';
+                    document.body.appendChild(picker);
+                    const update = () => {
+                        c.color = picker.value;
+                        colorDot.style.background = picker.value;
+                        localStorage.setItem('v9_cats', JSON.stringify(cats));
+                        renderReport();
+                    };
+                    picker.addEventListener('input', update);
+                    picker.addEventListener('change', () => { update(); document.body.removeChild(picker); });
+                    picker.addEventListener('blur', () => setTimeout(() => {
+                        if (document.body.contains(picker)) document.body.removeChild(picker);
+                    }, 500));
+                    if (picker.showPicker) picker.showPicker();
+                    else picker.click();
                 });
-                colorDot.appendChild(colorInput);
                 const title = document.createElement('span');
                 title.innerText = `${c.icon} ${c.name}`;
                 titleGroup.append(colorDot, title);
