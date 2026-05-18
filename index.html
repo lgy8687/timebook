@@ -319,34 +319,32 @@
             <div id="drawer-footer" class="p-6 bg-white shrink-0 border-t border-slate-50">
                 <!-- 并行模式：时间（上面） + 进度条（下面） -->
                 <div id="parallel-time-row" class="hidden space-y-2 mb-3">
-                    <!-- 开始 + 结束时间（三个数字框 HH:MM:SS，手机端友好） -->
+                    <!-- 开始 → 结束（一行左右，手机端三洞输入） -->
                     <div class="flex items-center gap-2">
-                        <span class="text-[9px] font-bold text-slate-400 shrink-0">开始</span>
-                        <div class="flex items-center gap-0.5 bg-slate-50 rounded-lg px-2 py-1 flex-1">
+                        <span class="text-[9px] font-bold text-slate-400 shrink-0">📅</span>
+                        <div class="flex items-center gap-0.5 bg-slate-50 rounded-lg px-2 py-1">
                             <input type="text" id="ps-h" inputmode="numeric" maxlength="2"
                                 class="w-6 bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded"
                                 value="08" placeholder="HH" autocomplete="off">
-                            <span class="text-slate-300 font-bold text-xs">:</span>
+                            <span class="text-slate-300 font-bold text-[10px]">:</span>
                             <input type="text" id="ps-m" inputmode="numeric" maxlength="2"
                                 class="w-6 bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded"
                                 value="00" placeholder="MM" autocomplete="off">
-                            <span class="text-slate-300 font-bold text-xs">:</span>
+                            <span class="text-slate-300 font-bold text-[10px]">:</span>
                             <input type="text" id="ps-s" inputmode="numeric" maxlength="2"
                                 class="w-6 bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded"
                                 value="00" placeholder="SS" autocomplete="off">
                         </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-[9px] font-bold text-slate-400 shrink-0">结束</span>
-                        <div class="flex items-center gap-0.5 bg-slate-50 rounded-lg px-2 py-1 flex-1">
+                        <span class="text-slate-300 text-[10px] font-bold">→</span>
+                        <div class="flex items-center gap-0.5 bg-slate-50 rounded-lg px-2 py-1">
                             <input type="text" id="pe-h" inputmode="numeric" maxlength="2"
                                 class="w-6 bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded"
                                 value="18" placeholder="HH" autocomplete="off">
-                            <span class="text-slate-300 font-bold text-xs">:</span>
+                            <span class="text-slate-300 font-bold text-[10px]">:</span>
                             <input type="text" id="pe-m" inputmode="numeric" maxlength="2"
                                 class="w-6 bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded"
                                 value="00" placeholder="MM" autocomplete="off">
-                            <span class="text-slate-300 font-bold text-xs">:</span>
+                            <span class="text-slate-300 font-bold text-[10px]">:</span>
                             <input type="text" id="pe-s" inputmode="numeric" maxlength="2"
                                 class="w-6 bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded"
                                 value="00" placeholder="SS" autocomplete="off">
@@ -1710,6 +1708,13 @@
             if (endMs <= startMs) endMs = Math.min(parentEnd, startMs + 60000);
             const left = Math.max(0, ((startMs - parentLog.startTime) / total) * 100);
             const right = Math.min(100, ((endMs - parentLog.startTime) / total) * 100);
+            // 把钳制后的值写回字段（让用户看到被限制）
+            if (startMs !== parseTimeFromInput('ps', parentLog.startTime)) {
+                setTimeInFields('ps', new Date(startMs));
+            }
+            if (endMs !== parseTimeFromInput('pe', parentLog.startTime)) {
+                setTimeInFields('pe', new Date(endMs));
+            }
             document.getElementById('backfill-fill').style.left = left + '%';
             document.getElementById('backfill-fill').style.width = Math.max(2, right - left) + '%';
             document.getElementById('backfill-start-handle').style.left = left + '%';
