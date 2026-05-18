@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
@@ -119,7 +122,10 @@
                 </div>
             </div>
         </div>
-        <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
+        <div class="flex items-center gap-2">
+            <span id="cache-buster" class="text-[9px] font-bold text-slate-200">v2-mobile-fix</span>
+            <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
+        </div>
     </header>
 
     <main class="flex-1 overflow-y-auto p-4 pb-48">
@@ -199,6 +205,7 @@
                 <div class="text-right">
                     <div id="report-cur-l2" class="text-base font-black text-indigo-600">空闲</div>
                     <div id="report-cur-timer" class="text-sm font-mono font-black text-slate-400">00:00:00</div>
+                    <div id="page-version-badge" class="text-[8px] font-bold text-slate-200 mt-1">v2-mobile-fix</div>
                 </div>
             </div>
 
@@ -319,9 +326,8 @@
             <div id="drawer-footer" class="p-6 bg-white shrink-0 border-t border-slate-50">
                 <!-- 并行模式：时间（上面） + 进度条（下面） -->
                 <div id="parallel-time-row" class="hidden space-y-2 mb-3">
-                    <!-- 开始 → 结束（一行左右，手机端三洞输入） -->
-                    <div class="flex items-center gap-2">
-                        <span class="text-[9px] font-bold text-slate-400 shrink-0">📅</span>
+                    <!-- 开始 → 结束（开始居左、结束居右） -->
+                    <div class="flex items-center justify-between">
                         <div class="flex items-center gap-0.5 bg-slate-50 rounded-lg px-2 py-1">
                             <input type="text" id="ps-h" inputmode="numeric" maxlength="2"
                                 class="w-6 bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded"
@@ -335,7 +341,7 @@
                                 class="w-6 bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded"
                                 value="00" placeholder="SS" autocomplete="off">
                         </div>
-                        <span class="text-slate-300 text-[10px] font-bold">→</span>
+                        <span class="text-slate-300 text-[10px] font-bold mx-1 shrink-0">→</span>
                         <div class="flex items-center gap-0.5 bg-slate-50 rounded-lg px-2 py-1">
                             <input type="text" id="pe-h" inputmode="numeric" maxlength="2"
                                 class="w-6 bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded"
@@ -1584,6 +1590,7 @@
             document.getElementById('drawer-note').placeholder = '备注（选填）';
             // 预填：开始=父活动起点，结束=父活动终点
             const parentEnd = parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
+            _backfillRange = { start: parentLog.startTime, end: parentEnd };
             setTimeInFields('ps', new Date(parentLog.startTime));
             setTimeInFields('pe', new Date(parentEnd));
             // 更新进度条
@@ -1735,25 +1742,131 @@
             document.getElementById(prefix + '-m').value = String(date.getMinutes()).padStart(2,'0');
             document.getElementById(prefix + '-s').value = String(date.getSeconds()).padStart(2,'0');
         }
-        // 时间三字段：自动跳转 + 范围限制
+        // 时间三字段：全选 + 自动跳转 + 钳制到父级区间 + 实时红白校验
+        let _backfillRange = null; // { start: ms, end: ms }
+
         function initTimeField(el, max) {
+            // 移动端：touchstart 在键盘弹起之前触发，此时选中不会被中断
+            el.addEventListener('touchstart', function() {
+                this.select();
+            });
+            // focus：轮询选中直到成功或超时（兼容各种设备键盘速度）
+            el.addEventListener('focus', function() {
+                // 立即先试一次
+                this.setSelectionRange(0, this.value.length);
+                // 每 100ms 检查一次是否已选中，未选中则重试
+                let tries = 0;
+                const poll = setInterval(() => {
+                    tries++;
+                    if (document.activeElement !== this) {
+                        clearInterval(poll);
+                        return;
+                    }
+                    if (this.selectionStart === 0 && this.selectionEnd === this.value.length) {
+                        clearInterval(poll);
+                    } else {
+                        this.setSelectionRange(0, this.value.length);
+                    }
+                    if (tries > 20) clearInterval(poll); // 2s 超时
+                }, 100);
+            });
             el.addEventListener('input', function() {
                 this.value = this.value.replace(/\D/g, '').slice(0, 2);
                 if (this.value.length >= 2) {
-                    const parent = this.parentElement;
-                    const next = parent.querySelector('input[type="text"]:not([id="' + this.id + '"])');
-                    // 找下一个输入框
-                    const all = parent.querySelectorAll('input[type="text"]');
+                    const all = this.parentElement.querySelectorAll('input[type="text"]');
                     const idx = Array.from(all).indexOf(this);
-                    if (idx >= 0 && idx < all.length - 1) all[idx + 1].focus();
+                    if (idx >= 0 && idx < all.length - 1) {
+                        const next = all[idx + 1];
+                        next.focus();
+                        next.select();
+                    }
                 }
+                // 实时校验：边输入边显示是否在父级区间内
+                const prefix = this.id.replace(/-(h|m|s)$/, '');
+                validateRealtime(prefix);
             });
             el.addEventListener('blur', function() {
                 const val = parseInt(this.value);
                 if (isNaN(val)) this.value = '00';
-                else if (val > max) this.value = String(max).padStart(2, '0');
-                else this.value = String(val).padStart(2, '0');
+                else this.value = String(Math.min(val, max)).padStart(2, '0');
+                // 失去焦点时：钳制到父级区间
+                snapTimeToRange();
             });
+        }
+
+        // 实时校验：仅变色，不修正（让用户看到红色知道超了）
+        // 只检查是否越父级边界，交叉校验 blur 时做
+        function validateRealtime(prefix) {
+            if (!_backfillRange) return;
+            const { start: prStart, end: prEnd } = _backfillRange;
+            const ms = parseTimeFromInput(prefix, prStart);
+            const ok = ms >= prStart && ms <= prEnd;
+            setFieldColor(prefix, ok ? '' : '#fee2e2');
+        }
+
+        function setFieldColor(prefix, bg) {
+            ['-h','-m','-s'].forEach(suf => {
+                const el = document.getElementById(prefix + suf);
+                if (!el) return;
+                if (bg) {
+                    el.style.background = bg;
+                    el.style.color = '#dc2626';
+                } else {
+                    el.style.background = '';
+                    el.style.color = '';
+                }
+            });
+        }
+
+        // 失焦时钳制：确保开始和结束都在父级范围内，且开始 < 结束
+        function snapTimeToRange() {
+            if (!_backfillRange) return;
+            const { start: prStart, end: prEnd } = _backfillRange;
+
+            const rawPs = parseTimeFromInput('ps', prStart);
+            const rawPe = parseTimeFromInput('pe', prStart);
+
+            // 分别钳制到父级区间
+            let sClamped = Math.max(prStart, Math.min(rawPs, prEnd));
+            let eClamped = Math.min(prEnd, Math.max(rawPe, prStart));
+
+            // 交叉约束：至少差1分钟
+            if (eClamped - sClamped < 60000) {
+                // 先尝试扩展 pe
+                eClamped = Math.min(prEnd, sClamped + 60000);
+                // 如果 pe 被父级顶住了，减少 ps
+                if (eClamped - sClamped < 60000) {
+                    sClamped = Math.max(prStart, eClamped - 60000);
+                }
+            }
+
+            const sChanged = sClamped !== rawPs;
+            const eChanged = eClamped !== rawPe;
+
+            if (sChanged) {
+                setTimeInFields('ps', new Date(sClamped));
+                flashRed('ps');
+            }
+            if (eChanged) {
+                setTimeInFields('pe', new Date(eClamped));
+                flashRed('pe');
+            }
+            // 如果没被修正但还红着，清除红色
+            if (!sChanged) setFieldColor('ps', '');
+            if (!eChanged) setFieldColor('pe', '');
+
+            syncBackfillProgress({ startTime: prStart, endTime: prEnd, duration: (prEnd - prStart) / 60000 });
+        }
+
+        // 闪烁红色提示被自动修正
+        let _snapRedTimers = {};
+        function flashRed(prefix) {
+            if (_snapRedTimers[prefix]) clearTimeout(_snapRedTimers[prefix]);
+            setFieldColor(prefix, '#fee2e2');
+            _snapRedTimers[prefix] = setTimeout(() => {
+                setFieldColor(prefix, '');
+                delete _snapRedTimers[prefix];
+            }, 1200);
         }
         // 初始化所有时间字段
         ['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s'].forEach(id => {
@@ -2333,12 +2446,11 @@
                 setText('report-cur-timer', "00:00:00");
             }
 
-            // 每秒才重建 SVG（避免每帧重建导致卡顿）
+            // 每秒更新时钟 SVG
             const sec = Math.floor(now / 1000);
             if (sec !== lastSecondTs) {
                 lastSecondTs = sec;
                 updateUI();
-                renderReport();
             }
         }
 
@@ -2474,6 +2586,8 @@
                 }
             });
             const btn = document.getElementById('nav-'+t); if(btn) btn.classList.replace('text-slate-400','text-indigo-600');
+            // 切到报表页时刷新
+            if (t === 'report') renderReport();
         }
         function closeDrawer() { document.getElementById('drawer').classList.add('hidden'); pickerMode = 'record'; _parallelCallback = null; }
         function handleFreeInput() {
