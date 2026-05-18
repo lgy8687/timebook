@@ -1941,35 +1941,7 @@ function renderDayRemain() {
 }
 
 function updateUI() {
-    const now = Date.now();
-    const nowDate = new Date(now + BJ_OFFSET);
     renderFlow();
-    const inner = document.getElementById('report-inner-ring');
-    if(inner) inner.setAttribute('stroke-dasharray', `${((nowDate.getUTCMinutes()*60+nowDate.getUTCSeconds())/3600)*239} 239`);
-    const outer = document.getElementById('report-outer-segments');
-    if(outer) {
-        outer.innerHTML = "";
-        const dayStart = beijingPeriodStart(now, DAY_MS);
-        const dayEnd = dayStart + DAY_MS;
-        const todayLogs = logs
-            .map(l => ({ ...l, endTime: l.endTime || l.startTime }))
-            .filter(l => l.endTime > dayStart && l.startTime < dayEnd);
-        if(current) todayLogs.unshift({...current, endTime: Date.now()});
-        todayLogs.forEach(log => {
-            const start = Math.max(log.startTime, dayStart);
-            const end = Math.min(log.endTime, dayEnd);
-            if (end <= start) return;
-            const s = ((start - dayStart) / (dayEnd - dayStart)) * 360;
-            const e = ((end - dayStart) / (dayEnd - dayStart)) * 360;
-            const c = log.color || cats.find(c=>c.name===log.l1)?.color || "#cbd5e1";
-            const seg = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            seg.setAttribute("cx","60"); seg.setAttribute("cy","60"); seg.setAttribute("r","50");
-            seg.setAttribute("stroke",c); seg.setAttribute("class","segment");
-            seg.setAttribute("stroke-dasharray", `${((e-s)/360)*314} 314`);
-            seg.setAttribute("stroke-dashoffset", -(s/360)*314);
-            outer.appendChild(seg);
-        });
-    }
 }
 
 window.addEventListener('load', () => {});
