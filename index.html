@@ -1239,7 +1239,13 @@
             if (shortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
             shortcuts.push({ l1, l2, icon: icon || "📌" });
             localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
-            renderPicker(); // 刷新选取器，已选的立即变灰
+            renderPicker();
+            renderAll();
+        }
+        function removeShortcut(l1, l2) {
+            shortcuts = shortcuts.filter(s => !(s.l1 === l1 && s.l2 === l2));
+            localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
+            renderPicker();
             renderAll();
         }
         function renderDrawerToggle() {
@@ -1297,9 +1303,10 @@
                         if (already) {
                             btn.style.background = '#f1f5f9';
                             btn.style.color = '#94a3b8';
-                            btn.style.cursor = 'default';
+                            btn.style.cursor = 'pointer';
                             btn.style.opacity = '0.6';
                             btn.style.borderLeft = `4px solid ${c.color || '#6366f1'}`;
+                            btn.addEventListener('click', () => removeShortcut(c.name, ""));
                         } else {
                             btn.addEventListener('click', () => addShortcut(c.name, "", c.icon));
                         }
@@ -1315,9 +1322,10 @@
                         if (already) {
                             btn.style.background = '#f1f5f9';
                             btn.style.color = '#94a3b8';
-                            btn.style.cursor = 'default';
+                            btn.style.cursor = 'pointer';
                             btn.style.opacity = '0.6';
                             btn.style.borderLeft = `4px solid ${c.color || '#6366f1'}`;
+                            btn.addEventListener('click', () => removeShortcut(c.name, s));
                         } else {
                             btn.addEventListener('click', () => addShortcut(c.name, s, getSubIcon(s, c.icon)));
                         }
