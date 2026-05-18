@@ -137,7 +137,17 @@
                     <h3 class="text-xs font-black text-slate-300 uppercase tracking-widest">快捷入口</h3>
                     <span onclick="switchTab('config')" class="text-xs text-indigo-400 font-bold">去设置</span>
                 </div>
-                <div id="home-shortcuts" class="grid grid-cols-3 gap-3"></div>
+                <div id="home-shortcuts" class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1"></div>
+            </div>
+
+            <!-- ↳ 并行快捷区 -->
+            <div id="parallel-section" class="space-y-2">
+                <div class="flex items-center gap-2 px-1">
+                    <span class="text-[14px] text-violet-400">↳</span>
+                    <span class="text-[9px] font-black text-violet-400 uppercase tracking-widest">并行</span>
+                    <span id="parallel-status" class="hidden text-[8px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">运行中</span>
+                </div>
+                <div id="parallel-shortcuts" class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 ml-5 pl-3 border-l-2 border-dashed border-violet-200"></div>
             </div>
             <div class="flex space-x-2">
                 <input type="text" id="free-input" placeholder="输入：#标签 内容" class="flex-1 bg-white border-none rounded-2xl px-4 py-4 shadow-sm text-base focus:ring-2 focus:ring-indigo-100">
@@ -289,7 +299,7 @@
         </button>
     </nav>
 
-    <div id="drawer" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex flex-col justify-end backdrop-blur-sm">
+    <div id="drawer" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex flex-col justify-end backdrop-blur-sm" onclick="if(event.target===this)closeDrawer()">
         <div class="bg-white w-full rounded-t-[40px] h-3/4 drawer-up flex flex-col">
             <div class="p-6 flex justify-between items-center shrink-0 border-b border-slate-50">
                 <h2 id="drawer-title" class="text-lg font-black">选择分类</h2>
@@ -303,6 +313,19 @@
                 <div class="w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit" id="drawer-l2"></div>
             </div>
             <div id="drawer-footer" class="p-6 bg-white shrink-0 border-t border-slate-50">
+                <!-- 并行模式时间栏 -->
+                <div id="parallel-time-row" class="hidden flex items-center gap-2 mb-3 p-2.5 bg-amber-50 rounded-2xl border border-amber-100">
+                    <span class="text-[9px] font-black text-amber-500 shrink-0">📅</span>
+                    <div class="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1.5 flex-1">
+                        <span class="text-[9px] font-bold text-slate-400">开始</span>
+                        <input type="time" id="parallel-start" class="flex-1 bg-transparent text-xs font-mono font-bold text-slate-700 border-none focus:outline-none">
+                    </div>
+                    <div class="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1.5">
+                        <span class="text-[9px] font-bold text-slate-400">时长</span>
+                        <input type="number" id="parallel-dur" value="30" min="1" step="5" class="w-12 bg-transparent text-xs font-mono font-bold text-slate-700 border-none text-center focus:outline-none">
+                        <span class="text-[9px] font-bold text-slate-400">分</span>
+                    </div>
+                </div>
                 <input type="text" id="drawer-note" placeholder="选填备注..." class="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500">
             </div>
         </div>
@@ -347,7 +370,7 @@
                 <!-- 开始时间 -->
                 <div class="flex items-center bg-slate-50 rounded-2xl px-4 py-2">
                     <span class="text-[10px] font-bold text-slate-400 mr-2">开始</span>
-                    <input type="time" id="edit-start-time" class="flex-1 bg-transparent text-sm font-mono font-bold text-slate-700 border-none focus:outline-none">
+                    <input type="time" id="edit-start-time" class="flex-1 bg-transparent text-sm font-mono font-bold text-slate-700 border-none focus:outline-none" step="1">
                 </div>
                 <!-- 时长 -->
                 <div class="flex items-center bg-slate-50 rounded-2xl px-4 py-2">
@@ -380,6 +403,7 @@
         ];
         let logs = JSON.parse(localStorage.getItem('v9_logs')) || [];
         let current = JSON.parse(localStorage.getItem('v9_current')) || null;
+        let parallelCurrent = JSON.parse(localStorage.getItem('v9_parallel')) || null;
         let labelFontSize = parseInt(localStorage.getItem('v9_labelFontSize')) || 13;
         // 子类图标映射
         const SUB_ICON_MAP = {
@@ -432,6 +456,7 @@
 
         function renderAll() {
             renderShortcuts();
+            renderParallelShortcuts();
             renderLogs();
             renderConfig();
             renderReport();
@@ -487,7 +512,7 @@
 
         function formatForTimeInput(ts) {
             const d = new Date(ts);
-            return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+            return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
         }
 
         function formatShortDuration(ms) {
@@ -521,11 +546,12 @@
             return seg;
         }
 
-        function drawClockSegment(parent, r, startMs, endMs, rangeStart, rangeEnd, color, data) {
+        function drawClockSegment(parent, r, startMs, endMs, rangeStart, rangeEnd, color, data, strokeWidth) {
             const total = rangeEnd - rangeStart;
             const start = Math.max(startMs, rangeStart);
             const end = Math.min(endMs, rangeEnd);
             if (end <= start) return;
+            strokeWidth = strokeWidth || 14;
             const circ = Math.PI * 2 * r;
             const dash = ((end - start) / total) * circ;
             const offset = -((start - rangeStart) / total) * circ;
@@ -533,10 +559,13 @@
             arc.setAttribute("cx", "60");
             arc.setAttribute("cy", "60");
             arc.setAttribute("r", r);
-            arc.setAttribute("class", "clock-segment");
+            arc.setAttribute("fill", "none");
             arc.setAttribute("stroke", color);
+            arc.setAttribute("stroke-width", strokeWidth);
+            arc.setAttribute("stroke-linecap", "butt");
             arc.setAttribute("stroke-dasharray", `${Math.max(0.5, dash - 0.5)} ${circ}`);
             arc.setAttribute("stroke-dashoffset", offset);
+            arc.setAttribute("opacity", strokeWidth < 14 ? "0.7" : "1");
             parent.appendChild(arc);
         }
 
@@ -751,7 +780,7 @@
                 if (timeStr) {
                     const parts = timeStr.split(':');
                     const d = new Date(log.startTime);
-                    d.setHours(+parts[0], +parts[1], 0, 0);
+                    d.setHours(+parts[0], +parts[1], parts[2]||0, 0);
                     log.startTime = d.getTime();
                 }
                 // 时长
@@ -853,6 +882,30 @@
                 executeAddShortcut(l1, l2);
             } else if (pickerMode === 'shortcut-edit') {
                 executeEditShortcut(l1, l2);
+            } else if (pickerMode === 'parallel-record') {
+                // 补录并行：从抽屉取时间
+                const cat = getCat(l1);
+                const t = document.getElementById('parallel-start').value.split(':');
+                const dur = parseInt(document.getElementById('parallel-dur').value) || 30;
+                const now = Date.now();
+                const d = new Date(now);
+                d.setHours(+t[0], +t[1], 0, 0);
+                if (d.getTime() > now) d.setDate(d.getDate() - 1);
+                const entry = {
+                    id: Date.now() + Math.random(),
+                    startTime: d.getTime(),
+                    endTime: d.getTime() + dur * 60000,
+                    duration: dur,
+                    l1, l2: l2 || '',
+                    tag: '', note: document.getElementById('drawer-note').value || '并行补录',
+                    color: cat?.color || '#cbd5e1',
+                    parallel: true,
+                    parentId: null
+                };
+                logs.unshift(entry);
+                localStorage.setItem('v9_logs', JSON.stringify(logs));
+                closeDrawer();
+                renderAll();
             } else if (pickerMode === 'edit' || (pickerMode && pickerMode.startsWith('parallel-'))) {
                 const cb = _parallelCallback;
                 closeDrawer();
@@ -866,14 +919,19 @@
         function renderShortcuts() {
             const grid = document.getElementById('home-shortcuts');
             grid.innerHTML = "";
+            // 开头 ＋ 按钮（记一笔）
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = "bg-indigo-50 rounded-xl w-12 h-12 shrink-0 flex items-center justify-center text-lg font-black text-indigo-500 btn-active";
+            addBtn.innerText = "＋";
+            addBtn.title = "记一笔活动";
+            addBtn.addEventListener('click', () => { openDrawerForRecord(); });
+            grid.appendChild(addBtn);
+            // 快捷按钮
             shortcuts.forEach((s, idx) => {
                 const item = document.createElement('button');
                 item.type = 'button';
-                const compact = !showShortcutIcons;
-                // 与设置中心同款模板（上图标下文字）
-                item.className = compact
-                    ? "bg-white rounded-xl p-1.5 text-center text-xs font-bold relative border border-slate-50 btn-active"
-                    : "bg-white rounded-2xl p-2 text-center text-xs font-bold shadow-sm relative border border-slate-50 btn-active";
+                item.className = "bg-white rounded-xl w-12 h-12 shrink-0 flex flex-col items-center justify-center text-[10px] font-bold text-slate-700 shadow-sm btn-active";
                 let pressTimer = null;
                 let longPressed = false;
                 const clearPress = () => {
@@ -882,35 +940,120 @@
                 };
                 item.addEventListener('pointerdown', () => {
                     longPressed = false;
-                    pressTimer = setTimeout(() => {
-                        longPressed = true;
-                        editShortcut(idx);
-                    }, 550);
+                    pressTimer = setTimeout(() => { longPressed = true; editShortcut(idx); }, 550);
                 });
                 item.addEventListener('pointerup', clearPress);
                 item.addEventListener('pointerleave', clearPress);
                 item.addEventListener('pointercancel', clearPress);
                 item.addEventListener('click', (e) => {
-                    if (longPressed) {
-                        e.preventDefault();
-                        return;
-                    }
+                    if (longPressed) { e.preventDefault(); return; }
                     pickerMode = 'record';
                     executeRecord(s.l1, s.l2, "", "");
                 });
-
-                if (showShortcutIcons) {
-                    const icon = document.createElement('div');
-                    icon.className = "text-xs leading-none mb-0.5";
-                    icon.innerText = s.icon;
-                    item.appendChild(icon);
-                }
+                const icon = document.createElement('div');
+                icon.className = "text-xs leading-none";
+                icon.innerText = s.icon;
                 const label = document.createElement('div');
-                label.className = "text-xs font-bold leading-tight";
+                label.className = "text-[8px] font-bold leading-tight mt-0.5";
                 label.innerText = s.l2 || s.l1;
-                item.appendChild(label);
+                item.append(icon, label);
                 grid.appendChild(item);
             });
+        }
+        // 并行快捷区
+        function renderParallelShortcuts() {
+            const grid = document.getElementById('parallel-shortcuts');
+            grid.innerHTML = "";
+            // 开头 ＋ 按钮（并行记一笔 → 带时间栏的补录抽屉）
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = "bg-violet-50 rounded-xl w-10 h-10 shrink-0 flex items-center justify-center text-base font-black text-violet-500 btn-active";
+            addBtn.innerText = "＋";
+            addBtn.title = "补录并行活动";
+            addBtn.addEventListener('click', () => { openDrawerForRecord('parallel'); });
+            grid.appendChild(addBtn);
+            // 并行快捷（toggle 行为）
+            shortcuts.forEach((s, idx) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                const isActive = parallelCurrent && parallelCurrent.l1 === s.l1 && parallelCurrent.l2 === s.l2;
+                item.className = (isActive
+                    ? "bg-violet-100 ring-2 ring-violet-400"
+                    : "bg-white border border-slate-100")
+                    + " rounded-xl w-10 h-10 shrink-0 flex flex-col items-center justify-center text-[9px] font-bold text-slate-600 btn-active";
+                const icon = document.createElement('div');
+                icon.className = "text-xs leading-none";
+                icon.innerText = s.icon;
+                const label = document.createElement('div');
+                label.className = "text-[7px] font-bold leading-tight mt-0.5";
+                label.innerText = s.l2 || s.l1;
+                item.append(icon, label);
+                item.addEventListener('click', () => { toggleParallel(s.l1, s.l2, s.icon); });
+                grid.appendChild(item);
+            });
+            updateParallelStatus();
+        }
+        function toggleParallel(l1, l2, icon) {
+            if (parallelCurrent) {
+                // 如果有并行在跑：点同一个就停，点不同的就切换
+                if (parallelCurrent.l1 === l1 && parallelCurrent.l2 === l2) {
+                    // 停止并行
+                    const now = Date.now();
+                    const dur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
+                    logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: null, note: parallelCurrent.note || '并行' });
+                    localStorage.setItem('v9_logs', JSON.stringify(logs));
+                    parallelCurrent = null;
+                    localStorage.removeItem('v9_parallel');
+                } else {
+                    // 切换：停旧的，开新的
+                    const now = Date.now();
+                    const dur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
+                    logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: null, note: parallelCurrent.note || '并行' });
+                    parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '' };
+                    localStorage.setItem('v9_logs', JSON.stringify(logs));
+                    localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+                }
+            } else {
+                // 无并行：开始新的
+                const now = Date.now();
+                parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '' };
+                localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+            }
+            renderParallelShortcuts();
+            renderLogs();
+            renderAll();
+        }
+        function updateParallelStatus() {
+            const badge = document.getElementById('parallel-status');
+            if (!badge) return;
+            if (parallelCurrent) {
+                badge.classList.remove('hidden');
+                badge.innerText = `${parallelCurrent.icon || '⏎'} ${parallelCurrent.l2 || parallelCurrent.l1}`;
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+        // 打开抽屉（普通记录 / 并行记录）
+        function openDrawerForRecord(mode) {
+            _parallelCallback = null;
+            if (mode === 'parallel') {
+                pickerMode = 'parallel-record';
+                document.getElementById('drawer-title').innerText = "➕ 补录并行活动";
+                document.getElementById('parallel-time-row').classList.remove('hidden');
+                document.getElementById('drawer-footer').classList.remove('hidden');
+                document.getElementById('drawer-note').placeholder = "备注（选填）";
+                // 预填当前时间
+                const now = new Date();
+                document.getElementById('parallel-start').value = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+            } else {
+                pickerMode = 'record';
+                document.getElementById('drawer-title').innerText = "记一笔活动";
+                document.getElementById('parallel-time-row').classList.add('hidden');
+                document.getElementById('drawer-footer').classList.remove('hidden');
+                document.getElementById('drawer-note').placeholder = "选填备注...";
+            }
+            document.getElementById('drawer-note').value = "";
+            document.getElementById('drawer').classList.remove('hidden');
         }
 
         function editShortcut(idx) {
@@ -1181,41 +1324,23 @@
             }
         }
 
-        // 创建单行卡片（滑动容器）
+        // 创建单行卡片（滑动直接触发 + ↳补录） 
         function createLogRow(list, log, idx) {
             const wrap = document.createElement('div');
             wrap.className = "swipe-wrap";
 
-            // 左侧按钮（删除）
-            const leftActions = document.createElement('div');
-            leftActions.className = "swipe-actions left";
-            const delBtn = document.createElement('button');
-            delBtn.className = "swipe-action-btn delete";
-            delBtn.innerText = "🗑 删除";
-            delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteLogEntry(log.id); });
-            leftActions.appendChild(delBtn);
-
-            // 右侧按钮（修改）
-            const rightActions = document.createElement('div');
-            rightActions.className = "swipe-actions right";
-            const editBtn = document.createElement('button');
-            editBtn.className = "swipe-action-btn edit";
-            editBtn.innerText = "✏️ 修改";
-            editBtn.addEventListener('click', (e) => { e.stopPropagation(); openEdit(idx); });
-            rightActions.appendChild(editBtn);
-
             // 卡片本身
             const card = document.createElement('div');
             card.className = "swipe-card";
+            if (log._crossDay) card.style.opacity = '0.6';
 
             // 滑动状态
-            let startX = 0, startY = 0, isSwiping = false, currentTranslate = 0;
+            let startX = 0, startY = 0, isSwiping = false;
             card.addEventListener('touchstart', (e) => {
                 const touch = e.touches[0];
                 startX = touch.clientX;
                 startY = touch.clientY;
                 isSwiping = false;
-                currentTranslate = card.classList.contains('reveal-left') ? 70 : card.classList.contains('reveal-right') ? -70 : 0;
                 card.classList.add('swiping');
             }, { passive: true });
             card.addEventListener('touchmove', (e) => {
@@ -1227,38 +1352,27 @@
                 }
                 if (isSwiping) {
                     e.preventDefault();
-                    let tx = currentTranslate + dx;
-                    tx = Math.max(-80, Math.min(80, tx));
+                    let tx = Math.max(-80, Math.min(80, dx));
                     card.style.transform = `translateX(${tx}px)`;
                 }
             }, { passive: false });
             card.addEventListener('touchend', (e) => {
                 card.classList.remove('swiping');
                 card.style.transform = '';
-                // 获取最终位移
-                const dx = e.changedTouches[0].clientX - startX;
-                const total = currentTranslate + dx;
-                // 重置所有状态
-                card.classList.remove('reveal-left', 'reveal-right');
                 if (isSwiping) {
-                    if (total > 50) {
-                        // 左滑 → 显示删除按钮
-                        card.classList.add('reveal-left');
-                    } else if (total < -50) {
-                        // 右滑 → 显示修改按钮
-                        card.classList.add('reveal-right');
+                    const dx = e.changedTouches[0].clientX - startX;
+                    if (dx > 55) {
+                        // 左滑 → 删除
+                        deleteLogEntry(log.id);
+                    } else if (dx < -55) {
+                        // 右滑 → 修改
+                        openEdit(idx);
                     }
                     isSwiping = false;
-                    return;
                 }
-                // 没有滑动 → 点击中间 → 加并行子事件
-                const parent = logs.find(l => l.id === log.id);
-                if (parent) addParallelEntry(log.id);
             }, { passive: true });
 
             // 卡片内容
-            if (log._crossDay) card.style.opacity = '0.6';
-
             const inner = document.createElement('div');
             inner.className = "flex items-center";
 
@@ -1282,25 +1396,75 @@
             top.append(time, name, dur);
             body.appendChild(top);
 
+            // 备注行 + ↳ 补录按钮（在颜色条外侧）
             const noteRow = document.createElement('div');
-            noteRow.className = "flex items-center space-x-1";
+            noteRow.className = "flex items-center gap-1";
             const note = document.createElement('span');
-            note.className = "text-sm text-slate-400 italic truncate";
+            note.className = "text-sm text-slate-400 italic truncate flex-1";
             note.innerText = log.note || '';
             if (log.tag) {
                 const tagEl = document.createElement('span');
-                tagEl.className = "text-xs font-bold text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full";
+                tagEl.className = "text-[10px] font-bold text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0";
                 tagEl.innerText = '#' + log.tag;
                 noteRow.appendChild(tagEl);
             }
             noteRow.appendChild(note);
 
+            // ↳ 补录按钮（每条已完成记录都有，在颜色条外侧）
+            if (!log.parallel && !log._crossDay) {
+                const subBtn = document.createElement('button');
+                subBtn.type = 'button';
+                subBtn.className = "text-[10px] font-black text-violet-400 bg-violet-50 rounded-full px-1.5 py-0.5 border border-violet-100 shrink-0 btn-active hover:bg-violet-100";
+                subBtn.innerText = '↳';
+                subBtn.title = '补录并行活动';
+                subBtn.addEventListener('click', (e) => { e.stopPropagation(); openBackfillDrawer(log); });
+                noteRow.appendChild(subBtn);
+            }
+
             body.append(top, noteRow);
             inner.append(bar, body);
             card.appendChild(inner);
-            wrap.append(leftActions, rightActions, card);
+            wrap.appendChild(card);
             list.appendChild(wrap);
             return wrap;
+        }
+
+        // 打开补录抽屉（带时间栏+分类）
+        function openBackfillDrawer(parentLog) {
+            pickerMode = 'parallel-backfill';
+            document.getElementById('drawer-title').innerText = `↳ 补录并行于 ${displayName(parentLog)}`;
+            document.getElementById('parallel-time-row').classList.remove('hidden');
+            document.getElementById('drawer-footer').classList.remove('hidden');
+            document.getElementById('drawer-note').value = '';
+            document.getElementById('drawer-note').placeholder = '备注（选填）';
+            // 预填：开始=父活动起点，时长=1/3 父活动时长
+            const d = new Date(parentLog.startTime);
+            document.getElementById('parallel-start').value = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+            const parentDur = parentLog.duration || 60;
+            document.getElementById('parallel-dur').value = Math.round(parentDur / 3) || 15;
+            // 存父活动 id 给回调用
+            _parallelCallback = (l1, l2) => {
+                const cat = getCat(l1);
+                const t = document.getElementById('parallel-start').value.split(':');
+                const dur = parseInt(document.getElementById('parallel-dur').value) || 30;
+                const d = new Date(parentLog.startTime);
+                d.setHours(+t[0], +t[1], 0, 0);
+                const entry = {
+                    id: Date.now() + Math.random(),
+                    startTime: d.getTime(),
+                    endTime: d.getTime() + dur * 60000,
+                    duration: dur,
+                    l1, l2: l2 || '',
+                    tag: '', note: document.getElementById('drawer-note').value || '并行补录',
+                    color: cat?.color || '#cbd5e1',
+                    parallel: true,
+                    parentId: parentLog.id || parentLog.startTime
+                };
+                logs.unshift(entry);
+                localStorage.setItem('v9_logs', JSON.stringify(logs));
+                renderAll();
+            };
+            document.getElementById('drawer').classList.remove('hidden');
         }
 
         function getTodaySegments() {
@@ -1782,6 +1946,18 @@
                 const el = document.getElementById('header-timer');
                 if (el) el.innerText = formatDuration(diff);
             }
+            // 并行计时器（在 header 显示）
+            if (parallelCurrent) {
+                const diff = now - parallelCurrent.startTime;
+                const badge = document.getElementById('parallel-status');
+                if (badge) {
+                    badge.classList.remove('hidden');
+                    badge.innerText = `${parallelCurrent.icon || '⏎'} ${(parallelCurrent.l2 || parallelCurrent.l1)} ${formatDuration(diff)}`;
+                }
+            } else {
+                const badge = document.getElementById('parallel-status');
+                if (badge && !badge._pinned) badge.classList.add('hidden');
+            }
             renderDayRemain();
 
             if(current) {
@@ -1890,12 +2066,20 @@
 
             hourLogs.forEach(log => {
                 const color = log.color || getCat(log.l1)?.color || "#cbd5e1";
-                drawClockSegment(g60, 50, log.startTime, log.endTime, hourStart, hourEnd, color, log);
+                if (log.parallel) {
+                    drawClockSegment(g60, 42, log.startTime, log.endTime, hourStart, hourEnd, '#8b5cf6', log, 4);
+                } else {
+                    drawClockSegment(g60, 50, log.startTime, log.endTime, hourStart, hourEnd, color, log);
+                }
             });
 
             dayLogs.forEach(log => {
                 const color = log.color || getCat(log.l1)?.color || "#cbd5e1";
-                drawClockSegment(g24, 50, log.startTime, log.endTime, dayStart, dayEnd, color, log);
+                if (log.parallel) {
+                    drawClockSegment(g24, 42, log.startTime, log.endTime, dayStart, dayEnd, '#8b5cf6', log, 4);
+                } else {
+                    drawClockSegment(g24, 50, log.startTime, log.endTime, dayStart, dayEnd, color, log);
+                }
             });
 
             const hourRemain = Math.ceil((hourEnd - now) / 60000);
