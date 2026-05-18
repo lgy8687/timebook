@@ -78,6 +78,21 @@
             60% { transform: translateY(-53%) scale(1.06, 0.98) rotate(-2deg); }
             80% { transform: translateY(-47%) scale(1.02, 1.1) rotate(4deg); }
         }
+        /* 滑动操作容器 */
+        .swipe-wrap { position: relative; overflow: hidden; border-radius: 1rem; margin-bottom: 0.5rem; touch-action: pan-y; }
+        .swipe-actions { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; z-index: 0; }
+        .swipe-actions.left { left: 0; }
+        .swipe-actions.right { right: 0; }
+        .swipe-action-btn { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 11px; font-weight: 900; color: #fff; border: none; white-space: nowrap; cursor: pointer; }
+        .swipe-action-btn.delete { background: #ef4444; border-radius: 1rem 0 0 1rem; padding: 0 14px; }
+        .swipe-action-btn.edit { background: #3b82f6; border-radius: 0 1rem 1rem 0; padding: 0 14px; }
+        .swipe-card { position: relative; z-index: 1; background: #fff; border-radius: 1rem; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1); will-change: transform; touch-action: pan-y; }
+        .swipe-card.swiping { transition: none !important; }
+        .swipe-card.reveal-left { transform: translateX(70px); }
+        .swipe-card.reveal-right { transform: translateX(-70px); }
+        .parallel-badge { font-size: 9px; font-weight: 900; color: #8b5cf6; background: #f5f3ff; padding: 1px 7px; border-radius: 999px; display: inline-flex; align-items: center; gap: 3px; border: 1px solid #ede9fe; }
+        /* 并行条目缩进 */
+        .parallel-indent { border-left: 2px dashed #ddd; margin-left: 8px; padding-left: 12px; border-radius: 0; }
         @media (max-width: 720px) {
             .flow-dashboard { grid-template-columns: 1fr; max-width: 420px; }
             .clock-stage { grid-template-columns: 1fr 1fr; max-width: 360px; margin: 0 auto; gap: 8px; padding: 6px 0; }
@@ -318,13 +333,32 @@
         </div>
     </div>
 
-    <!-- 编辑备注弹窗 -->
+    <!-- 编辑日志弹窗（完整版） -->
     <div id="edit-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in">
         <div class="bg-white rounded-3xl p-6 w-4/5 max-w-sm shadow-xl">
-            <h3 class="text-sm font-black mb-1">编辑备注</h3>
+            <h3 class="text-sm font-black mb-1">✏️ 修改记录</h3>
             <div id="edit-log-preview" class="text-[10px] text-slate-400 mb-3"></div>
-            <input type="text" id="edit-input" class="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 mb-4" autocomplete="off">
-            <div class="flex space-x-3">
+            <div class="space-y-3">
+                <!-- 分类选择 -->
+                <div id="edit-cat-btn" class="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 flex items-center justify-between cursor-pointer">
+                    <span id="edit-cat-display">选择分类</span>
+                    <span class="text-slate-300">›</span>
+                </div>
+                <!-- 开始时间 -->
+                <div class="flex items-center bg-slate-50 rounded-2xl px-4 py-2">
+                    <span class="text-[10px] font-bold text-slate-400 mr-2">开始</span>
+                    <input type="time" id="edit-start-time" class="flex-1 bg-transparent text-sm font-mono font-bold text-slate-700 border-none focus:outline-none">
+                </div>
+                <!-- 时长 -->
+                <div class="flex items-center bg-slate-50 rounded-2xl px-4 py-2">
+                    <span class="text-[10px] font-bold text-slate-400 mr-2">时长</span>
+                    <input type="number" id="edit-duration" class="flex-1 bg-transparent text-sm font-mono font-bold text-slate-700 border-none focus:outline-none" min="1" step="5">
+                    <span class="text-[10px] font-bold text-slate-400 ml-1">分钟</span>
+                </div>
+                <!-- 备注 -->
+                <input type="text" id="edit-note-input" class="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="备注" autocomplete="off">
+            </div>
+            <div class="flex space-x-3 mt-4">
                 <button onclick="closeEdit()" class="flex-1 py-3 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
                 <button onclick="confirmEdit()" class="flex-1 py-3 text-sm font-bold text-white bg-indigo-600 rounded-2xl">确定</button>
             </div>
@@ -371,7 +405,7 @@
         let selL1 = cats[0]?.name || "";
         let pickerMode = 'record';
         let logLimit = 10;
-        let editTarget = null;
+        let editIndex = null;
         let editingShortcutIndex = null;
         let configEditMode = false;
         let reportMode = 'l1';
@@ -449,6 +483,11 @@
 
         function formatHours(ms) {
             return `${(ms / HOUR_MS).toFixed(1)}h`;
+        }
+
+        function formatForTimeInput(ts) {
+            const d = new Date(ts);
+            return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
         }
 
         function formatShortDuration(ms) {
@@ -607,7 +646,7 @@
             document.getElementById('prompt-input').addEventListener('keydown', e => {
                 if (e.key === 'Enter') confirmPrompt();
             });
-            document.getElementById('edit-input').addEventListener('keydown', e => {
+            document.getElementById('edit-note-input').addEventListener('keydown', e => {
                 if (e.key === 'Enter') confirmEdit();
             });
         });
@@ -670,28 +709,103 @@
             });
         }
 
-        // --- 编辑备注 ---
+        // --- 编辑日志（完整版） ---
+        let editOldL1 = null, editOldL2 = null;
         function openEdit(index) {
-            editTarget = index;
+            editIndex = index;
             const log = logs[index];
             if (!log) return;
-            document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''}`;
-            document.getElementById('edit-input').value = log.note || '';
+            editOldL1 = log.l1;
+            editOldL2 = log.l2;
+            document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
+            document.getElementById('edit-start-time').value = formatForTimeInput(log.startTime);
+            document.getElementById('edit-duration').value = Math.round(((log.endTime||Date.now())-log.startTime)/60000);
+            document.getElementById('edit-note-input').value = log.note || '';
+            updateEditCatDisplay(log.l1, log.l2);
             document.getElementById('edit-modal').classList.remove('hidden');
-            setTimeout(() => document.getElementById('edit-input').focus(), 100);
+            setTimeout(() => document.getElementById('edit-note-input').focus(), 100);
         }
+        function updateEditCatDisplay(l1, l2) {
+            const d = document.getElementById('edit-cat-display');
+            const cat = getCat(l1);
+            const icon = cat?.icon || '📌';
+            d.innerText = l2 ? `${icon} ${l1} / ${l2}` : `${icon} ${l1}`;
+        }
+        // 编辑弹窗中点分类 → 打开抽屉选
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('edit-cat-btn');
+            if (btn) btn.addEventListener('click', () => {
+                if (editIndex === null) return;
+                _parallelCallback = (l1, l2) => { editOldL1 = l1; editOldL2 = l2; updateEditCatDisplay(l1, l2); };
+                pickerMode = 'edit';
+                document.getElementById('drawer-title').innerText = "修改分类";
+                document.getElementById('drawer-footer').classList.add('hidden');
+                document.getElementById('drawer').classList.remove('hidden');
+            });
+        });
         function confirmEdit() {
-            if (editTarget !== null && logs[editTarget]) {
-                logs[editTarget].note = document.getElementById('edit-input').value;
+            if (editIndex !== null && logs[editIndex]) {
+                const log = logs[editIndex];
+                // 时间
+                const timeStr = document.getElementById('edit-start-time').value;
+                if (timeStr) {
+                    const parts = timeStr.split(':');
+                    const d = new Date(log.startTime);
+                    d.setHours(+parts[0], +parts[1], 0, 0);
+                    log.startTime = d.getTime();
+                }
+                // 时长
+                const dur = parseInt(document.getElementById('edit-duration').value);
+                if (dur > 0) {
+                    log.endTime = log.startTime + dur * 60000;
+                    log.duration = dur;
+                }
+                // 分类
+                if (editOldL1) { log.l1 = editOldL1; log.l2 = editOldL2; }
+                // 备注
+                log.note = document.getElementById('edit-note-input').value;
                 localStorage.setItem('v9_logs', JSON.stringify(logs));
             }
             document.getElementById('edit-modal').classList.add('hidden');
-            editTarget = null;
+            editIndex = null;
+            editOldL1 = null; editOldL2 = null;
             renderAll();
         }
         function closeEdit() {
             document.getElementById('edit-modal').classList.add('hidden');
-            editTarget = null;
+            editIndex = null;
+            editOldL1 = null; editOldL2 = null;
+        }
+        // --- 删除日志 ---
+        function deleteLogEntry(id) {
+            logs = logs.filter(l => l.id !== id);
+            localStorage.setItem('v9_logs', JSON.stringify(logs));
+            renderAll();
+        }
+        // --- 并行子事件 ---
+        function addParallelEntry(parentId) {
+            const parent = logs.find(l => l.id === parentId);
+            if (!parent) return;
+            _parallelCallback = (l1, l2) => {
+                const now = Date.now();
+                const cat = getCat(l1);
+                logs.unshift({
+                    id: Date.now() + Math.random(),
+                    startTime: now,
+                    endTime: now,
+                    duration: 0,
+                    l1, l2, tag: '', note: '并行',
+                    color: cat?.color || '#cbd5e1',
+                    parentId: parent.id,
+                    parallel: true
+                });
+                localStorage.setItem('v9_logs', JSON.stringify(logs));
+                renderAll();
+            };
+            pickerMode = 'parallel-' + parentId;
+            document.getElementById('drawer-title').innerText = "➕ 添加并行活动";
+            document.getElementById('drawer-footer').classList.add('hidden');
+            document.getElementById('drawer').classList.remove('hidden');
         }
 
         // --- 核心记账逻辑 (彻底分离) ---
@@ -732,11 +846,17 @@
         }
 
         // --- 抽屉回调中继 ---
+        // 并行回调暂存
+        let _parallelCallback = null;
         function drawerPick(l1, l2) {
             if (pickerMode === 'shortcut') {
                 executeAddShortcut(l1, l2);
             } else if (pickerMode === 'shortcut-edit') {
                 executeEditShortcut(l1, l2);
+            } else if (pickerMode === 'edit' || (pickerMode && pickerMode.startsWith('parallel-'))) {
+                const cb = _parallelCallback;
+                closeDrawer();
+                if (cb) { cb(l1, l2); }
             } else {
                 executeRecord(l1, l2, "", document.getElementById('drawer-note').value);
             }
@@ -1024,47 +1144,28 @@
                 header.innerText = isToday ? '📋 今日流水' : `📅 ${day}`;
                 list.appendChild(header);
 
-                dayMap.get(day).forEach((log, idx) => {
-                    const row = document.createElement('div');
-                    row.className = "bg-white p-3.5 rounded-2xl border border-slate-50 shadow-sm flex items-center mb-2";
-                    if (log._crossDay) row.classList.add('opacity-60');
+                // 同一天内：先渲染普通条目，再渲染并行条目（缩进）
+                const normalLogs = dayMap.get(day).filter(l => !l.parallel);
+                const parallelLogs = dayMap.get(day).filter(l => l.parallel);
 
-                    const bar = document.createElement('div');
-                    bar.className = "w-1.5 h-10 rounded-full mr-4";
-                    bar.style.background = (cats.find(c => c.name === log.l1)?.color) || '#cbd5e1';
+                normalLogs.forEach((log, idx) => {
+                    const realIdx = logs.indexOf(log);
+                    createLogRow(list, log, realIdx);
+                });
 
-                    const body = document.createElement('div');
-                    body.className = "flex-1 min-w-0 flex flex-col gap-1";
-                    const top = document.createElement('div');
-                    top.className = "flex items-center text-xs text-slate-400 font-bold";
-                    const time = document.createElement('span');
-                    time.className = "font-mono shrink-0";
-                    time.innerText = formatBeijingClock(log.startTime) + (log._crossDay ? ' (跨天继续)' : '');
-                    const name = document.createElement('span');
-                    name.className = "flex-1 font-black text-slate-700 truncate ml-2";
-                    name.innerText = displayName(log) + (log._crossDay ? ' 🌙' : '');
-                    const dur = document.createElement('span');
-                    dur.className = "text-indigo-500 font-black shrink-0 ml-auto";
-                    dur.innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
-                    top.append(time, name, dur);
-                    body.appendChild(top);
-
-                    const noteRow = document.createElement('div');
-                    noteRow.className = "flex items-center space-x-1";
-                    const note = document.createElement('span');
-                    note.className = "text-sm text-slate-400 italic truncate";
-                    note.innerText = log.note || '';
-                    if (log.tag) {
-                        const tagEl = document.createElement('span');
-                        tagEl.className = "text-xs font-bold text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full";
-                        tagEl.innerText = '#' + log.tag;
-                        noteRow.appendChild(tagEl);
-                    }
-                    noteRow.appendChild(note);
-
-                    body.append(top, noteRow);
-                    row.append(bar, body);
-                    list.appendChild(row);
+                // 并行条目（缩进在所属父条目下方）
+                parallelLogs.forEach(log => {
+                    const realIdx = logs.indexOf(log);
+                    const parent = logs.find(l => l.id === log.parentId);
+                    const wrap = document.createElement('div');
+                    wrap.className = "parallel-indent";
+                    const row = createLogRow(wrap, log, realIdx);
+                    // 并行条目特殊标记
+                    const badge = document.createElement('div');
+                    badge.className = "parallel-badge";
+                    badge.innerText = `⏎ ${displayName(parent || {})}`;
+                    row.querySelector('.swipe-card')?.prepend(badge);
+                    list.appendChild(wrap);
                 });
             });
 
@@ -1078,6 +1179,128 @@
                 btn.addEventListener('click', () => { logLimit += 10; renderLogs(); });
                 moreWrap.appendChild(btn);
             }
+        }
+
+        // 创建单行卡片（滑动容器）
+        function createLogRow(list, log, idx) {
+            const wrap = document.createElement('div');
+            wrap.className = "swipe-wrap";
+
+            // 左侧按钮（删除）
+            const leftActions = document.createElement('div');
+            leftActions.className = "swipe-actions left";
+            const delBtn = document.createElement('button');
+            delBtn.className = "swipe-action-btn delete";
+            delBtn.innerText = "🗑 删除";
+            delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteLogEntry(log.id); });
+            leftActions.appendChild(delBtn);
+
+            // 右侧按钮（修改）
+            const rightActions = document.createElement('div');
+            rightActions.className = "swipe-actions right";
+            const editBtn = document.createElement('button');
+            editBtn.className = "swipe-action-btn edit";
+            editBtn.innerText = "✏️ 修改";
+            editBtn.addEventListener('click', (e) => { e.stopPropagation(); openEdit(idx); });
+            rightActions.appendChild(editBtn);
+
+            // 卡片本身
+            const card = document.createElement('div');
+            card.className = "swipe-card";
+
+            // 滑动状态
+            let startX = 0, startY = 0, isSwiping = false, currentTranslate = 0;
+            card.addEventListener('touchstart', (e) => {
+                const touch = e.touches[0];
+                startX = touch.clientX;
+                startY = touch.clientY;
+                isSwiping = false;
+                currentTranslate = card.classList.contains('reveal-left') ? 70 : card.classList.contains('reveal-right') ? -70 : 0;
+                card.classList.add('swiping');
+            }, { passive: true });
+            card.addEventListener('touchmove', (e) => {
+                const touch = e.touches[0];
+                const dx = touch.clientX - startX;
+                const dy = touch.clientY - startY;
+                if (!isSwiping && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+                    isSwiping = true;
+                }
+                if (isSwiping) {
+                    e.preventDefault();
+                    let tx = currentTranslate + dx;
+                    tx = Math.max(-80, Math.min(80, tx));
+                    card.style.transform = `translateX(${tx}px)`;
+                }
+            }, { passive: false });
+            card.addEventListener('touchend', (e) => {
+                card.classList.remove('swiping');
+                card.style.transform = '';
+                // 获取最终位移
+                const dx = e.changedTouches[0].clientX - startX;
+                const total = currentTranslate + dx;
+                // 重置所有状态
+                card.classList.remove('reveal-left', 'reveal-right');
+                if (isSwiping) {
+                    if (total > 50) {
+                        // 左滑 → 显示删除按钮
+                        card.classList.add('reveal-left');
+                    } else if (total < -50) {
+                        // 右滑 → 显示修改按钮
+                        card.classList.add('reveal-right');
+                    }
+                    isSwiping = false;
+                    return;
+                }
+                // 没有滑动 → 点击中间 → 加并行子事件
+                const parent = logs.find(l => l.id === log.id);
+                if (parent) addParallelEntry(log.id);
+            }, { passive: true });
+
+            // 卡片内容
+            if (log._crossDay) card.style.opacity = '0.6';
+
+            const inner = document.createElement('div');
+            inner.className = "flex items-center";
+
+            const bar = document.createElement('div');
+            bar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
+            bar.style.background = (cats.find(c => c.name === log.l1)?.color) || '#cbd5e1';
+
+            const body = document.createElement('div');
+            body.className = "flex-1 min-w-0 flex flex-col gap-1";
+            const top = document.createElement('div');
+            top.className = "flex items-center text-xs text-slate-400 font-bold";
+            const time = document.createElement('span');
+            time.className = "font-mono shrink-0";
+            time.innerText = formatBeijingClock(log.startTime) + (log._crossDay ? ' (跨天继续)' : '');
+            const name = document.createElement('span');
+            name.className = "flex-1 font-black text-slate-700 truncate ml-2";
+            name.innerText = displayName(log) + (log._crossDay ? ' 🌙' : '');
+            const dur = document.createElement('span');
+            dur.className = "text-indigo-500 font-black shrink-0 ml-auto";
+            dur.innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
+            top.append(time, name, dur);
+            body.appendChild(top);
+
+            const noteRow = document.createElement('div');
+            noteRow.className = "flex items-center space-x-1";
+            const note = document.createElement('span');
+            note.className = "text-sm text-slate-400 italic truncate";
+            note.innerText = log.note || '';
+            if (log.tag) {
+                const tagEl = document.createElement('span');
+                tagEl.className = "text-xs font-bold text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full";
+                tagEl.innerText = '#' + log.tag;
+                noteRow.appendChild(tagEl);
+            }
+            noteRow.appendChild(note);
+
+            body.append(top, noteRow);
+            inner.append(bar, body);
+            card.appendChild(inner);
+            wrap.append(leftActions, rightActions, card);
+            list.appendChild(wrap);
+            return wrap;
         }
 
         function getTodaySegments() {
@@ -1699,7 +1922,7 @@
             });
             const btn = document.getElementById('nav-'+t); if(btn) btn.classList.replace('text-slate-400','text-indigo-600');
         }
-        function closeDrawer() { document.getElementById('drawer').classList.add('hidden'); pickerMode = 'record'; }
+        function closeDrawer() { document.getElementById('drawer').classList.add('hidden'); pickerMode = 'record'; _parallelCallback = null; }
         function handleFreeInput() {
             const el = document.getElementById('free-input'); const val = el.value.trim(); if(!val) return;
             const matches = [];
