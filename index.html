@@ -946,10 +946,10 @@
                 closeDrawer();
                 renderAll();
             } else if (pickerMode === 'parallel-toggle') {
-                // 并行 toggle：通过 _parallelCallback 启动
-                const cb = _parallelCallback;
+                const cat = getCat(l1);
+                const icon = cat?.icon || '📌';
                 closeDrawer();
-                if (cb) { cb(l1, l2); }
+                toggleParallel(l1, l2 || '', icon);
             } else if (pickerMode === 'edit' || (pickerMode && pickerMode.startsWith('parallel-backfill'))) {
                 const cb = _parallelCallback;
                 closeDrawer();
@@ -1023,6 +1023,7 @@
             addBtn.addEventListener('click', () => {
                 pickerMode = 'parallel-toggle';
                 document.getElementById('drawer-title').innerText = "选择并行活动";
+                document.getElementById('parallel-time-row').classList.add('hidden');
                 document.getElementById('drawer-footer').classList.add('hidden');
                 document.getElementById('drawer-note').value = "";
                 document.getElementById('drawer').classList.remove('hidden');
@@ -2034,53 +2035,6 @@
                     });
                     l2Box.appendChild(grid);
                 });
-                return;
-            }
-
-            // parallel-toggle 模式：直接渲染分类并调用 toggleParallel
-            if (pickerMode === 'parallel-toggle') {
-                l1Box.style.display = '';
-                l2Box.className = "w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit";
-                if (!cats.some(c => c.name === selL1)) selL1 = cats[0].name;
-                cats.forEach(c => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = `w-full py-5 text-sm font-black ${selL1 === c.name ? 'bg-white text-indigo-600 border-l-4 border-indigo-600' : 'text-slate-400'}`;
-                    btn.innerText = c.icon + ' ' + c.name;
-                    btn.addEventListener('click', () => { selL1 = c.name; renderPicker(); });
-                    l1Box.appendChild(btn);
-                });
-                const selected = cats.find(c => c.name === selL1);
-                if (selected) {
-                    const direct = document.createElement('button');
-                    direct.type = 'button';
-                    direct.className = "bg-indigo-600 text-white border border-indigo-600 p-4 rounded-2xl text-sm font-black shadow-sm active:bg-indigo-700";
-                    direct.innerText = `${selected.name}（并行）`;
-                    direct.addEventListener('click', () => {
-                        closeDrawer();
-                        const icon = getCat(selected.name)?.icon || '📌';
-                        toggleParallel(selected.name, '', icon);
-                    });
-                    l2Box.appendChild(direct);
-                    selected.subs.forEach(s => {
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = "bg-white border border-slate-100 p-4 rounded-2xl text-sm font-black text-slate-600 shadow-sm active:bg-indigo-50";
-                        btn.innerText = (selected.icon || '') + ' ' + s;
-                        btn.addEventListener('click', () => {
-                            closeDrawer();
-                            const icon = getCat(selected.name)?.icon || '📌';
-                            toggleParallel(selected.name, s, icon);
-                        });
-                        l2Box.appendChild(btn);
-                    });
-                    if (!selected.subs.length) {
-                        const hint = document.createElement('div');
-                        hint.className = "col-span-2 text-sm text-slate-300 font-bold px-2";
-                        hint.innerText = "这个一级分类还没有子类，可以直接并行。";
-                        l2Box.appendChild(hint);
-                    }
-                }
                 return;
             }
 
