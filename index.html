@@ -55,7 +55,18 @@
         .day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); }
         @media (max-width: 720px) {
             .flow-dashboard { grid-template-columns: 1fr; max-width: 420px; }
-            .clock-stage { grid-template-columns: 1fr; max-width: 340px; margin: 0 auto; gap: 72px; }
+            .clock-stage { grid-template-columns: 1fr; max-width: 300px; margin: 0 auto; gap: 12px; }
+            .clock-stage .clock-face { width: 210px !important; height: 210px !important; }
+            .clock-stage .clock-face .text-4xl { font-size: 1.75rem !important; }
+            .clock-stage .clock-face .text-2xl { font-size: 1.25rem !important; }
+            #home-shortcuts button { padding: 10px !important; min-height: 72px !important; }
+            #home-shortcuts button .text-3xl { font-size: 1.5rem !important; }
+            #home-shortcuts button .text-base { font-size: 0.75rem !important; }
+            .day-remain-track { height: 22px; }
+            .day-remain-label { font-size: 11px; padding: 0 10px; }
+            #free-input { font-size: 14px; padding: 12px 16px !important; }
+            #header-timer { font-size: 1.25rem !important; }
+            .report-card { padding: 14px !important; }
         }
     </style>
 </head>
