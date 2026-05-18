@@ -1438,7 +1438,7 @@
                         const btn = document.createElement('button');
                         btn.type = 'button';
                         btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
-                        btn.innerHTML = `<div class="text-base leading-none mb-0.5">${c.icon}</div><div class="leading-tight">${s}</div>`;
+                        btn.innerHTML = `<div class="text-base leading-none mb-0.5">${getSubIcon(s, c.icon)}</div><div class="leading-tight">${s}</div>`;
                         btn.addEventListener('click', () => drawerPick(c.name, s));
                         l2Box.appendChild(btn);
                     });
@@ -1470,7 +1470,7 @@
                         const btn = document.createElement('button');
                         btn.type = 'button';
                         btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
-                        btn.innerHTML = `<div class="text-base leading-none mb-0.5">${c.icon}</div><div class="leading-tight">${s}</div>`;
+                        btn.innerHTML = `<div class="text-base leading-none mb-0.5">${getSubIcon(s, c.icon)}</div><div class="leading-tight">${s}</div>`;
                         btn.addEventListener('click', () => drawerPick(c.name, s));
                         grid.appendChild(btn);
                     });
