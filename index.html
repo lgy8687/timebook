@@ -732,12 +732,17 @@
                 colorDot.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const old = document.querySelector('.color-picker-popup');
-                    if (old) { old.remove(); return; }
+                    if (old) { document.querySelector('.color-picker-overlay')?.remove(); old.remove(); return; }
+                    const overlay = document.createElement('div');
+                    overlay.className = 'color-picker-overlay';
+                    overlay.style.cssText = 'position:fixed;inset:0;z-index:9998;background:transparent;';
+                    overlay.addEventListener('click', () => { popup.remove(); overlay.remove(); });
+                    document.body.appendChild(overlay);
                     const popup = document.createElement('div');
                     popup.className = 'color-picker-popup';
-                    popup.style.cssText = 'position:fixed;z-index:9999;background:white;border-radius:20px;padding:12px;box-shadow:0 8px 32px rgba(0,0,0,0.15);top:50%;left:50%;transform:translate(-50%,-50%);width:200px;';
+                    popup.style.cssText = 'position:fixed;z-index:9999;background:white;border-radius:20px;padding:14px;box-shadow:0 8px 32px rgba(0,0,0,0.15);top:50%;left:50%;transform:translate(-50%,-50%);width:auto;';
                     const grid = document.createElement('div');
-                    grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px;';
+                    grid.style.cssText = 'display:grid;grid-template-columns:repeat(6,1fr);gap:8px;';
                     PRESET_COLORS.forEach(clr => {
                         const swatch = document.createElement('button');
                         swatch.type = 'button';
@@ -749,12 +754,11 @@
                             localStorage.setItem('v9_cats', JSON.stringify(cats));
                             renderReport();
                             popup.remove();
+                            overlay.remove();
                         });
                         grid.appendChild(swatch);
                     });
                     popup.appendChild(grid);
-                    // 点击弹窗外关闭
-                    popup.addEventListener('click', (ev) => { if (ev.target === popup) popup.remove(); });
                     document.body.appendChild(popup);
                 });
                 const title = document.createElement('span');
