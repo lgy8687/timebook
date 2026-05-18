@@ -723,7 +723,7 @@
                 head.className = "flex justify-between items-center text-base font-black";
                 const titleGroup = document.createElement('div');
                 titleGroup.className = "flex items-center gap-2";
-                const PRESET_COLORS = ['#ef4444','#f97316','#f59e0b','#ec4899','#3b82f6','#10b981','#06b6d4','#8b5cf6','#334155','#a0522d','#c4841a','#0ea5e9'];
+                const PRESET_COLORS = ['#f59e0b','#06b6d4','#10b981','#0ea5e9','#f97316','#c4841a','#ec4899','#3b82f6','#ef4444','#8b5cf6','#a0522d','#334155'];
                 const colorDot = document.createElement('button');
                 colorDot.type = 'button';
                 colorDot.className = "w-3.5 h-3.5 rounded-full shrink-0 cursor-pointer";
@@ -866,7 +866,7 @@
 
                     const bar = document.createElement('div');
                     bar.className = "w-1.5 h-10 rounded-full mr-4";
-                    bar.style.background = log.color || cats.find(c => c.name === log.l1)?.color || '#cbd5e1';
+                    bar.style.background = (cats.find(c => c.name === log.l1)?.color) || '#cbd5e1';
 
                     const body = document.createElement('div');
                     body.className = "flex-1 min-w-0 flex flex-col gap-1";
@@ -878,13 +878,10 @@
                     const name = document.createElement('span');
                     name.className = "flex-1 font-black text-slate-700 truncate ml-2";
                     name.innerText = displayName(log) + (log._crossDay ? ' 🌙' : '');
-                    const l1 = document.createElement('span');
-                    l1.className = "text-[10px] font-bold text-slate-300 shrink-0";
-                    l1.innerText = log.l1 || '';
                     const dur = document.createElement('span');
                     dur.className = "text-indigo-500 font-black shrink-0 ml-auto";
                     dur.innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
-                    top.append(time, name, l1, dur);
+                    top.append(time, name, dur);
                     body.appendChild(top);
 
                     const noteRow = document.createElement('div');
