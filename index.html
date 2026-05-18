@@ -51,14 +51,22 @@
         .donut-segment { fill: none; stroke-width: 15; stroke-linecap: butt; cursor: pointer; transition: stroke-width .18s ease, opacity .18s ease; }
         .donut-segment:hover { stroke-width: 17; opacity: .9; }
         .day-remain-track { height: 26px; border-radius: 999px; background: 
-            repeating-radial-gradient(circle at 23% 35%, #1a1212 0px, #1a1212 2px, transparent 4px),
-            repeating-radial-gradient(circle at 57% 68%, #1a1212 0px, #1a1212 1px, transparent 3px),
-            repeating-radial-gradient(circle at 82% 25%, #1a1212 0px, #1a1212 2px, transparent 4px),
-            repeating-radial-gradient(circle at 41% 55%, #1a1212 0px, #1a1212 1px, transparent 3px),
-            repeating-radial-gradient(circle at 70% 78%, #1a1212 0px, #1a1212 2px, transparent 3px),
-            repeating-radial-gradient(circle at 12% 88%, #1a1212 0px, #1a1212 1px, transparent 3px),
             linear-gradient(180deg, #4a3f3f 0%, #3a3535 30%, #2a2525 60%, #1f1a1a 100%);
             overflow: hidden; position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,0.15); }
+        .day-remain-track::after {
+            content: ''; position: absolute; inset: 0; border-radius: 999px; pointer-events: none; z-index: 1;
+            background-image:
+                radial-gradient(circle at 8% 25%, rgba(20,15,15,0.6) 0px, transparent 3px),
+                radial-gradient(circle at 18% 60%, rgba(15,10,10,0.5) 0px, transparent 2px),
+                radial-gradient(circle at 28% 35%, rgba(20,12,12,0.55) 0px, transparent 3px),
+                radial-gradient(circle at 38% 75%, rgba(15,8,8,0.5) 0px, transparent 2px),
+                radial-gradient(circle at 48% 20%, rgba(20,15,15,0.55) 0px, transparent 3px),
+                radial-gradient(circle at 58% 55%, rgba(15,10,10,0.5) 0px, transparent 2px),
+                radial-gradient(circle at 68% 80%, rgba(20,12,12,0.6) 0px, transparent 3px),
+                radial-gradient(circle at 78% 30%, rgba(15,8,8,0.5) 0px, transparent 2px),
+                radial-gradient(circle at 88% 65%, rgba(20,15,15,0.55) 0px, transparent 3px),
+                radial-gradient(circle at 95% 45%, rgba(15,10,10,0.5) 0px, transparent 2px);
+        }
         .day-remain-fill { height: 100%; border-radius: 999px; background: linear-gradient(180deg, #e8d5a3 0%, #d4b878 100%); transition: width .35s linear; position: absolute; left: 0; top: 0; }
         .day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); z-index: 2; }
         #match-flame { position: absolute; top: 50%; font-size: 14px; z-index: 3; pointer-events: none; transition: left .35s linear; filter: drop-shadow(0 0 5px rgba(255,120,0,0.6)); animation: fireDance 0.7s ease-in-out infinite; }
@@ -296,11 +304,11 @@
         </div>
     </div>
 
-    <!-- 表情图标选择器 (emoji picker) -->
-    <div id="emoji-picker" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex justify-center backdrop-blur-sm fade-in" style="padding-top: 8%;">
-        <div class="bg-white rounded-3xl p-5 w-4/5 max-w-sm shadow-xl" style="max-height: 84vh; overflow-y: auto;">
-            <h3 id="emoji-picker-title" class="text-sm font-black mb-3 text-center">选择图标</h3>
-            <div id="emoji-picker-grid" class="grid grid-cols-6 gap-2 justify-items-center"></div>
+    <!-- 表情图标选择器 (emoji picker) - 紧凑模式 -->
+    <div id="emoji-picker" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex justify-center backdrop-blur-sm fade-in" style="padding-top: 18%;">
+        <div class="bg-white rounded-2xl p-4 w-4/5 max-w-xs shadow-xl h-fit">
+            <h3 id="emoji-picker-title" class="text-xs font-black mb-2 text-center text-slate-500">选择图标</h3>
+            <div id="emoji-picker-grid" class="grid grid-cols-6 gap-1.5"></div>
         </div>
     </div>
 
@@ -543,7 +551,7 @@
             ENJOY_ICONS.forEach(emoji => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
-                btn.className = 'w-10 h-10 rounded-xl text-lg flex items-center justify-center bg-slate-50 hover:bg-indigo-100 active:bg-indigo-200 transition-colors';
+                btn.className = 'w-9 h-9 rounded-lg text-base flex items-center justify-center bg-slate-50 hover:bg-indigo-100 active:bg-indigo-200 transition-colors';
                 btn.innerText = emoji;
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
