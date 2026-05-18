@@ -578,10 +578,10 @@
                 const item = document.createElement('button');
                 item.type = 'button';
                 const compact = !showShortcutIcons;
-                // 与设置中心同款模板
+                // 与设置中心同款模板（上图标下文字）
                 item.className = compact
-                    ? "bg-white rounded-xl p-1.5 text-center text-xs font-bold relative border border-slate-50 btn-active"
-                    : "bg-white rounded-2xl p-2.5 text-center text-xs font-bold shadow-sm relative border border-slate-50 btn-active";
+                    ? "bg-white rounded-xl p-1 text-center text-[10px] font-bold relative border border-slate-50 btn-active"
+                    : "bg-white rounded-2xl p-1.5 text-center text-xs font-bold shadow-sm relative border border-slate-50 btn-active";
                 let pressTimer = null;
                 let longPressed = false;
                 const clearPress = () => {
@@ -607,10 +607,15 @@
                     executeRecord(s.l1, s.l2, "", "");
                 });
 
+                if (showShortcutIcons) {
+                    const icon = document.createElement('div');
+                    icon.className = compact ? "text-base leading-none mb-0.5" : "text-xl leading-none mb-0.5";
+                    icon.innerText = s.icon;
+                    item.appendChild(icon);
+                }
                 const label = document.createElement('div');
-                label.className = compact ? "text-xs leading-tight" : "text-sm leading-tight";
-                const iconText = showShortcutIcons ? `${s.icon} ` : '';
-                label.innerText = `${iconText}${s.l2 || s.l1}`;
+                label.className = compact ? "text-[10px] font-bold leading-tight" : "text-xs font-bold leading-tight";
+                label.innerText = s.l2 || s.l1;
                 item.appendChild(label);
                 grid.appendChild(item);
             });
@@ -670,13 +675,18 @@
                 const card = document.createElement('div');
                 const compact = !showShortcutIcons;
                 card.className = compact
-                    ? "bg-slate-50 rounded-xl p-1.5 text-center text-xs font-bold relative"
-                    : "bg-slate-50 rounded-2xl p-2.5 text-center text-xs font-bold relative";
+                    ? "bg-slate-50 rounded-xl p-1 text-center text-[10px] font-bold relative"
+                    : "bg-slate-50 rounded-2xl p-1.5 text-center text-xs font-bold relative";
+                if (showShortcutIcons) {
+                    const icon = document.createElement('div');
+                    icon.className = compact ? "text-base leading-none mb-0.5" : "text-xl leading-none mb-0.5";
+                    icon.innerText = s.icon;
+                    card.appendChild(icon);
+                }
                 const label = document.createElement('div');
-                label.className = compact ? "text-xs leading-tight" : "text-sm leading-tight";
-                const iconText = showShortcutIcons ? `${s.icon} ` : '';
-                label.innerText = `${iconText}${s.l2 || s.l1}`;
-                card.append(label);
+                label.className = compact ? "text-[10px] font-bold leading-tight" : "text-xs font-bold leading-tight";
+                label.innerText = s.l2 || s.l1;
+                card.appendChild(label);
                 if (configEditMode) {
                     const del = document.createElement('button');
                     del.type = 'button';
@@ -700,9 +710,35 @@
 
                 const head = document.createElement('div');
                 head.className = "flex justify-between items-center text-base font-black";
+                const titleGroup = document.createElement('div');
+                titleGroup.className = "flex items-center gap-2";
+                const colorDot = document.createElement('button');
+                colorDot.type = 'button';
+                colorDot.className = "w-3.5 h-3.5 rounded-full shrink-0";
+                colorDot.style.background = c.color || '#94a3b8';
+                colorDot.title = "点击修改颜色";
+                colorDot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const picker = document.createElement('input');
+                    picker.type = 'color';
+                    picker.value = c.color || '#94a3b8';
+                    picker.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+                    document.body.appendChild(picker);
+                    const update = () => {
+                        c.color = picker.value;
+                        colorDot.style.background = picker.value;
+                        localStorage.setItem('v9_cats', JSON.stringify(cats));
+                        renderReport();
+                    };
+                    picker.addEventListener('input', update);
+                    picker.addEventListener('change', () => { update(); document.body.removeChild(picker); });
+                    picker.addEventListener('blur', () => setTimeout(() => document.body.removeChild(picker), 200));
+                    picker.click();
+                });
                 const title = document.createElement('span');
                 title.innerText = `${c.icon} ${c.name}`;
-                head.appendChild(title);
+                titleGroup.append(colorDot, title);
+                head.appendChild(titleGroup);
                 if (configEditMode) {
                     const actions = document.createElement('div');
                     actions.className = "flex space-x-2";
@@ -794,7 +830,8 @@
                 // 天头
                 const header = document.createElement('div');
                 header.className = "text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 py-2 border-b border-slate-100 mb-2";
-                header.innerText = day;
+                const isToday = day === formatBeijingDate(Date.now());
+                header.innerText = isToday ? '📋 今日流水' : `📅 ${day}`;
                 list.appendChild(header);
 
                 dayMap.get(day).forEach((log, idx) => {
@@ -1137,16 +1174,16 @@
                 return;
             }
 
-            // flat 模式：全二级铺满，无左列
+            // flat 模式：全二级铺满5列，无左列，上下结构
             if (drawerViewMode === 'flat' && pickerMode === 'record') {
                 l1Box.style.display = 'none';
-                l2Box.className = "w-full p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit";
+                l2Box.className = "w-full p-3 overflow-y-auto grid grid-cols-5 gap-1.5 h-fit";
                 cats.forEach(c => {
                     if (!c.subs.length) {
                         const btn = document.createElement('button');
                         btn.type = 'button';
-                        btn.className = "bg-white border border-slate-100 p-4 rounded-2xl text-sm font-black text-slate-600 shadow-sm active:bg-indigo-50";
-                        btn.innerText = `${c.icon} ${c.name}`;
+                        btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
+                        btn.innerHTML = `<div class="text-base leading-none mb-0.5">${c.icon}</div><div class="leading-tight">${c.name}</div>`;
                         btn.addEventListener('click', () => drawerPick(c.name, ""));
                         l2Box.appendChild(btn);
                         return;
@@ -1154,8 +1191,8 @@
                     c.subs.forEach(s => {
                         const btn = document.createElement('button');
                         btn.type = 'button';
-                        btn.className = "bg-white border border-slate-100 p-4 rounded-2xl text-sm font-black text-slate-600 shadow-sm active:bg-indigo-50";
-                        btn.innerText = `${c.icon} ${s}`;
+                        btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
+                        btn.innerHTML = `<div class="text-base leading-none mb-0.5">${c.icon}</div><div class="leading-tight">${s}</div>`;
                         btn.addEventListener('click', () => drawerPick(c.name, s));
                         l2Box.appendChild(btn);
                     });
@@ -1173,21 +1210,21 @@
                     header.className = "flex items-center gap-2 mb-2 mt-4 first:mt-0";
                     header.innerHTML = `<span class="text-lg">${c.icon}</span><span class="text-sm font-black text-slate-500 uppercase tracking-wider">${c.name}</span>`;
                     l2Box.appendChild(header);
-                    // 二级网格
+                    // 二级网格5列
                     const grid = document.createElement('div');
-                    grid.className = "grid grid-cols-2 gap-2";
+                    grid.className = "grid grid-cols-5 gap-1.5";
                     // 一级直接入口
                     const direct = document.createElement('button');
                     direct.type = 'button';
-                    direct.className = "bg-indigo-600 text-white border border-indigo-600 p-3 rounded-2xl text-sm font-black shadow-sm active:bg-indigo-700";
-                    direct.innerText = c.name;
+                    direct.className = "bg-indigo-600 text-white border border-indigo-600 rounded-xl p-1.5 text-center text-[10px] font-bold shadow-sm active:bg-indigo-700";
+                    direct.innerHTML = `<div class="text-base leading-none mb-0.5">${c.icon}</div><div class="leading-tight">${c.name}</div>`;
                     direct.addEventListener('click', () => drawerPick(c.name, ""));
                     grid.appendChild(direct);
                     c.subs.forEach(s => {
                         const btn = document.createElement('button');
                         btn.type = 'button';
-                        btn.className = "bg-white border border-slate-100 p-3 rounded-2xl text-sm font-black text-slate-600 shadow-sm active:bg-indigo-50";
-                        btn.innerText = s;
+                        btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
+                        btn.innerHTML = `<div class="text-base leading-none mb-0.5">${c.icon}</div><div class="leading-tight">${s}</div>`;
                         btn.addEventListener('click', () => drawerPick(c.name, s));
                         grid.appendChild(btn);
                     });
