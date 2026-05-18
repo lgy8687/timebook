@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>TimeBook · 4月时间消费账单</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0b0b12;color:#e0e0e8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB',sans-serif;padding:16px;min-height:100vh}
+.container{max-width:960px;margin:0 auto}
+
+/* ── Header ── */
+.header{margin-bottom:20px}
+.header h1{font-size:20px;font-weight:600;display:flex;align-items:center;gap:8px}
+.header .period{font-size:13px;color:#666;margin-top:2px}
+
+/* ── Cards ── */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.card{background:linear-gradient(135deg,#14141e,#1a1a26);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.card.card-income::before{background:linear-gradient(90deg,#34d399,#60a5fa)}
+.card.card-spend::before{background:linear-gradient(90deg,#f87171,#fbbf24)}
+.card .icon{font-size:18px;margin-bottom:2px}
+.card .num{font-size:28px;font-weight:700;line-height:1.2}
+.card .num .unit{font-size:14px;color:#888;font-weight:400}
+.card .lbl{font-size:12px;color:#888;margin-top:1px}
+.card .sub{font-size:11px;color:#555;margin-top:2px}
+.progress{margin-top:8px;height:4px;background:#1e1e2e;border-radius:4px;overflow:hidden}
+.progress-bar{height:100%;border-radius:4px;transition:width .6s ease}
+
+/* ── Legend with toggle ── */
+.sunburst-legend{flex:1;min-width:160px}
+.legend-hint{font-size:11px;color:#555;margin-bottom:6px}
+.legend-toggle{display:flex;gap:4px;margin-bottom:8px}
+.legend-toggle button{background:#1a1a28;border:1px solid #2a2a3a;color:#888;padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer;transition:.15s}
+.legend-toggle button.active{background:#2a2a4a;border-color:#555;color:#e0e0e8}
+.legend-item{padding:2px 0;display:flex;align-items:center;gap:6px;cursor:pointer;border-radius:4px;padding:3px 6px;transition:background .12s;font-size:12px}
+.legend-item:hover{background:#1a1a28}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.legend-name{flex:1}
+.legend-val{color:#888}
+.legend-pct{color:#555;margin-left:2px}
+.legend-sub{padding-left:16px;font-size:11px}
+.l2-hidden{display:none!important}
+.l2-visible{display:flex!important}
+
+/* ── Tooltip ── */
+#tip{position:fixed;background:#1c1c2a;border:1px solid #2a2a3a;border-radius:8px;padding:8px 12px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .12s;z-index:100;max-width:200px;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+#tip.show{opacity:1}
+.tip-title{font-weight:600;font-size:13px}
+.tip-row{display:flex;justify-content:space-between;gap:16px;color:#888;margin-top:2px}
+.tip-sub{color:#555;font-size:11px;margin-top:1px}
+
+/* ── Leaderboard ── */
+.leaderboard{background:#14141e;border-radius:12px;padding:16px;margin-bottom:16px}
+.leaderboard h3{font-size:14px;font-weight:500;color:#888;margin-bottom:10px}
+.lb-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #1a1a26}
+.lb-row:last-child{border:none}
+.lb-rank{width:20px;font-size:11px;color:#555;text-align:center;flex-shrink:0}
+.lb-rank.top3{font-weight:700;font-size:14px}
+.lb-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.lb-name{flex:1;font-size:13px}
+.lb-name .lb-sub{color:#ddd}
+.lb-name .lb-cat-badge{font-size:10px;color:#666;margin-left:4px}
+.lb-hours{font-size:13px;font-weight:500;flex-shrink:0;width:48px;text-align:right}
+.lb-pct{font-size:11px;color:#555;flex-shrink:0;width:36px;text-align:right}
+.lb-bar-bg{width:80px;height:4px;background:#1e1e2e;border-radius:2px;overflow:hidden;flex-shrink:0}
+.lb-bar-fill{height:100%;border-radius:2px;transition:width .4s}
+/* ── Behavior Analysis ── */
+.behavior{background:#14141e;border-radius:12px;padding:16px;margin-bottom:16px}
+.behavior h3{font-size:14px;font-weight:500;color:#888;margin-bottom:10px}
+.bh-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.bh-card{background:#1a1a26;border-radius:8px;padding:12px}
+.bh-card .bh-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.bh-card .bh-title{font-size:13px;font-weight:500}
+.bh-card .bh-score{font-size:18px;font-weight:700}
+.bh-detail{font-size:11px;color:#777;line-height:1.6}
+.bh-detail span{color:#999}
+.bh-bar{height:3px;background:#1e1e2e;border-radius:2px;margin:6px 0;overflow:hidden}
+.bh-bar-fill{height:100%;border-radius:2px;transition:width .6s}
+.bh-suggestions{background:#1a1a26;border-radius:8px;padding:12px}
+.bh-suggestions h4{font-size:12px;color:#888;margin-bottom:6px}
+.bh-sug-item{font-size:12px;color:#bbb;padding:4px 0;line-height:1.5}
+.bh-sug-item:not(:last-child){border-bottom:1px solid #1e1e2e;margin-bottom:4px}
+.bh-tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px}
+.bh-tag-red{background:#f8717122;color:#f87171}
+.bh-tag-green{background:#34d39922;color:#34d399}
+.bh-tag-yellow{background:#fbbf2422;color:#fbbf24}
+/* ── Footer ── */
+
+@media(max-width:640px){
+    .cards{grid-template-columns:1fr}
+    .sunburst-wrap{flex-direction:column;align-items:center}
+}
+</style>
+</head>
+<body>
+
+<div class=container>
+
+<!-- Header -->
+<div class=header>
+<h1>🧾 时间消费账单</h1>
+<div class=period>TimeBook · 2026年4月 · 30 天 · 678 条记录 · 活动时间含合理重叠</div>
+</div>
+
+<!-- Cards -->
+<div class=cards>
+<div class="card card-income">
+<div class=icon>📅</div>
+<div class=num>30<span class=unit> 天</span></div>
+<div class=lbl>统计周期</div>
+<div class=sub>2026年4月1日 → 4月30日</div>
+<div class=progress><div class=progress-bar style=width:100%;background:linear-gradient(90deg,#34d399,#60a5fa)></div></div>
+</div>
+<div class="card card-spend">
+<div class=icon>⏱️</div>
+<div class=num style=color:#f87171>721<span class=unit> 小时</span></div>
+<div class=lbl>活动总时长</div>
+<div class=sub>日均 24.0h · 含多任务重叠统计</div>
+<div class=progress><div class=progress-bar style=width:100%;background:linear-gradient(90deg,#f87171,#fbbf24)></div></div>
+</div>
+</div>
+
+<!-- Sunburst -->
+<div class=sunburst-wrap>
+<svg class=sunburst-svg width=200 height=200 viewBox="0 0 200 200">
+  <!-- Inner ring (categories) -->
+  <path d="M 100.0,50.0 A 50,50 0 0 1 117.3,146.9 L 109.7,126.3 A 28,28 0 0 0 100.0,72.0 Z" fill="#f87171" fill-opacity=".85" stroke="#0b0b12" stroke-width="1" class="inner-seg" data-cat="上班" style="cursor:pointer;transition:fill-opacity .15s,transform .15s" onmouseenter="showTip(event,&#x27;上班&#x27;,&#x27;321.5h&#x27;,&#x27;44.6%&#x27;)" onmouseleave="hideTip()"/><path d="M 116.6,147.2 A 50,50 0 0 1 64.9,64.4 L 80.4,80.0 A 28,28 0 0 0 109.3,126.4 Z" fill="#60a5fa" fill-opacity=".85" stroke="#0b0b12" stroke-width="1" class="inner-seg" data-cat="生活" style="cursor:pointer;transition:fill-opacity .15s,transform .15s" onmouseenter="showTip(event,&#x27;生活&#x27;,&#x27;311.6h&#x27;,&#x27;43.2%&#x27;)" onmouseleave="hideTip()"/><path d="M 65.4,63.9 A 50,50 0 0 1 86.5,51.9 L 92.4,73.0 A 28,28 0 0 0 80.6,79.8 Z" fill="#34d399" fill-opacity=".85" stroke="#0b0b12" stroke-width="1" class="inner-seg" data-cat="學習" style="cursor:pointer;transition:fill-opacity .15s,transform .15s" onmouseenter="showTip(event,&#x27;學習&#x27;,&#x27;57.7h&#x27;,&#x27;8.0%&#x27;)" onmouseleave="hideTip()"/><path d="M 87.2,51.7 A 50,50 0 0 1 95.8,50.2 L 97.6,72.1 A 28,28 0 0 0 92.8,72.9 Z" fill="#fbbf24" fill-opacity=".85" stroke="#0b0b12" stroke-width="1" class="inner-seg" data-cat="餐飲" style="cursor:pointer;transition:fill-opacity .15s,transform .15s" onmouseenter="showTip(event,&#x27;餐飲&#x27;,&#x27;21.8h&#x27;,&#x27;3.0%&#x27;)" onmouseleave="hideTip()"/><path d="M 96.5,50.1 A 50,50 0 0 1 99.3,50.0 L 99.6,72.0 A 28,28 0 0 0 98.0,72.1 Z" fill="#a78bfa" fill-opacity=".85" stroke="#0b0b12" stroke-width="1" class="inner-seg" data-cat="交通" style="cursor:pointer;transition:fill-opacity .15s,transform .15s" onmouseenter="showTip(event,&#x27;交通&#x27;,&#x27;8.1h&#x27;,&#x27;1.1%&#x27;)" onmouseleave="hideTip()"/>
+  <!-- Outer ring (subcategories, Scheme C: same hue different shades) -->
+  <path d="M 100.0,20.0 A 80,80 0 0 1 127.6,175.1 L 118.6,150.7 A 54,54 0 0 0 100.0,46.0 Z" fill="#fca5a5" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="上班" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;工作&#x27;,&#x27;上班&#x27;,&#x27;321.5h&#x27;,&#x27;44.6%&#x27;)" onmouseleave="hideTip()"/><path d="M 126.6,175.5 A 80,80 0 0 1 20.0,101.4 L 46.0,100.9 A 54,54 0 0 0 117.9,150.9 Z" fill="#93c5fd" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="生活" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;睡眠&#x27;,&#x27;生活&#x27;,&#x27;217.8h&#x27;,&#x27;30.2%&#x27;)" onmouseleave="hideTip()"/><path d="M 20.0,101.4 A 80,80 0 0 1 23.1,78.1 L 48.1,85.2 A 54,54 0 0 0 46.0,100.9 Z" fill="#60a5fa" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="生活" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;摸魚&#x27;,&#x27;生活&#x27;,&#x27;34.6h&#x27;,&#x27;4.8%&#x27;)" onmouseleave="hideTip()"/><path d="M 23.1,78.1 A 80,80 0 0 1 32.7,56.7 L 54.6,70.8 A 54,54 0 0 0 48.1,85.2 Z" fill="#3b82f6" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="生活" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;休息&#x27;,&#x27;生活&#x27;,&#x27;34.5h&#x27;,&#x27;4.8%&#x27;)" onmouseleave="hideTip()"/><path d="M 32.7,56.7 A 80,80 0 0 1 42.2,44.7 L 61.0,62.6 A 54,54 0 0 0 54.6,70.8 Z" fill="#2563eb" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="生活" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;閱讀&#x27;,&#x27;生活&#x27;,&#x27;22.8h&#x27;,&#x27;3.2%&#x27;)" onmouseleave="hideTip()"/><path d="M 42.2,44.7 A 80,80 0 0 1 42.7,44.2 L 61.3,62.3 A 54,54 0 0 0 61.0,62.6 Z" fill="#1d4ed8" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="生活" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;鍛煉&#x27;,&#x27;生活&#x27;,&#x27;1.8h&#x27;,&#x27;0.3%&#x27;)" onmouseleave="hideTip()"/><path d="M 44.7,42.2 A 80,80 0 0 1 61.5,29.9 L 74.0,52.7 A 54,54 0 0 0 62.7,61.0 Z" fill="#6ee7b7" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="學習" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;閱讀&#x27;,&#x27;學習&#x27;,&#x27;30.7h&#x27;,&#x27;4.3%&#x27;)" onmouseleave="hideTip()"/><path d="M 61.5,29.9 A 80,80 0 0 1 78.4,23.0 L 85.4,48.0 A 54,54 0 0 0 74.0,52.7 Z" fill="#34d399" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="學習" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;公眾號&#x27;,&#x27;學習&#x27;,&#x27;27.0h&#x27;,&#x27;3.7%&#x27;)" onmouseleave="hideTip()"/><path d="M 79.4,22.7 A 80,80 0 0 1 93.3,20.3 L 95.5,46.2 A 54,54 0 0 0 86.1,47.8 Z" fill="#fde68a" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="餐飲" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;早午晚餐&#x27;,&#x27;餐飲&#x27;,&#x27;21.8h&#x27;,&#x27;3.0%&#x27;)" onmouseleave="hideTip()"/><path d="M 94.4,20.2 A 80,80 0 0 1 98.9,20.0 L 99.2,46.0 A 54,54 0 0 0 96.2,46.1 Z" fill="#c4b5fd" fill-opacity=".75" stroke="#0b0b12" stroke-width=".5" class="outer-seg" data-cat="交通" style="cursor:pointer;transition:fill-opacity .15s" onmouseenter="showTipOuter(event,&#x27;開車&#x27;,&#x27;交通&#x27;,&#x27;8.1h&#x27;,&#x27;1.1%&#x27;)" onmouseleave="hideTip()"/>
+  <!-- Center label -->
+  <circle cx=100 cy=100 r=26 fill="#14141e" stroke="#2a2a3a" stroke-width=".5"/>
+  <text x=100 y=96 text-anchor=middle fill="#e0e0e8" font-size=18 font-weight=700>721</text>
+  <text x=100 y=112 text-anchor=middle fill="#666" font-size=9>小时</text>
+</svg>
+<div class=sunburst-legend>
+<div class=legend-hint>🔄 内环 = 一级 · 外环 = 二级 · 悬停查看</div>
+<div class=legend-toggle>
+<button class=active id=btnL1 onclick="showL1()">一级目录</button>
+<button id=btnL2 onclick="showL2()">二级目录</button>
+</div>
+<div id=legendL1>
+<div class=legend-item onmouseenter="highlightCat(&#x27;上班&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#f87171></span><span class=legend-name>上班</span><span class=legend-val>321.5h</span><span class=legend-pct>44.6%</span></div><div class=legend-item onmouseenter="highlightCat(&#x27;生活&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#60a5fa></span><span class=legend-name>生活</span><span class=legend-val>311.6h</span><span class=legend-pct>43.2%</span></div><div class=legend-item onmouseenter="highlightCat(&#x27;學習&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#34d399></span><span class=legend-name>學習</span><span class=legend-val>57.7h</span><span class=legend-pct>8.0%</span></div><div class=legend-item onmouseenter="highlightCat(&#x27;餐飲&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#fbbf24></span><span class=legend-name>餐飲</span><span class=legend-val>21.8h</span><span class=legend-pct>3.0%</span></div><div class=legend-item onmouseenter="highlightCat(&#x27;交通&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#a78bfa></span><span class=legend-name>交通</span><span class=legend-val>8.1h</span><span class=legend-pct>1.1%</span></div>
+</div>
+<div id=legendL2 class=l2-hidden>
+<div class="legend-item" onmouseenter="highlightCat(&#x27;上班&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#f87171></span><span class=legend-name>上班 · <span class=legend-sub>工作</span></span><span class=legend-val>321.5h</span><span class=legend-pct>44.6%</span></div><div class="legend-item" onmouseenter="highlightCat(&#x27;生活&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#60a5fa></span><span class=legend-name>生活 · <span class=legend-sub>睡眠</span></span><span class=legend-val>217.8h</span><span class=legend-pct>30.2%</span></div><div class="legend-item" onmouseenter="highlightCat(&#x27;生活&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#60a5fa></span><span class=legend-name>生活 · <span class=legend-sub>摸魚</span></span><span class=legend-val>34.6h</span><span class=legend-pct>4.8%</span></div><div class="legend-item" onmouseenter="highlightCat(&#x27;生活&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#60a5fa></span><span class=legend-name>生活 · <span class=legend-sub>休息</span></span><span class=legend-val>34.5h</span><span class=legend-pct>4.8%</span></div><div class="legend-item" onmouseenter="highlightCat(&#x27;生活&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#60a5fa></span><span class=legend-name>生活 · <span class=legend-sub>閱讀</span></span><span class=legend-val>22.8h</span><span class=legend-pct>3.2%</span></div><div class="legend-item" onmouseenter="highlightCat(&#x27;生活&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#60a5fa></span><span class=legend-name>生活 · <span class=legend-sub>鍛煉</span></span><span class=legend-val>1.8h</span><span class=legend-pct>0.3%</span></div><div class="legend-item" onmouseenter="highlightCat(&#x27;學習&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#34d399></span><span class=legend-name>學習 · <span class=legend-sub>閱讀</span></span><span class=legend-val>30.7h</span><span class=legend-pct>4.3%</span></div><div class="legend-item" onmouseenter="highlightCat(&#x27;學習&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#34d399></span><span class=legend-name>學習 · <span class=legend-sub>公眾號</span></span><span class=legend-val>27.0h</span><span class=legend-pct>3.7%</span></div><div class="legend-item" onmouseenter="highlightCat(&#x27;餐飲&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#fbbf24></span><span class=legend-name>餐飲 · <span class=legend-sub>早午晚餐</span></span><span class=legend-val>21.8h</span><span class=legend-pct>3.0%</span></div><div class="legend-item" onmouseenter="highlightCat(&#x27;交通&#x27;)" onmouseleave="unhighlightCat()"><span class=legend-dot style=background:#a78bfa></span><span class=legend-name>交通 · <span class=legend-sub>開車</span></span><span class=legend-val>8.1h</span><span class=legend-pct>1.1%</span></div>
+</div>
+</div>
+</div>
+
+<!-- Leaderboard -->
+<div class=leaderboard>
+<h3>🏆 消费排行榜</h3>
+<div class=lb-row><span class="lb-rank top3" style=color:#fbbf24>1</span><span class=lb-dot style=background:#f87171></span><span class=lb-name><span class=lb-sub>工作</span> <span class=lb-cat-badge>· 上班</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:100%;background:#f87171></div></div><span class=lb-hours>321.5h</span><span class=lb-pct>44.6%</span></div><div class=lb-row><span class="lb-rank top3" style=color:#94a3b8>2</span><span class=lb-dot style=background:#60a5fa></span><span class=lb-name><span class=lb-sub>睡眠</span> <span class=lb-cat-badge>· 生活</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:68%;background:#60a5fa></div></div><span class=lb-hours>217.8h</span><span class=lb-pct>30.2%</span></div><div class=lb-row><span class="lb-rank top3" style=color:#cd7f32>3</span><span class=lb-dot style=background:#60a5fa></span><span class=lb-name><span class=lb-sub>摸魚</span> <span class=lb-cat-badge>· 生活</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:11%;background:#60a5fa></div></div><span class=lb-hours>34.6h</span><span class=lb-pct>4.8%</span></div><div class=lb-row><span class="lb-rank " style=color:#555>4</span><span class=lb-dot style=background:#60a5fa></span><span class=lb-name><span class=lb-sub>休息</span> <span class=lb-cat-badge>· 生活</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:11%;background:#60a5fa></div></div><span class=lb-hours>34.5h</span><span class=lb-pct>4.8%</span></div><div class=lb-row><span class="lb-rank " style=color:#555>5</span><span class=lb-dot style=background:#34d399></span><span class=lb-name><span class=lb-sub>閱讀</span> <span class=lb-cat-badge>· 學習</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:10%;background:#34d399></div></div><span class=lb-hours>30.7h</span><span class=lb-pct>4.3%</span></div><div class=lb-row><span class="lb-rank " style=color:#555>6</span><span class=lb-dot style=background:#34d399></span><span class=lb-name><span class=lb-sub>公眾號</span> <span class=lb-cat-badge>· 學習</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:8%;background:#34d399></div></div><span class=lb-hours>27.0h</span><span class=lb-pct>3.7%</span></div><div class=lb-row><span class="lb-rank " style=color:#555>7</span><span class=lb-dot style=background:#60a5fa></span><span class=lb-name><span class=lb-sub>閱讀</span> <span class=lb-cat-badge>· 生活</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:7%;background:#60a5fa></div></div><span class=lb-hours>22.8h</span><span class=lb-pct>3.2%</span></div><div class=lb-row><span class="lb-rank " style=color:#555>8</span><span class=lb-dot style=background:#fbbf24></span><span class=lb-name><span class=lb-sub>早午晚餐</span> <span class=lb-cat-badge>· 餐飲</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:7%;background:#fbbf24></div></div><span class=lb-hours>21.8h</span><span class=lb-pct>3.0%</span></div><div class=lb-row><span class="lb-rank " style=color:#555>9</span><span class=lb-dot style=background:#a78bfa></span><span class=lb-name><span class=lb-sub>開車</span> <span class=lb-cat-badge>· 交通</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:3%;background:#a78bfa></div></div><span class=lb-hours>8.1h</span><span class=lb-pct>1.1%</span></div><div class=lb-row><span class="lb-rank " style=color:#555>10</span><span class=lb-dot style=background:#60a5fa></span><span class=lb-name><span class=lb-sub>鍛煉</span> <span class=lb-cat-badge>· 生活</span></span><div class=lb-bar-bg><div class=lb-bar-fill style=width:1%;background:#60a5fa></div></div><span class=lb-hours>1.8h</span><span class=lb-pct>0.3%</span></div>
+</div>
+
+<!-- Behavior Analysis -->
+<div class=behavior>
+<h3>🧬 行为健康分析</h3>
+<div class=bh-grid>
+  <div class=bh-card>
+    <div class=bh-head>
+      <span class=bh-title>🌙 睡眠</span>
+      <span class=bh-score style=color:#f87171>59<span style=font-size:11px;color:#555>分</span></span>
+    </div>
+    <div class=bh-bar><div class=bh-bar-fill style=width:59%;background:#f87171></div></div>
+    <div class=bh-detail>
+      就寝 <span>00:15</span> · 起床 <span>07:31</span><br>
+      工作日 <span>6.8h</span> · 周末 <span>8.7h</span><br>
+      达标7h <span>1/22天</span>
+      <span class="bh-tag bh-tag-red">需改善</span>
+    </div>
+  </div>
+  <div class=bh-card>
+    <div class=bh-head>
+      <span class=bh-title>🍽️ 饮食</span>
+      <span class=bh-score style=color:#34d399>83<span style=font-size:11px;color:#555>分</span></span>
+    </div>
+    <div class=bh-bar><div class=bh-bar-fill style=width:83%;background:#34d399></div></div>
+    <div class=bh-detail>
+      三餐齐全 <span>17/30天</span><br>
+      两餐 <span>13/30天</span><br>
+      有早餐 <span>30/30天</span>
+      <span class="bh-tag bh-tag-green">优秀</span>
+    </div>
+  </div>
+  <div class=bh-card>
+    <div class=bh-head>
+      <span class=bh-title>⚖️ 工作·生活·学习</span>
+      <span class=bh-score style=color:#fbbf24>73<span style=font-size:11px;color:#555>分</span></span>
+    </div>
+    <div class=bh-bar><div class=bh-bar-fill style=width:73%;background:#fbbf24></div></div>
+    <div class=bh-detail>
+      上班 <span>321h</span> · 生活 <span>312h</span> · 学习 <span>58h</span><br>
+      摸鱼 <span>69次/34.6h</span> · 公号 <span>27.0h</span>
+      <span class="bh-tag bh-tag-yellow">一般</span>
+    </div>
+  </div>
+  <div class=bh-card>
+    <div class=bh-head>
+      <span class=bh-title>📖 阅读</span>
+      <span class=bh-score style=color:#34d399>98<span style=font-size:11px;color:#555>分</span></span>
+    </div>
+    <div class=bh-bar><div class=bh-bar-fill style=width:98%;background:#34d399></div></div>
+    <div class=bh-detail>
+      阅读天数 <span>29/30天</span><br>
+      日均阅读 <span>1.8h</span>
+      <span class="bh-tag bh-tag-green">优秀</span>
+    </div>
+  </div>
+</div>
+<div class=bh-suggestions>
+  <h4>💡 改善建议</h4>
+  <div class=bh-sug-item>💤 工作日平均睡眠6.8h，不足7h，长期影响记忆力和免疫力，建议午间补觉15-20分钟</div><div class=bh-sug-item>😴 周末补觉8.7h，说明工作日睡眠债较重，与其周末恶补不如平时早睡</div><div class=bh-sug-item>🍽️ 只有17/30天吃满三餐，漏餐集中在工作日晚上，建议备些健康零食</div><div class=bh-sug-item>📖 阅读习惯优秀（29/30天持续），请保持，建议增加输出型学习（写作/笔记）</div><div class=bh-sug-item>🐟 摸鱼69次共34.6h（日均1.2h），适当放松没问题，但建议设定"免打扰时段"提高专注</div>
+</div>
+</div>
+
+<div class=footer>TimeBook · 2026年4月 · 时间消费账单 · 内环留白+同色系分层</div>
+</div>
+
+<!-- Tooltip -->
+<div id=tip></div>
+
+<script>
+function showTip(e, title, val1, val2) {
+    const tip = document.getElementById('tip');
+    tip.innerHTML = `<div class=tip-title>${title}</div><div class=tip-row><span>${val1}</span><span>${val2}</span></div>`;
+    tip.className = 'show';
+    const r = e.target.getBoundingClientRect();
+    tip.style.left = Math.min(r.left + r.width/2 - 50, window.innerWidth - 210) + 'px';
+    tip.style.top = (r.top - 10) + 'px';
+}
+function showTipOuter(e, sub, cat, val1, val2) {
+    const tip = document.getElementById('tip');
+    tip.innerHTML = `<div class=tip-title>${sub}</div><div class=tip-sub>${cat}</div><div class=tip-row><span>${val1}</span><span>${val2}</span></div>`;
+    tip.className = 'show';
+    const r = e.target.getBoundingClientRect();
+    tip.style.left = Math.min(r.left + r.width/2 - 50, window.innerWidth - 210) + 'px';
+    tip.style.top = (r.top - 10) + 'px';
+}
+function hideTip() { document.getElementById('tip').className = ''; }
+function highlightCat(cat) {
+    document.querySelectorAll('.inner-seg, .outer-seg').forEach(el => {
+        el.style.fillOpacity = el.dataset.cat === cat ? '1' : '.08';
+    });
+}
+function unhighlightCat() {
+    document.querySelectorAll('.inner-seg, .outer-seg').forEach(el => {
+        el.style.fillOpacity = '';
+    });
+}
+function showL1() {
+    document.getElementById('legendL1').className = '';
+    document.getElementById('legendL2').className = 'l2-hidden';
+    document.getElementById('btnL1').className = 'active';
+    document.getElementById('btnL2').className = '';
+}
+function showL2() {
+    document.getElementById('legendL1').className = 'l2-hidden';
+    document.getElementById('legendL2').className = '';
+    document.getElementById('btnL1').className = '';
+    document.getElementById('btnL2').className = 'active';
+}
+</script>
+
+</body>
+</html>
