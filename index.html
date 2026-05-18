@@ -50,9 +50,10 @@
         .clock-segment { fill: none; stroke-width: 14; stroke-linecap: butt; transition: stroke-dasharray .3s linear, stroke-dashoffset .3s linear; cursor: pointer; }
         .donut-segment { fill: none; stroke-width: 15; stroke-linecap: butt; cursor: pointer; transition: stroke-width .18s ease, opacity .18s ease; }
         .donut-segment:hover { stroke-width: 17; opacity: .9; }
-        .day-remain-track { height: 26px; border-radius: 999px; background: #e5e7eb; overflow: hidden; position: relative; }
-        .day-remain-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3b82f6 0%, #22d3ee 100%); transition: width .35s linear; position: absolute; left: 0; top: 0; }
-        .day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); }
+        .day-remain-track { height: 26px; border-radius: 999px; background: #a0764a; overflow: hidden; position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,0.15); }
+        .day-remain-fill { height: 100%; border-radius: 999px; background: #5a5a5a; transition: width .35s linear; position: absolute; left: 0; top: 0; }
+        .day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); z-index: 2; }
+        #match-flame { position: absolute; top: 50%; transform: translateY(-50%); font-size: 14px; z-index: 3; pointer-events: none; transition: left .35s linear; filter: drop-shadow(0 0 3px rgba(255,100,0,0.4)); }
         @media (max-width: 720px) {
             .flow-dashboard { grid-template-columns: 1fr; max-width: 420px; }
             .clock-stage { grid-template-columns: 1fr 1fr; max-width: 360px; margin: 0 auto; gap: 8px; padding: 6px 0; }
@@ -88,7 +89,8 @@
     <main class="flex-1 overflow-y-auto p-4 pb-48">
         <section id="page-record" class="tab-content active space-y-5">
             <div class="day-remain-track">
-                <div id="day-remain-fill" class="day-remain-fill" style="width: 100%;"></div>
+                <div id="day-remain-fill" class="day-remain-fill" style="width: 0%;"></div>
+                <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
             <div class="space-y-3">
@@ -580,8 +582,8 @@
                 const compact = !showShortcutIcons;
                 // 与设置中心同款模板（上图标下文字）
                 item.className = compact
-                    ? "bg-white rounded-xl p-1 text-center text-[10px] font-bold relative border border-slate-50 btn-active"
-                    : "bg-white rounded-2xl p-1.5 text-center text-xs font-bold shadow-sm relative border border-slate-50 btn-active";
+                    ? "bg-white rounded-xl p-1.5 text-center text-xs font-bold relative border border-slate-50 btn-active"
+                    : "bg-white rounded-2xl p-2 text-center text-sm font-bold shadow-sm relative border border-slate-50 btn-active";
                 let pressTimer = null;
                 let longPressed = false;
                 const clearPress = () => {
@@ -609,12 +611,12 @@
 
                 if (showShortcutIcons) {
                     const icon = document.createElement('div');
-                    icon.className = compact ? "text-base leading-none mb-0.5" : "text-xl leading-none mb-0.5";
+                    icon.className = compact ? "text-lg leading-none mb-0.5" : "text-2xl leading-none mb-0.5";
                     icon.innerText = s.icon;
                     item.appendChild(icon);
                 }
                 const label = document.createElement('div');
-                label.className = compact ? "text-[10px] font-bold leading-tight" : "text-xs font-bold leading-tight";
+                label.className = compact ? "text-xs font-bold leading-tight" : "text-sm font-bold leading-tight";
                 label.innerText = s.l2 || s.l1;
                 item.appendChild(label);
                 grid.appendChild(item);
@@ -675,16 +677,16 @@
                 const card = document.createElement('div');
                 const compact = !showShortcutIcons;
                 card.className = compact
-                    ? "bg-slate-50 rounded-xl p-1 text-center text-[10px] font-bold relative"
-                    : "bg-slate-50 rounded-2xl p-1.5 text-center text-xs font-bold relative";
+                    ? "bg-slate-50 rounded-xl p-1.5 text-center text-xs font-bold relative"
+                    : "bg-slate-50 rounded-2xl p-2 text-center text-sm font-bold relative";
                 if (showShortcutIcons) {
                     const icon = document.createElement('div');
-                    icon.className = compact ? "text-base leading-none mb-0.5" : "text-xl leading-none mb-0.5";
+                    icon.className = compact ? "text-lg leading-none mb-0.5" : "text-2xl leading-none mb-0.5";
                     icon.innerText = s.icon;
                     card.appendChild(icon);
                 }
                 const label = document.createElement('div');
-                label.className = compact ? "text-[10px] font-bold leading-tight" : "text-xs font-bold leading-tight";
+                label.className = compact ? "text-xs font-bold leading-tight" : "text-sm font-bold leading-tight";
                 label.innerText = s.l2 || s.l1;
                 card.appendChild(label);
                 if (configEditMode) {
@@ -831,7 +833,7 @@
 
                 dayMap.get(day).forEach((log, idx) => {
                     const row = document.createElement('div');
-                    row.className = "bg-white p-5 rounded-3xl border border-slate-50 shadow-sm flex items-center mb-2";
+                    row.className = "bg-white p-3.5 rounded-2xl border border-slate-50 shadow-sm flex items-center mb-2";
                     if (log._crossDay) row.classList.add('opacity-60');
 
                     const bar = document.createElement('div');
@@ -839,23 +841,24 @@
                     bar.style.background = log.color || cats.find(c => c.name === log.l1)?.color || '#cbd5e1';
 
                     const body = document.createElement('div');
-                    body.className = "flex-1 min-w-0";
-                    const meta = document.createElement('div');
-                    meta.className = "flex justify-between text-xs text-slate-300 font-black mb-1 uppercase";
+                    body.className = "flex-1 min-w-0 flex flex-col gap-1";
+                    // 压缩成一行：时间 + 时长 + 活动名
+                    const top = document.createElement('div');
+                    top.className = "flex items-center gap-2 text-xs text-slate-400 font-bold";
                     const time = document.createElement('span');
+                    time.className = "font-mono shrink-0";
                     time.innerText = formatBeijingClock(log.startTime) + (log._crossDay ? ' (跨天继续)' : '');
                     const dur = document.createElement('span');
-                    dur.className = "text-indigo-500";
-                    dur.innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)} MIN`;
-                    meta.append(time, dur);
-
-                    const title = document.createElement('div');
-                    title.className = "text-lg font-black text-slate-700";
-                    title.innerText = displayName(log) + (log._crossDay ? ' 🌙' : '');
+                    dur.className = "text-indigo-500 font-black shrink-0";
+                    dur.innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
+                    const name = document.createElement('span');
+                    name.className = "font-black text-slate-700 truncate";
+                    name.innerText = displayName(log) + (log._crossDay ? ' 🌙' : '');
                     const l1 = document.createElement('span');
-                    l1.className = "text-xs font-bold text-slate-300 ml-2 uppercase";
-                    l1.innerText = log.l1 || '??';
-                    title.appendChild(l1);
+                    l1.className = "text-[10px] font-bold text-slate-300 shrink-0";
+                    l1.innerText = log.l1 || '';
+                    top.append(time, dur, name, l1);
+                    body.appendChild(top);
 
                     const noteRow = document.createElement('div');
                     noteRow.className = "flex items-center space-x-1";
@@ -870,7 +873,7 @@
                     }
                     noteRow.appendChild(note);
 
-                    body.append(meta, title, noteRow);
+                    body.append(top, noteRow);
                     row.append(bar, body);
                     list.appendChild(row);
                 });
@@ -1337,11 +1340,16 @@
             const dayStart = beijingPeriodStart(now, DAY_MS);
             const elapsed = Math.min(DAY_MS, Math.max(0, now - dayStart));
             const remain = Math.max(0, DAY_MS - elapsed);
-            const remainPct = (remain / DAY_MS) * 100;
+            const consumedPct = 100 - (remain / DAY_MS) * 100;
             const fill = document.getElementById('day-remain-fill');
+            const flame = document.getElementById('match-flame');
             if (!fill) return;
-            fill.style.width = `${remainPct}%`;
-            setText('day-remain-label', `今天剩余 ${Math.round(remainPct)}%`);
+            fill.style.width = `${consumedPct}%`;
+            if (flame) {
+                flame.style.left = `calc(${consumedPct}% - 1px)`;
+                flame.style.opacity = (consumedPct > 1 && consumedPct < 99) ? '1' : '0';
+            }
+            setText('day-remain-label', `今天剩余 ${Math.round(100 - consumedPct)}%`);
         }
 
         function updateUI() {
