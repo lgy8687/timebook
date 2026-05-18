@@ -131,20 +131,20 @@
             </div>
             <div class="space-y-3">
                 <div class="flex justify-between items-end px-1">
-                    <h3 class="text-xs font-black text-slate-300 uppercase tracking-widest">快捷入口</h3>
-                    <span onclick="switchTab('config')" class="text-xs text-indigo-400 font-bold">去设置</span>
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
+                    <span onclick="switchTab('config')" class="text-xs text-indigo-500 font-bold">去设置</span>
                 </div>
                 <div id="home-shortcuts" class="flex gap-1.5 items-stretch min-h-[64px]"></div>
             </div>
 
             <!-- ↳ 并行快捷区 -->
-            <div id="parallel-section" class="space-y-2 ml-5 pl-3 border-l-2 border-dashed border-violet-200">
+            <div id="parallel-section" class="space-y-2">
                 <div class="flex items-center gap-2 px-1">
                     <span class="text-[14px] text-violet-400">↳</span>
-                    <span class="text-[9px] font-black text-violet-400 uppercase tracking-widest">并行</span>
+                    <span class="text-[11px] font-black text-violet-500 uppercase tracking-widest">并行</span>
                     <span id="parallel-status" class="hidden text-[8px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">运行中</span>
                 </div>
-                <div id="parallel-shortcuts" class="flex gap-1.5 items-stretch min-h-[56px]"></div>
+                <div id="parallel-shortcuts" class="flex gap-1.5 items-stretch min-h-[44px]"></div>
             </div>
             <div class="flex space-x-2">
                 <input type="text" id="free-input" placeholder="输入：#标签 内容" class="flex-1 bg-white border-none rounded-2xl px-4 py-4 shadow-sm text-base focus:ring-2 focus:ring-indigo-100">
@@ -1048,7 +1048,7 @@
             // 左侧 ＋ 按钮（展开目录选并行活动，不是补录）
             const addBtn = document.createElement('button');
             addBtn.type = 'button';
-            addBtn.className = "bg-violet-50 rounded-xl w-7 flex items-center justify-center text-base font-black text-violet-500 btn-active shrink-0 self-stretch min-h-[46px]";
+            addBtn.className = "bg-violet-50 rounded-xl w-6 flex items-center justify-center text-base font-black text-violet-500 btn-active shrink-0 self-stretch min-h-[44px]";
             addBtn.innerText = "＋";
             addBtn.title = "记一笔并行活动";
             addBtn.addEventListener('click', () => {
@@ -1071,12 +1071,12 @@
                 item.className = (isActive
                     ? "bg-violet-100 ring-2 ring-violet-400"
                     : "bg-white border border-slate-100")
-                    + " rounded-xl py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-600 btn-active min-h-[46px]";
+                    + " rounded-xl py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-600 btn-active min-h-[44px]";
                 const icon = document.createElement('div');
-                icon.className = "text-base leading-none mb-0.5";
+                icon.className = "text-base leading-none";
                 icon.innerText = s.icon;
                 const label = document.createElement('div');
-                label.className = "text-[8px] font-bold leading-tight";
+                label.className = "text-[9px] font-bold leading-tight mt-0.5";
                 label.innerText = s.l2 || s.l1;
                 item.append(icon, label);
                 item.addEventListener('click', () => { toggleParallel(s.l1, s.l2, s.icon); });
@@ -1586,7 +1586,15 @@
                 // 移除旧监听器（用克隆替换）
                 const newEl = el.cloneNode(true);
                 el.parentNode.replaceChild(newEl, el);
-                newEl.addEventListener('input', () => { fmtTimeInputSec(newEl); });
+                // 离开输入框时才格式化，不干扰打字
+                newEl.addEventListener('blur', () => {
+                    fmtTimeInputSec(newEl);
+                    syncBackfillProgress(parentLog);
+                });
+                // 输入时只做简单过滤（不自动补冒号）
+                newEl.addEventListener('input', () => {
+                    newEl.value = newEl.value.replace(/[^0-9:]/g, '').slice(0, 8);
+                });
                 return newEl;
             };
             const sEl = bindFmt(startEl);
@@ -1601,12 +1609,14 @@
             _parallelCallback = (l1, l2) => {
                 const cat = getCat(l1);
                 const startMs = parseTimeFromInput('parallel-start', parentLog.startTime);
-                const endMs = parseTimeFromInput('parallel-end', parentLog.startTime);
-                const e = endMs > startMs ? endMs : endMs + 86400000;
-                const dur = Math.round((e - startMs) / 60000);
+                const realParentEnd = parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
+                const clampedStart = Math.max(parentLog.startTime, Math.min(realParentEnd, startMs));
+                const clampedEnd = Math.max(parentLog.startTime, Math.min(realParentEnd, parseTimeFromInput('parallel-end', parentLog.startTime)));
+                const e = clampedEnd > clampedStart ? clampedEnd : Math.min(realParentEnd, clampedStart + 60000);
+                const dur = Math.round((e - clampedStart) / 60000);
                 const entry = {
                     id: Date.now() + Math.random(),
-                    startTime: startMs,
+                    startTime: clampedStart,
                     endTime: e,
                     duration: dur,
                     l1, l2: l2 || '',
@@ -1693,9 +1703,12 @@
             const parentEnd = parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
             const total = parentEnd - parentLog.startTime;
             if (total <= 0) return;
-            const startMs = parseTimeFromInput('parallel-start', parentLog.startTime);
+            let startMs = parseTimeFromInput('parallel-start', parentLog.startTime);
             let endMs = parseTimeFromInput('parallel-end', parentLog.startTime);
-            if (endMs <= startMs) endMs = startMs + 60000;
+            // 钳制在父活动区间内
+            startMs = Math.max(parentLog.startTime, Math.min(parentEnd, startMs));
+            endMs = Math.max(parentLog.startTime, Math.min(parentEnd, endMs));
+            if (endMs <= startMs) endMs = Math.min(parentEnd, startMs + 60000);
             const left = Math.max(0, ((startMs - parentLog.startTime) / total) * 100);
             const right = Math.min(100, ((endMs - parentLog.startTime) / total) * 100);
             document.getElementById('backfill-fill').style.left = left + '%';
