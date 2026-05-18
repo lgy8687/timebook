@@ -1,0 +1,97 @@
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.ring-inner { fill: none; stroke: #10b981; stroke-width: 8; stroke-linecap: round; transition: stroke-dasharray 0.3s linear; }
+.ring-outer-bg { fill: none; stroke: #fff; stroke-width: 10; }
+.segment { fill: none; stroke-width: 10; transition: all 0.5s; }
+.btn-active:active { transform: scale(0.95); filter: brightness(0.9); }
+.drawer-up { animation: slideUp 0.3s ease-out; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.15s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.flow-segment { fill: none; stroke-width: 12; stroke-linecap: butt; cursor: pointer; transition: stroke-width 0.18s ease, filter 0.18s ease; }
+.flow-segment:hover { stroke-width: 14; filter: drop-shadow(0 0 6px rgba(79,70,229,0.22)); }
+.flow-current { filter: drop-shadow(0 0 8px rgba(99,102,241,0.35)); }
+.flow-label { font-size: 4px; font-weight: 900; fill: #334155; paint-order: stroke; stroke: white; stroke-width: 0.8px; stroke-linejoin: round; }
+.hour-segment { fill: none; stroke-width: 10; stroke-linecap: butt; transition: stroke-dasharray 0.3s linear, stroke-dashoffset 0.3s linear; }
+.time-hand { stroke: #0f172a; stroke-width: 1.25; stroke-linecap: round; opacity: 0.9; filter: drop-shadow(0 0 3px rgba(15,23,42,0.3)); }
+.hour-hand { stroke: #4f46e5; stroke-width: 1.15; stroke-linecap: round; opacity: 0.95; filter: drop-shadow(0 0 4px rgba(79,70,229,0.35)); }
+.time-dot { fill: #0f172a; stroke: white; stroke-width: 1.2; }
+.hour-dot { fill: #4f46e5; stroke: white; stroke-width: 1.1; }
+.report-card { background: white; border: 1px solid #eef2f7; border-radius: 24px; box-shadow: 0 1px 8px rgba(15, 23, 42, 0.04); }
+.report-title { font-size: 13px; font-weight: 900; color: #64748b; letter-spacing: .08em; text-transform: uppercase; }
+.timeline-track { position: relative; height: 52px; border-radius: 18px; background: #f1f5f9; overflow: hidden; }
+.timeline-block { position: absolute; top: 0; bottom: 0; min-width: 2px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 900; white-space: nowrap; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,.22); }
+.timeline-now { position: absolute; top: -8px; bottom: -8px; width: 2px; background: #0f172a; box-shadow: 0 0 0 3px rgba(15,23,42,.08); }
+.dist-row { display: grid; grid-template-columns: 80px 1fr 52px; gap: 10px; align-items: center; }
+.dist-bar { height: 12px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.dist-fill { height: 100%; border-radius: 999px; }
+.flow-dashboard { display: grid; grid-template-columns: minmax(280px, 360px) minmax(260px, 1fr); gap: 20px; align-items: center; max-width: 900px; margin: 0 auto; }
+.flow-panel { background: #f8fafc; border: 1px solid #eef2f7; border-radius: 24px; padding: 16px; }
+.flow-panel-label { font-size: 11px; font-weight: 900; color: #94a3b8; letter-spacing: .08em; text-transform: uppercase; }
+.flow-panel-value { font-size: 24px; line-height: 1.15; font-weight: 900; color: #0f172a; margin-top: 6px; }
+.clock-stage { display: grid; grid-template-columns: repeat(2, minmax(260px, 360px)); gap: 160px; justify-content: center; align-items: start; padding: 10px 0 6px; }
+.clock-face {
+    position: relative; background: #ffffff; border-radius: 50%;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    border: 1px solid #e2e8f0;
+}
+.clock-face svg { overflow: visible; }
+.clock-needle-minute { display: none; }
+.clock-needle-second { position: absolute; bottom: 50%; left: calc(50% - 0.75px); width: 1.5px; height: 48%; background: #ef4444 !important; transform-origin: bottom; border-radius: 1px; z-index: 11; transition: none !important; }
+.clock-segment { fill: none; stroke-width: 14; stroke-linecap: butt; transition: stroke-dasharray .3s linear, stroke-dashoffset .3s linear; cursor: pointer; }
+.donut-segment { fill: none; stroke-width: 15; stroke-linecap: butt; cursor: pointer; transition: stroke-width .18s ease, opacity .18s ease; }
+.donut-segment:hover { stroke-width: 17; opacity: .9; }
+.day-remain-track { height: 26px; border-radius: 999px; background:
+    linear-gradient(180deg, #6a6a6a 0%, #555555 30%, #444444 60%, #333333 100%);
+    overflow: hidden; position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,0.15); }
+.day-remain-track::after {
+    content: ''; position: absolute; inset: 0; border-radius: 999px; pointer-events: none; z-index: 1;
+    background-image:
+        radial-gradient(circle at 7% 30%, rgba(0,0,0,0.45) 0px, rgba(0,0,0,0.15) 3px, transparent 6px),
+        radial-gradient(circle at 16% 65%, rgba(0,0,0,0.5) 0px, rgba(0,0,0,0.1) 2px, transparent 5px),
+        radial-gradient(circle at 25% 40%, rgba(0,0,0,0.4) 0px, rgba(0,0,0,0.12) 4px, transparent 7px),
+        radial-gradient(circle at 35% 78%, rgba(0,0,0,0.5) 0px, rgba(0,0,0,0.1) 2px, transparent 5px),
+        radial-gradient(circle at 44% 22%, rgba(0,0,0,0.4) 0px, rgba(0,0,0,0.15) 3px, transparent 6px),
+        radial-gradient(circle at 53% 55%, rgba(0,0,0,0.5) 0px, rgba(0,0,0,0.1) 2px, transparent 4px),
+        radial-gradient(circle at 62% 85%, rgba(0,0,0,0.4) 0px, rgba(0,0,0,0.12) 4px, transparent 7px),
+        radial-gradient(circle at 71% 35%, rgba(0,0,0,0.45) 0px, rgba(0,0,0,0.1) 2px, transparent 5px),
+        radial-gradient(circle at 80% 60%, rgba(0,0,0,0.5) 0px, rgba(0,0,0,0.12) 3px, transparent 6px),
+        radial-gradient(circle at 88% 25%, rgba(0,0,0,0.4) 0px, rgba(0,0,0,0.1) 2px, transparent 4px),
+        radial-gradient(circle at 94% 70%, rgba(0,0,0,0.45) 0px, rgba(0,0,0,0.15) 3px, transparent 5px);
+}
+.day-remain-fill { height: 100%; border-radius: 999px; background: linear-gradient(180deg, #e0c8a0 0%, #D4B88C 100%); transition: width .35s linear; position: absolute; left: 0; top: 0; z-index: 2; }
+.day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); z-index: 2; }
+#match-flame { position: absolute; top: 50%; font-size: 14px; z-index: 3; pointer-events: none; transition: left .35s linear; filter: drop-shadow(0 0 5px rgba(255,120,0,0.6)); animation: fireDance 0.7s ease-in-out infinite; }
+@keyframes fireDance {
+    0%, 100% { transform: translateY(-50%) scale(1) rotate(0deg); }
+    20% { transform: translateY(-52%) scale(1.12, 1.06) rotate(-4deg); }
+    40% { transform: translateY(-48%) scale(0.95, 1.08) rotate(2deg); }
+    60% { transform: translateY(-53%) scale(1.06, 0.98) rotate(-2deg); }
+    80% { transform: translateY(-47%) scale(1.02, 1.1) rotate(4deg); }
+}
+.swipe-wrap { position: relative; overflow: hidden; border-radius: 1rem; margin-bottom: 0.5rem; touch-action: pan-y; }
+.swipe-actions { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; z-index: 0; }
+.swipe-actions.left { left: 0; }
+.swipe-actions.right { right: 0; }
+.swipe-action-btn { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 11px; font-weight: 900; color: #fff; border: none; white-space: nowrap; cursor: pointer; }
+.swipe-action-btn.delete { background: #ef4444; border-radius: 1rem 0 0 1rem; padding: 0 14px; }
+.swipe-action-btn.edit { background: #3b82f6; border-radius: 0 1rem 1rem 0; padding: 0 14px; }
+.swipe-card { position: relative; z-index: 1; background: #fff; border-radius: 1rem; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1); will-change: transform; touch-action: pan-y; }
+.swipe-card.swiping { transition: none !important; }
+.swipe-card.reveal-left { transform: translateX(70px); }
+.swipe-card.reveal-right { transform: translateX(-70px); }
+@media (max-width: 720px) {
+    .flow-dashboard { grid-template-columns: 1fr; max-width: 420px; }
+    .clock-stage { grid-template-columns: 1fr 1fr; max-width: 360px; margin: 0 auto; gap: 8px; padding: 6px 0; }
+    .clock-stage .clock-face { width: 150px !important; height: 150px !important; }
+    .clock-stage .clock-face .text-4xl { font-size: 1.25rem !important; }
+    .clock-stage .clock-face .text-2xl { font-size: 1rem !important; }
+    .clock-stage .clock-face .text-[9px] { font-size: 6px !important; }
+    #home-shortcuts button { min-height: unset !important; }
+    .day-remain-track { height: 22px; }
+    .day-remain-label { font-size: 11px; padding: 0 10px; }
+    #free-input { font-size: 14px; padding: 12px 16px !important; }
+    #header-timer { font-size: 1.25rem !important; }
+    .report-card { padding: 14px !important; }
+}
