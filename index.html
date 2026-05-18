@@ -381,11 +381,18 @@
         const HOUR_MS = 60 * 60 * 1000;
         const DAY_MS = 24 * HOUR_MS;
 
-        window.onload = () => { renderAll(); tickLoop(); };
+        window.onload = () => { 
+            try {
+                renderAll(); 
+                tickLoop();
+            } catch(e) {
+                document.body.innerHTML = '<div style="padding:40px;font-size:14px;color:red;"><h2>⚠️ 初始化失败</h2><pre style="margin-top:16px;background:#fee;padding:16px;border-radius:12px;font-size:12px;white-space:pre-wrap;">' + e.stack + '</pre></div>';
+            }
+        };
 
         let tickRAF = null;
         function tickLoop() {
-            tick();
+            try { tick(); } catch(e) { console.error('tick error', e); }
             tickRAF = requestAnimationFrame(tickLoop);
         }
 
