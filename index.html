@@ -297,7 +297,7 @@
     <script>
         // --- 数据模型 ---
         let cats = JSON.parse(localStorage.getItem('v9_cats')) || [
-            { id: 1, name: "上班", icon: "💼", color: "#6366f1", subs: ["开网约车", "开会", "写代码", "办公"] },
+            { id: 1, name: "上班", icon: "💼", color: "#3b82f6", subs: ["开网约车", "开会", "写代码", "办公"] },
             { id: 2, name: "生活", icon: "🏠", color: "#f59e0b", subs: ["睡觉", "起床", "休息", "洗漱"] },
             { id: 3, name: "交通", icon: "🚗", color: "#ef4444", subs: ["开车", "加油"] },
             { id: 4, name: "餐饮", icon: "🍱", color: "#10b981", subs: ["早午晚餐", "午休"] }
@@ -723,7 +723,7 @@
                 head.className = "flex justify-between items-center text-base font-black";
                 const titleGroup = document.createElement('div');
                 titleGroup.className = "flex items-center gap-2";
-                const PRESET_COLORS = ['#6366f1','#f59e0b','#ef4444','#10b981','#ec4899','#8b5cf6','#06b6d4','#f97316','#84cc16','#14b8a6','#a855f7','#e11d48'];
+                const PRESET_COLORS = ['#ef4444','#f97316','#f59e0b','#ec4899','#3b82f6','#10b981','#06b6d4','#8b5cf6','#334155','#a0522d','#c4841a','#0ea5e9'];
                 const colorDot = document.createElement('button');
                 colorDot.type = 'button';
                 colorDot.className = "w-3.5 h-3.5 rounded-full shrink-0 cursor-pointer";
@@ -876,7 +876,7 @@
                     time.className = "font-mono shrink-0";
                     time.innerText = formatBeijingClock(log.startTime) + (log._crossDay ? ' (跨天继续)' : '');
                     const name = document.createElement('span');
-                    name.className = "flex-1 font-black text-slate-700 truncate text-center mx-2";
+                    name.className = "flex-1 font-black text-slate-700 truncate ml-2";
                     name.innerText = displayName(log) + (log._crossDay ? ' 🌙' : '');
                     const l1 = document.createElement('span');
                     l1.className = "text-[10px] font-bold text-slate-300 shrink-0";
@@ -1498,7 +1498,7 @@
         function addL1() {
             showPrompt("新建一级分类", "输入大类名称", "", (n) => {
                 if (n && n.trim()) {
-                    cats.push({id:Date.now(), name:n.trim(), icon:"📁", color:"#6366f1", subs: []});
+                    cats.push({id:Date.now(), name:n.trim(), icon:"📁", color:"#3b82f6", subs: []});
                     save();
                 }
             });
