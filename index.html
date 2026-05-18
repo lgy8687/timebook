@@ -597,27 +597,26 @@
             });
         });
 
-        // --- 全局键盘避让 (手机键盘不遮挡按钮) ---
+        // --- 全局键盘避让 (贴键盘上方, 不置顶) ---
         let keyboardActiveModal = null;
+        let keyboardShifts = new WeakMap(); // modal -> original marginTop
         document.addEventListener('focusin', (e) => {
             const input = e.target;
             if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
             const modal = input.closest('#prompt-modal, #edit-modal, #new-cat-modal');
             if (!modal) return;
             keyboardActiveModal = modal;
-            // 先推到顶部
-            modal.style.alignItems = 'flex-start';
-            modal.style.paddingTop = '3vh';
-            // 等键盘完全弹出后再用 visualViewport 精调
+            // 等键盘弹起后精调：让弹窗底部刚好在键盘上方
             if (window.visualViewport) {
                 setTimeout(() => {
                     const vv = window.visualViewport;
-                    const body = modal.querySelector('div');
+                    const body = modal.querySelector('.bg-white');
                     if (!body) return;
                     const rect = body.getBoundingClientRect();
                     if (rect.bottom > vv.height) {
-                        const overlap = rect.bottom - vv.height + 14;
-                        modal.style.paddingTop = (parseFloat(modal.style.paddingTop) || 0) + overlap + 'px';
+                        const overlap = rect.bottom - vv.height + 16;
+                        keyboardShifts.set(body, body.style.marginTop);
+                        body.style.marginTop = `-${overlap}px`;
                     }
                 }, 350);
             }
@@ -627,26 +626,29 @@
             if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
             const modal = input.closest('#prompt-modal, #edit-modal, #new-cat-modal');
             if (!modal) return;
-            // 延迟恢复，防止误触
             setTimeout(() => {
                 if (!modal.contains(document.activeElement)) {
-                    modal.style.alignItems = '';
-                    modal.style.paddingTop = '';
+                    const body = modal.querySelector('.bg-white');
+                    if (body && keyboardShifts.has(body)) {
+                        body.style.marginTop = keyboardShifts.get(body);
+                        keyboardShifts.delete(body);
+                    }
                     keyboardActiveModal = null;
                 }
             }, 150);
         });
-        // visualViewport 变化时动态调整（键盘弹出/收回过程中）
+        // visualViewport 变化时动态调整
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', () => {
                 if (!keyboardActiveModal) return;
                 const vv = window.visualViewport;
-                const body = keyboardActiveModal.querySelector('div');
+                const body = keyboardActiveModal.querySelector('.bg-white');
                 if (!body) return;
                 const rect = body.getBoundingClientRect();
                 if (rect.bottom > vv.height) {
-                    const overlap = rect.bottom - vv.height + 14;
-                    keyboardActiveModal.style.paddingTop = (parseFloat(keyboardActiveModal.style.paddingTop) || 0) + overlap + 'px';
+                    const overlap = rect.bottom - vv.height + 16;
+                    keyboardShifts.set(body, body.style.marginTop || '');
+                    body.style.marginTop = `-${overlap}px`;
                 }
             });
         }
