@@ -408,26 +408,41 @@
     </div>
 
     <script>
+        // --- 安全读取 localStorage ---
+        function safeJSON(key, fallback) {
+            try {
+                const v = localStorage.getItem(key);
+                return v ? JSON.parse(v) : fallback;
+            } catch(e) { return fallback; }
+        }
         // --- 数据模型 ---
-        let cats = JSON.parse(localStorage.getItem('v9_cats')) || [
+        let cats = safeJSON('v9_cats') || [
             { id: 1, name: "上班", icon: "💼", color: "#3b82f6", subs: ["开网约车", "开会", "写代码", "办公"] },
             { id: 2, name: "生活", icon: "🏠", color: "#f59e0b", subs: ["睡觉", "起床", "休息", "洗漱"] },
             { id: 3, name: "交通", icon: "🚗", color: "#ef4444", subs: ["开车", "加油"] },
             { id: 4, name: "餐饮", icon: "🍱", color: "#10b981", subs: ["早午晚餐", "午休"] }
         ];
-        let shortcuts = JSON.parse(localStorage.getItem('v9_shorts')) || [
+        let shortcuts = safeJSON('v9_shorts') || [
             { l1: "上班", l2: "开网约车", icon: "🚕" },
             { l1: "生活", l2: "睡觉", icon: "🛌" },
             { l1: "交通", l2: "开车", icon: "🚗" }
         ];
-        let parallelShortcuts = JSON.parse(localStorage.getItem('v9_parallel_shorts')) || [
+        if (shortcuts.length < 3) {
+            // 兜底：如果被清空了，恢复默认
+            shortcuts = [
+                { l1: "上班", l2: "开网约车", icon: "🚕" },
+                { l1: "生活", l2: "睡觉", icon: "🛌" },
+                { l1: "交通", l2: "开车", icon: "🚗" }
+            ];
+        }
+        let parallelShortcuts = safeJSON('v9_parallel_shorts') || [
             { l1: "生活", l2: "休息", icon: "☕" },
             { l1: "餐饮", l2: "早午晚餐", icon: "🍽️" }
         ];
-        let logs = JSON.parse(localStorage.getItem('v9_logs')) || [];
-        let current = JSON.parse(localStorage.getItem('v9_current')) || null;
-        let parallelCurrent = JSON.parse(localStorage.getItem('v9_parallel')) || null;
-        let labelFontSize = parseInt(localStorage.getItem('v9_labelFontSize')) || 13;
+        let logs = safeJSON('v9_logs') || [];
+        let current = safeJSON('v9_current') || null;
+        let parallelCurrent = safeJSON('v9_parallel') || null;
+        let labelFontSize = safeJSON('v9_labelFontSize') || 13;
         // 子类图标映射
         const SUB_ICON_MAP = {
             '开网约车':'🚕','开会':'📋','会议':'📋','写代码':'💻','编程':'💻','办公':'📝','上班':'📝',
@@ -914,9 +929,16 @@
         }
 
         // --- 抽屉回调中继 ---
-        // 并行回调暂存
+        let _parallelPending = false;
         let _parallelCallback = null;
         function drawerPick(l1, l2) {
+            if (_parallelPending) {
+                _parallelPending = false;
+                const cat = getCat(l1);
+                closeDrawer();
+                toggleParallel(l1, l2 || '', cat?.icon || '📌');
+                return;
+            }
             if (pickerMode === 'shortcut') {
                 executeAddShortcut(l1, l2);
             } else if (pickerMode === 'shortcut-edit') {
@@ -945,11 +967,6 @@
                 localStorage.setItem('v9_logs', JSON.stringify(logs));
                 closeDrawer();
                 renderAll();
-            } else if (pickerMode === 'parallel-toggle') {
-                const cat = getCat(l1);
-                const icon = cat?.icon || '📌';
-                closeDrawer();
-                toggleParallel(l1, l2 || '', icon);
             } else if (pickerMode === 'edit' || (pickerMode && pickerMode.startsWith('parallel-backfill'))) {
                 const cb = _parallelCallback;
                 closeDrawer();
@@ -1019,15 +1036,10 @@
             addBtn.type = 'button';
             addBtn.className = "bg-violet-50 rounded-xl w-7 flex items-center justify-center text-base font-black text-violet-500 btn-active shrink-0 self-stretch min-h-[46px]";
             addBtn.innerText = "＋";
-            addBtn.title = "展开并行活动目录";
+            addBtn.title = "记一笔并行活动";
             addBtn.addEventListener('click', () => {
-                pickerMode = 'parallel-toggle';
-                document.getElementById('drawer-title').innerText = "选择并行活动";
-                document.getElementById('parallel-time-row').classList.add('hidden');
-                document.getElementById('drawer-footer').classList.add('hidden');
-                document.getElementById('drawer-note').value = "";
-                document.getElementById('drawer').classList.remove('hidden');
-                renderPicker();
+                _parallelPending = true;
+                openDrawerForRecord();
             });
             container.appendChild(addBtn);
             // 右侧 grid 3 列
