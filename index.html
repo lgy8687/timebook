@@ -597,16 +597,16 @@
             });
         });
 
-        // --- 全局键盘避让 (贴键盘上方, 不置顶) ---
+        // --- 全局键盘避让 (贴键盘上方留足选字区) ---
         let keyboardActiveModal = null;
-        let keyboardShifts = new WeakMap(); // modal -> original marginTop
+        let keyboardShifts = new WeakMap();
+        const KEYBOARD_GAP = 80; // 选字区高度+两底部留白
         document.addEventListener('focusin', (e) => {
             const input = e.target;
             if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
             const modal = input.closest('#prompt-modal, #edit-modal, #new-cat-modal');
             if (!modal) return;
             keyboardActiveModal = modal;
-            // 等键盘弹起后精调：让弹窗底部刚好在键盘上方
             if (window.visualViewport) {
                 setTimeout(() => {
                     const vv = window.visualViewport;
@@ -614,7 +614,7 @@
                     if (!body) return;
                     const rect = body.getBoundingClientRect();
                     if (rect.bottom > vv.height) {
-                        const overlap = rect.bottom - vv.height + 16;
+                        const overlap = rect.bottom - vv.height + KEYBOARD_GAP;
                         keyboardShifts.set(body, body.style.marginTop);
                         body.style.marginTop = `-${overlap}px`;
                     }
@@ -637,7 +637,6 @@
                 }
             }, 150);
         });
-        // visualViewport 变化时动态调整
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', () => {
                 if (!keyboardActiveModal) return;
@@ -646,9 +645,12 @@
                 if (!body) return;
                 const rect = body.getBoundingClientRect();
                 if (rect.bottom > vv.height) {
-                    const overlap = rect.bottom - vv.height + 16;
+                    const overlap = rect.bottom - vv.height + KEYBOARD_GAP;
                     keyboardShifts.set(body, body.style.marginTop || '');
                     body.style.marginTop = `-${overlap}px`;
+                } else if (keyboardShifts.has(body)) {
+                    body.style.marginTop = keyboardShifts.get(body);
+                    keyboardShifts.delete(body);
                 }
             });
         }
