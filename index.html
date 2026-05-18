@@ -305,15 +305,13 @@
         </div>
     </div>
 
-    <!-- 新建分类弹窗 (名字 + emoji 一体) -->
+    <!-- 新建分类弹窗 (名字 + emoji 一体, 通用 L1/L2) -->
     <div id="new-cat-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in">
-        <div class="bg-white rounded-2xl p-4 w-4/5 max-w-xs shadow-xl flex flex-col" style="max-height: 85vh;">
-            <h3 class="text-xs font-black text-slate-500 mb-3 text-center">新建一级分类</h3>
+        <div class="bg-white rounded-2xl p-4 w-4/5 max-w-xs shadow-xl" style="max-height: 78vh; overflow-y: auto;">
+            <h3 id="new-cat-modal-title" class="text-xs font-black text-slate-500 mb-3 text-center">新建一级分类</h3>
             <input type="text" id="new-cat-input" placeholder="输入大类名称" class="w-full bg-slate-50 border-none rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 mb-3" autocomplete="off">
-            <div class="flex-1 overflow-y-auto mb-3">
-                <div id="new-cat-emoji-grid" class="grid grid-cols-6 gap-1.5"></div>
-            </div>
-            <div class="flex space-x-3 shrink-0">
+            <div id="new-cat-emoji-grid" class="grid grid-cols-6 gap-1.5 mb-3"></div>
+            <div class="flex space-x-3 sticky bottom-0 bg-white pt-1">
                 <button onclick="closeNewCatModal()" class="flex-1 py-2.5 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
                 <button onclick="confirmNewCatModal()" class="flex-1 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-2xl">确定</button>
             </div>
@@ -359,14 +357,12 @@
         };
         // 30+ 日常行为 emoji 图标库
         const ENJOY_ICONS = [
-            '😊','😀','🥰','😎','🤗','😴','🥱','🤤','😅','😂',
-            '💼','📝','💻','📱','📞','📧','📊','📈','📉','🔍',
-            '📖','✏️','🎓','💡','🔧','🛠️','⚙️','🧰','🔬','📐',
-            '🚗','🚌','🚇','🚲','🏃','🧘','💪','🧠','🎯','🏆',
-            '🎵','🎮','🎬','📸','🎨','✈️','🏖️','🌴','🏕️','🌄',
-            '🍳','☕','🍵','🥤','🍺','🍽️','🥗','🎂','🍿','🍜',
-            '🛒','🏠','🌳','🌸','🐱','🐶','❤️','🔥','🌟','🎉',
-            '💤','🛌','🚿','🪥','🧹','📦','🎁','🧧','💊','🩺'
+            '😊','😀','🥰','😎','😴','🥱',
+            '💼','📝','💻','📱','📖','✏️',
+            '🎓','💡','🔧','🚗','🚌','🏃',
+            '🧘','🎵','🎮','🎬','✈️','🏖️',
+            '🍳','☕','🍵','🍽️','🥗','🍜',
+            '🛒','🏠','🐱','🐶','❤️','🔥'
         ];
         function getSubIcon(name, parentIcon) { return SUB_ICON_MAP[name] || parentIcon; }
         
@@ -551,10 +547,15 @@
             promptCallback = null;
         }
         // --- Emoji 图标选择器 (新建分类用) ---
+        // --- Emoji 图标选择器 (通用 L1/L2 新建) ---
         let newCatSelectedEmoji = "📁";
-        function showNewCatModal() {
+        let newCatCtx = {}; // { mode: 'l1'|'sub', catId: number|null, name: string }
+        function showNewCatModal(mode, catId) {
             newCatSelectedEmoji = "📁";
+            newCatCtx = { mode: mode || 'l1', catId: catId || null, name: '' };
             document.getElementById('new-cat-input').value = "";
+            document.getElementById('new-cat-input').placeholder = mode === 'sub' ? "输入子类名称" : "输入大类名称";
+            document.getElementById('new-cat-modal-title').innerText = mode === 'sub' ? '新建子分类' : '新建一级分类';
             const grid = document.getElementById('new-cat-emoji-grid');
             grid.innerHTML = '';
             ENJOY_ICONS.forEach(emoji => {
@@ -564,7 +565,6 @@
                 btn.innerText = emoji;
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    // 取消之前高亮
                     grid.querySelectorAll('.ring-2').forEach(el => el.classList.remove('ring-2', 'ring-indigo-500'));
                     btn.classList.add('ring-2', 'ring-indigo-500');
                     newCatSelectedEmoji = emoji;
@@ -581,8 +581,18 @@
             const name = document.getElementById('new-cat-input').value.trim();
             if (!name) { document.getElementById('new-cat-input').focus(); return; }
             document.getElementById('new-cat-modal').classList.add('hidden');
-            cats.push({id:Date.now(), name:name, icon: newCatSelectedEmoji, color:"#3b82f6", subs: []});
-            save();
+            if (newCatCtx.mode === 'sub') {
+                const cat = cats.find(c => c.id === newCatCtx.catId);
+                if (cat) {
+                    cat.subs.push(name);
+                    // 记住子类图标映射
+                    SUB_ICON_MAP[name] = newCatSelectedEmoji;
+                    save();
+                }
+            } else {
+                cats.push({id:Date.now(), name:name, icon: newCatSelectedEmoji, color:"#3b82f6", subs: []});
+                save();
+            }
         }
         // 回车触发确定
         document.addEventListener('DOMContentLoaded', () => {
@@ -1702,16 +1712,10 @@
             executeRecord(match.l1, match.l2, tag, val); el.value = "";
         }
         function addL1() {
-            showNewCatModal();
+            showNewCatModal('l1');
         }
         function addS(id) {
-            showPrompt("新建子分类", "输入子类名称", "", (n) => {
-                const cat = cats.find(c=>c.id==id);
-                if (n && n.trim() && cat) {
-                    cat.subs.push(n.trim());
-                    save();
-                }
-            });
+            showNewCatModal('sub', id);
         }
         function editL1(id) {
             const cat = cats.find(c => c.id == id);
