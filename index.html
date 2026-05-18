@@ -55,13 +55,11 @@
         .day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); }
         @media (max-width: 720px) {
             .flow-dashboard { grid-template-columns: 1fr; max-width: 420px; }
-            .clock-stage { max-width: 340px; margin: 0 auto; gap: 20px; }
+            .clock-stage { grid-template-columns: 1fr 1fr; max-width: 360px; margin: 0 auto; gap: 8px; padding: 6px 0; }
             .clock-stage .clock-face { width: 150px !important; height: 150px !important; }
             .clock-stage .clock-face .text-4xl { font-size: 1.25rem !important; }
             .clock-stage .clock-face .text-2xl { font-size: 1rem !important; }
             .clock-stage .clock-face .text-[9px] { font-size: 6px !important; }
-            .clock-stage .clock-face svg circle[r="50"] { r: 44 !important; }
-            .clock-stage .clock-face circle[cx="60"][cy="60"][r="50"]:not([stroke-width="14"]) { r: 44 !important; }
             #home-shortcuts button { padding: 10px !important; min-height: 72px !important; }
             #home-shortcuts button .text-3xl { font-size: 1.5rem !important; }
             #home-shortcuts button .text-base { font-size: 0.75rem !important; }
@@ -216,13 +214,8 @@
             <div class="flex items-center space-x-3">
                 <button onclick="switchTab('record')" class="bg-white w-10 h-10 rounded-xl shadow-sm flex items-center justify-center text-lg">⬅️</button>
                 <h2 class="text-lg font-black text-slate-800">设置中心</h2>
-            </div>
-            <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-[11px] font-black text-indigo-500 uppercase">标签字体大小</h3>
-                    <span id="fontsize-value" class="text-[10px] text-indigo-500 font-black">13px</span>
-                </div>
-                <input type="range" min="8" max="22" value="13" id="fontsize-slider" class="w-full accent-indigo-500">
+                <div class="flex-1"></div>
+                <button id="config-edit-btn" onclick="toggleConfigEdit()" class="text-[10px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-black">编辑</button>
             </div>
             <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
                 <div class="flex justify-between items-center">
@@ -234,7 +227,6 @@
             <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
                 <div class="flex justify-between items-center">
                     <h3 class="text-[11px] font-black text-slate-400 uppercase">全量目录管理</h3>
-                    <button onclick="addL1()" class="text-[9px] bg-slate-50 text-slate-400 px-3 py-1 rounded-full font-black">+ 一级类</button>
                 </div>
                 <div id="full-cat-list" class="space-y-4"></div>
             </div>
@@ -258,7 +250,10 @@
         <div class="bg-white w-full rounded-t-[40px] h-3/4 drawer-up flex flex-col">
             <div class="p-6 flex justify-between items-center shrink-0 border-b border-slate-50">
                 <h2 id="drawer-title" class="text-lg font-black">选择分类</h2>
-                <button onclick="closeDrawer()" class="text-slate-300 text-2xl">✕</button>
+                <div class="flex items-center gap-2">
+                    <button id="drawer-view-toggle" onclick="toggleDrawerView()" class="hidden text-[10px] bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full font-black">展开</button>
+                    <button onclick="closeDrawer()" class="text-slate-300 text-2xl">✕</button>
+                </div>
             </div>
             <div class="flex-1 overflow-hidden flex">
                 <div class="w-1/4 bg-slate-50 overflow-y-auto" id="drawer-l1"></div>
@@ -317,7 +312,9 @@
         let logLimit = 10;
         let editTarget = null;
         let editingShortcutIndex = null;
+        let configEditMode = false;
         let reportMode = 'l1';
+        let drawerViewMode = 'l1'; // 'l1' = 先选一级, 'flat' = 全二级
         const BJ_OFFSET = 8 * 60 * 60 * 1000;
         const HOUR_MS = 60 * 60 * 1000;
         const DAY_MS = 24 * HOUR_MS;
@@ -634,6 +631,16 @@
             });
         }
 
+        function toggleConfigEdit() {
+            configEditMode = !configEditMode;
+            const btn = document.getElementById('config-edit-btn');
+            if (btn) {
+                btn.innerText = configEditMode ? '完成' : '编辑';
+                btn.className = configEditMode ? 'text-[10px] bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-full font-black' : 'text-[10px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-black';
+            }
+            renderConfig();
+        }
+
         function renderConfig() {
             const shortcutList = document.getElementById('shortcut-list');
             shortcutList.innerHTML = "";
@@ -643,16 +650,19 @@
                 const label = document.createElement('div');
                 label.className = "text-sm leading-tight";
                 label.innerText = `${s.icon} ${s.l2 || s.l1}`;
-                const del = document.createElement('button');
-                del.type = 'button';
-                del.className = "absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-400 text-white rounded-full text-[10px] flex items-center justify-center shadow-sm";
-                del.innerText = "✕";
-                del.addEventListener('click', () => {
-                    shortcuts.splice(idx, 1);
-                    localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
-                    renderAll();
-                });
-                card.append(label, del);
+                card.append(label);
+                if (configEditMode) {
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.className = "absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-400 text-white rounded-full text-[10px] flex items-center justify-center shadow-sm";
+                    del.innerText = "✕";
+                    del.addEventListener('click', () => {
+                        shortcuts.splice(idx, 1);
+                        localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
+                        renderAll();
+                    });
+                    card.appendChild(del);
+                }
                 shortcutList.appendChild(card);
             });
 
@@ -666,25 +676,24 @@
                 head.className = "flex justify-between items-center text-base font-black";
                 const title = document.createElement('span');
                 title.innerText = `${c.icon} ${c.name}`;
-                const actions = document.createElement('div');
-                actions.className = "flex space-x-2";
-                const edit = document.createElement('button');
-                edit.type = 'button';
-                edit.className = "text-slate-400";
-                edit.innerText = "编辑";
-                edit.addEventListener('click', () => editL1(c.id));
-                const add = document.createElement('button');
-                add.type = 'button';
-                add.className = "text-indigo-400";
-                add.innerText = "+子类";
-                add.addEventListener('click', () => addS(c.id));
-                const del = document.createElement('button');
-                del.type = 'button';
-                del.className = "text-slate-300";
-                del.innerText = "✕";
-                del.addEventListener('click', () => delL1(c.id));
-                actions.append(edit, add, del);
-                head.append(title, actions);
+                head.appendChild(title);
+                if (configEditMode) {
+                    const actions = document.createElement('div');
+                    actions.className = "flex space-x-2";
+                    const edit = document.createElement('button');
+                    edit.type = 'button';
+                    edit.className = "text-slate-400";
+                    edit.innerText = "编辑";
+                    edit.addEventListener('click', () => editL1(c.id));
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.className = "text-slate-300";
+                    del.innerText = "✕";
+                    del.addEventListener('click', () => delL1(c.id));
+                    actions.append(edit, del);
+                    head.appendChild(actions);
+                }
+                wrap.appendChild(head);
 
                 const subs = document.createElement('div');
                 subs.className = "flex flex-wrap gap-2";
@@ -696,18 +705,35 @@
                     editSub.className = "px-3 py-1.5";
                     editSub.innerText = name;
                     editSub.addEventListener('click', () => editS(c.id, name));
-                    const delSub = document.createElement('button');
-                    delSub.type = 'button';
-                    delSub.className = "px-2 py-1.5 text-red-300 border-l border-slate-100";
-                    delSub.innerText = "✕";
-                    delSub.addEventListener('click', () => delS(c.id, name));
-                    chip.append(editSub, delSub);
+                    chip.appendChild(editSub);
+                    if (configEditMode) {
+                        const delSub = document.createElement('button');
+                        delSub.type = 'button';
+                        delSub.className = "px-2 py-1.5 text-red-300 border-l border-slate-100";
+                        delSub.innerText = "✕";
+                        delSub.addEventListener('click', () => delS(c.id, name));
+                        chip.appendChild(delSub);
+                    }
                     subs.appendChild(chip);
                 });
+                // 末尾＋按钮
+                const addBtn = document.createElement('button');
+                addBtn.type = 'button';
+                addBtn.className = "bg-slate-100 border border-dashed border-slate-300 rounded-full text-sm font-bold text-slate-400 px-3 py-1.5 flex items-center gap-1";
+                addBtn.innerText = "＋";
+                addBtn.addEventListener('click', () => addS(c.id));
+                subs.appendChild(addBtn);
 
                 wrap.append(head, subs);
                 catList.appendChild(wrap);
             });
+            // 底部添加一级类
+            const addL1Btn = document.createElement('button');
+            addL1Btn.type = 'button';
+            addL1Btn.className = "w-full py-3 text-center text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-300";
+            addL1Btn.innerText = "＋ 添加一级分类";
+            addL1Btn.addEventListener('click', () => addL1());
+            catList.appendChild(addL1Btn);
         }
 
         function renderLogs() {
@@ -1031,9 +1057,10 @@
         function openDrawer() { 
             pickerMode = 'record'; 
             document.getElementById('drawer-title').innerText = "记一笔活动";
-            document.getElementById('drawer-footer').classList.remove('hidden');
-            document.getElementById('drawer-note').value = "";
             document.getElementById('drawer').classList.remove('hidden'); 
+            renderDrawerToggle();
+            document.getElementById('drawer-note').value = "";
+            document.getElementById('drawer-footer').classList.remove('hidden');
             renderPicker(); 
         }
         function openShortcutPicker() { 
@@ -1042,6 +1069,21 @@
             document.getElementById('drawer-footer').classList.add('hidden');
             document.getElementById('drawer').classList.remove('hidden'); 
             renderPicker(); 
+        }
+        function renderDrawerToggle() {
+            const btn = document.getElementById('drawer-view-toggle');
+            if (!btn) return;
+            if (pickerMode === 'record') {
+                btn.classList.remove('hidden');
+                btn.innerText = drawerViewMode === 'l1' ? '展开' : '收起';
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+        function toggleDrawerView() {
+            drawerViewMode = drawerViewMode === 'l1' ? 'flat' : 'l1';
+            renderDrawerToggle();
+            renderPicker();
         }
         function renderPicker() {
             const l1Box = document.getElementById('drawer-l1');
@@ -1055,6 +1097,32 @@
                 l2Box.appendChild(empty);
                 return;
             }
+
+            // flat 模式：直接显示所有二级目录
+            if (drawerViewMode === 'flat' && pickerMode === 'record') {
+                l1Box.innerHTML = "<div class='p-4 text-[10px] text-slate-300 font-bold'>全部</div>";
+                cats.forEach(c => {
+                    if (!c.subs.length) {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = "bg-white border border-slate-100 p-4 rounded-2xl text-sm font-black text-slate-600 shadow-sm active:bg-indigo-50";
+                        btn.innerText = `${c.icon} ${c.name}`;
+                        btn.addEventListener('click', () => drawerPick(c.name, ""));
+                        l2Box.appendChild(btn);
+                        return;
+                    }
+                    c.subs.forEach(s => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = "bg-white border border-slate-100 p-4 rounded-2xl text-sm font-black text-slate-600 shadow-sm active:bg-indigo-50";
+                        btn.innerText = `${c.icon} ${s}`;
+                        btn.addEventListener('click', () => drawerPick(c.name, s));
+                        l2Box.appendChild(btn);
+                    });
+                });
+                return;
+            }
+
             if (!cats.some(c => c.name === selL1)) selL1 = cats[0].name;
 
             cats.forEach(c => {
@@ -1200,18 +1268,8 @@
             }
         }
 
-        function applyFontSize() {
-            labelFontSize = parseInt(document.getElementById('fontsize-slider').value) || 13;
-            localStorage.setItem('v9_labelFontSize', labelFontSize);
-            document.getElementById('fontsize-value').innerText = labelFontSize + 'px';
-            renderAll();
-        }
         window.addEventListener('load', () => {
-            const slider = document.getElementById('fontsize-slider');
-            if (slider) {
-                slider.value = labelFontSize;
-                slider.addEventListener('input', applyFontSize);
-            }
+            // renderAll called by window.onload
         });
 
         function renderFlow() {
