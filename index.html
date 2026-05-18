@@ -123,7 +123,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-[9px] font-bold text-slate-200">v2-mobile-fix</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v0519</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -205,7 +205,7 @@
                 <div class="text-right">
                     <div id="report-cur-l2" class="text-base font-black text-indigo-600">空闲</div>
                     <div id="report-cur-timer" class="text-sm font-mono font-black text-slate-400">00:00:00</div>
-                    <div id="page-version-badge" class="text-[8px] font-bold text-slate-200 mt-1">v2-mobile-fix</div>
+                    <div id="page-version-badge" class="text-xs font-black text-red-500 mt-1">v0519</div>
                 </div>
             </div>
 
@@ -1007,6 +1007,14 @@
                 closeDrawer();
                 renderAll();
             } else if (pickerMode === 'edit' || (pickerMode && pickerMode.startsWith('parallel-backfill'))) {
+                // 补录模式：提交前先钳制时间，如果还无效则拦截
+                if (pickerMode.startsWith('parallel-backfill')) {
+                    snapTimeToRange();
+                    if (!isTimeInParentRange()) {
+                        showConfirm('⏱ 时间不合法', '开始或结束时间超出了父活动的范围，请调整后重新选择分类。', '知道了', () => {});
+                        return;
+                    }
+                }
                 const cb = _parallelCallback;
                 closeDrawer();
                 if (cb) { cb(l1, l2); }
@@ -1867,6 +1875,15 @@
                 setFieldColor(prefix, '');
                 delete _snapRedTimers[prefix];
             }, 1200);
+        }
+
+        // 检查时间是否在父级区间内（提交前拦截用）
+        function isTimeInParentRange() {
+            if (!_backfillRange) return true;
+            const { start: prStart, end: prEnd } = _backfillRange;
+            const ps = parseTimeFromInput('ps', prStart);
+            const pe = parseTimeFromInput('pe', prStart);
+            return ps >= prStart && ps < pe && pe <= prEnd;
         }
         // 初始化所有时间字段
         ['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s'].forEach(id => {
