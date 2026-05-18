@@ -137,17 +137,17 @@
                     <h3 class="text-xs font-black text-slate-300 uppercase tracking-widest">快捷入口</h3>
                     <span onclick="switchTab('config')" class="text-xs text-indigo-400 font-bold">去设置</span>
                 </div>
-                <div id="home-shortcuts" class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1"></div>
+                <div id="home-shortcuts" class="flex gap-1.5 items-stretch min-h-[64px]"></div>
             </div>
 
             <!-- ↳ 并行快捷区 -->
-            <div id="parallel-section" class="space-y-2">
+            <div id="parallel-section" class="space-y-2 ml-5 pl-3 border-l-2 border-dashed border-violet-200">
                 <div class="flex items-center gap-2 px-1">
                     <span class="text-[14px] text-violet-400">↳</span>
                     <span class="text-[9px] font-black text-violet-400 uppercase tracking-widest">并行</span>
                     <span id="parallel-status" class="hidden text-[8px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">运行中</span>
                 </div>
-                <div id="parallel-shortcuts" class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 ml-5 pl-3 border-l-2 border-dashed border-violet-200"></div>
+                <div id="parallel-shortcuts" class="flex gap-1.5 items-stretch min-h-[56px]"></div>
             </div>
             <div class="flex space-x-2">
                 <input type="text" id="free-input" placeholder="输入：#标签 内容" class="flex-1 bg-white border-none rounded-2xl px-4 py-4 shadow-sm text-base focus:ring-2 focus:ring-indigo-100">
@@ -279,6 +279,13 @@
             </div>
             <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
                 <div class="flex justify-between items-center">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider">并行快捷设置</h3>
+                    <button onclick="openParallelShortcutPicker()" class="text-[11px] bg-violet-50 text-violet-600 px-3 py-1 rounded-full font-black">+ 选取</button>
+                </div>
+                <div id="parallel-shortcut-list" class="grid grid-cols-3 gap-2"></div>
+            </div>
+            <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
+                <div class="flex justify-between items-center">
                     <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider">全量目录管理</h3>
                 </div>
                 <div id="full-cat-list" class="space-y-4"></div>
@@ -400,6 +407,10 @@
             { l1: "上班", l2: "开网约车", icon: "🚕" },
             { l1: "生活", l2: "睡觉", icon: "🛌" },
             { l1: "交通", l2: "开车", icon: "🚗" }
+        ];
+        let parallelShortcuts = JSON.parse(localStorage.getItem('v9_parallel_shorts')) || [
+            { l1: "生活", l2: "休息", icon: "☕" },
+            { l1: "餐饮", l2: "早午晚餐", icon: "🍽️" }
         ];
         let logs = JSON.parse(localStorage.getItem('v9_logs')) || [];
         let current = JSON.parse(localStorage.getItem('v9_current')) || null;
@@ -882,6 +893,14 @@
                 executeAddShortcut(l1, l2);
             } else if (pickerMode === 'shortcut-edit') {
                 executeEditShortcut(l1, l2);
+            } else if (pickerMode === 'parallel-shortcut') {
+                // 添加并行快捷
+                if (parallelShortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
+                const cat = getCat(l1);
+                parallelShortcuts.push({ l1, l2: l2 || '', icon: cat?.icon || '📌' });
+                localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
+                closeDrawer();
+                renderAll();
             } else if (pickerMode === 'parallel-record') {
                 // 补录并行：从抽屉取时间
                 const cat = getCat(l1);
@@ -917,27 +936,26 @@
 
         // --- 渲染逻辑 ---
         function renderShortcuts() {
-            const grid = document.getElementById('home-shortcuts');
-            grid.innerHTML = "";
-            // 开头 ＋ 按钮（记一笔）
+            const container = document.getElementById('home-shortcuts');
+            container.innerHTML = "";
+            // 左侧 ＋ 按钮（竖着 stretch 跨所有行）
             const addBtn = document.createElement('button');
             addBtn.type = 'button';
-            addBtn.className = "bg-indigo-50 rounded-xl w-12 h-12 shrink-0 flex items-center justify-center text-lg font-black text-indigo-500 btn-active";
+            addBtn.className = "bg-indigo-50 rounded-xl w-7 flex items-center justify-center text-lg font-black text-indigo-500 btn-active shrink-0 self-stretch min-h-[52px]";
             addBtn.innerText = "＋";
             addBtn.title = "记一笔活动";
             addBtn.addEventListener('click', () => { openDrawerForRecord(); });
-            grid.appendChild(addBtn);
-            // 快捷按钮
+            container.appendChild(addBtn);
+            // 右侧 grid 3 列
+            const grid = document.createElement('div');
+            grid.className = "grid grid-cols-3 gap-1.5 flex-1";
             shortcuts.forEach((s, idx) => {
                 const item = document.createElement('button');
                 item.type = 'button';
-                item.className = "bg-white rounded-xl w-12 h-12 shrink-0 flex flex-col items-center justify-center text-[10px] font-bold text-slate-700 shadow-sm btn-active";
+                item.className = "bg-white rounded-xl py-3 flex flex-col items-center justify-center text-[11px] font-bold text-slate-700 shadow-sm btn-active min-h-[52px]";
                 let pressTimer = null;
                 let longPressed = false;
-                const clearPress = () => {
-                    if (pressTimer) clearTimeout(pressTimer);
-                    pressTimer = null;
-                };
+                const clearPress = () => { if (pressTimer) clearTimeout(pressTimer); pressTimer = null; };
                 item.addEventListener('pointerdown', () => {
                     longPressed = false;
                     pressTimer = setTimeout(() => { longPressed = true; editShortcut(idx); }, 550);
@@ -951,46 +969,61 @@
                     executeRecord(s.l1, s.l2, "", "");
                 });
                 const icon = document.createElement('div');
-                icon.className = "text-xs leading-none";
+                icon.className = "text-lg leading-none mb-1";
                 icon.innerText = s.icon;
                 const label = document.createElement('div');
-                label.className = "text-[8px] font-bold leading-tight mt-0.5";
+                label.className = "text-[9px] font-bold leading-tight";
                 label.innerText = s.l2 || s.l1;
                 item.append(icon, label);
                 grid.appendChild(item);
             });
+            container.appendChild(grid);
         }
         // 并行快捷区
         function renderParallelShortcuts() {
-            const grid = document.getElementById('parallel-shortcuts');
-            grid.innerHTML = "";
-            // 开头 ＋ 按钮（并行记一笔 → 带时间栏的补录抽屉）
+            const container = document.getElementById('parallel-shortcuts');
+            container.innerHTML = "";
+            // 左侧 ＋ 按钮（展开目录选并行活动，不是补录）
             const addBtn = document.createElement('button');
             addBtn.type = 'button';
-            addBtn.className = "bg-violet-50 rounded-xl w-10 h-10 shrink-0 flex items-center justify-center text-base font-black text-violet-500 btn-active";
+            addBtn.className = "bg-violet-50 rounded-xl w-7 flex items-center justify-center text-base font-black text-violet-500 btn-active shrink-0 self-stretch min-h-[46px]";
             addBtn.innerText = "＋";
-            addBtn.title = "补录并行活动";
-            addBtn.addEventListener('click', () => { openDrawerForRecord('parallel'); });
-            grid.appendChild(addBtn);
-            // 并行快捷（toggle 行为）
-            shortcuts.forEach((s, idx) => {
+            addBtn.title = "展开并行活动目录";
+            addBtn.addEventListener('click', () => {
+                // 打开分类抽屉，选中的活动调用 toggleParallel
+                _parallelCallback = (l1, l2) => {
+                    const icon = getCat(l1)?.icon || '📌';
+                    toggleParallel(l1, l2, icon);
+                };
+                pickerMode = 'parallel-toggle';
+                document.getElementById('drawer-title').innerText = "选择并行活动";
+                document.getElementById('drawer-footer').classList.add('hidden');
+                document.getElementById('drawer').classList.remove('hidden');
+                renderPicker();
+            });
+            container.appendChild(addBtn);
+            // 右侧 grid 3 列
+            const grid = document.createElement('div');
+            grid.className = "grid grid-cols-3 gap-1.5 flex-1";
+            parallelShortcuts.forEach((s, idx) => {
                 const item = document.createElement('button');
                 item.type = 'button';
                 const isActive = parallelCurrent && parallelCurrent.l1 === s.l1 && parallelCurrent.l2 === s.l2;
                 item.className = (isActive
                     ? "bg-violet-100 ring-2 ring-violet-400"
                     : "bg-white border border-slate-100")
-                    + " rounded-xl w-10 h-10 shrink-0 flex flex-col items-center justify-center text-[9px] font-bold text-slate-600 btn-active";
+                    + " rounded-xl py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-600 btn-active min-h-[46px]";
                 const icon = document.createElement('div');
-                icon.className = "text-xs leading-none";
+                icon.className = "text-base leading-none mb-0.5";
                 icon.innerText = s.icon;
                 const label = document.createElement('div');
-                label.className = "text-[7px] font-bold leading-tight mt-0.5";
+                label.className = "text-[8px] font-bold leading-tight";
                 label.innerText = s.l2 || s.l1;
                 item.append(icon, label);
                 item.addEventListener('click', () => { toggleParallel(s.l1, s.l2, s.icon); });
                 grid.appendChild(item);
             });
+            container.appendChild(grid);
             updateParallelStatus();
         }
         function toggleParallel(l1, l2, icon) {
@@ -1034,26 +1067,17 @@
             }
         }
         // 打开抽屉（普通记录 / 并行记录）
-        function openDrawerForRecord(mode) {
+        function openDrawerForRecord() {
+            pickerMode = 'record';
             _parallelCallback = null;
-            if (mode === 'parallel') {
-                pickerMode = 'parallel-record';
-                document.getElementById('drawer-title').innerText = "➕ 补录并行活动";
-                document.getElementById('parallel-time-row').classList.remove('hidden');
-                document.getElementById('drawer-footer').classList.remove('hidden');
-                document.getElementById('drawer-note').placeholder = "备注（选填）";
-                // 预填当前时间
-                const now = new Date();
-                document.getElementById('parallel-start').value = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-            } else {
-                pickerMode = 'record';
-                document.getElementById('drawer-title').innerText = "记一笔活动";
-                document.getElementById('parallel-time-row').classList.add('hidden');
-                document.getElementById('drawer-footer').classList.remove('hidden');
-                document.getElementById('drawer-note').placeholder = "选填备注...";
-            }
+            document.getElementById('drawer-title').innerText = "记一笔活动";
+            document.getElementById('parallel-time-row').classList.add('hidden');
+            document.getElementById('drawer-footer').classList.remove('hidden');
+            document.getElementById('drawer-note').placeholder = "选填备注...";
             document.getElementById('drawer-note').value = "";
             document.getElementById('drawer').classList.remove('hidden');
+            renderPicker();
+            renderDrawerToggle();
         }
 
         function editShortcut(idx) {
@@ -1136,6 +1160,37 @@
                 }
                 shortcutList.appendChild(card);
             });
+
+            // 并行快捷列表
+            const paraList = document.getElementById('parallel-shortcut-list');
+            if (paraList) {
+                paraList.innerHTML = "";
+                parallelShortcuts.forEach((s, idx) => {
+                    const card = document.createElement('div');
+                    card.className = "bg-violet-50 rounded-2xl p-2 text-center text-xs font-bold relative";
+                    const icon = document.createElement('div');
+                    icon.className = "text-xs leading-none mb-0.5";
+                    icon.innerText = s.icon;
+                    card.appendChild(icon);
+                    const label = document.createElement('div');
+                    label.className = "text-xs font-bold leading-tight";
+                    label.innerText = s.l2 || s.l1;
+                    card.appendChild(label);
+                    if (configEditMode) {
+                        const del = document.createElement('button');
+                        del.type = 'button';
+                        del.className = "absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-400 text-white rounded-full text-[10px] flex items-center justify-center shadow-sm";
+                        del.innerText = "✕";
+                        del.addEventListener('click', () => {
+                            parallelShortcuts.splice(idx, 1);
+                            localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
+                            renderAll();
+                        });
+                        card.appendChild(del);
+                    }
+                    paraList.appendChild(card);
+                });
+            }
 
             const catList = document.getElementById('full-cat-list');
             catList.innerHTML = "";
@@ -1329,18 +1384,36 @@
             const wrap = document.createElement('div');
             wrap.className = "swipe-wrap";
 
+            // 滑动时露出的背景按钮
+            const leftActions = document.createElement('div');
+            leftActions.className = "swipe-actions left";
+            const delBtn = document.createElement('div');
+            delBtn.className = "swipe-action-btn delete";
+            delBtn.innerText = "删除";
+            leftActions.appendChild(delBtn);
+            wrap.appendChild(leftActions);
+
+            const rightActions = document.createElement('div');
+            rightActions.className = "swipe-actions right";
+            const editBtn = document.createElement('div');
+            editBtn.className = "swipe-action-btn edit";
+            editBtn.innerText = "编辑";
+            rightActions.appendChild(editBtn);
+            wrap.appendChild(rightActions);
+
             // 卡片本身
             const card = document.createElement('div');
             card.className = "swipe-card";
             if (log._crossDay) card.style.opacity = '0.6';
 
             // 滑动状态
-            let startX = 0, startY = 0, isSwiping = false;
+            let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
             card.addEventListener('touchstart', (e) => {
                 const touch = e.touches[0];
                 startX = touch.clientX;
                 startY = touch.clientY;
                 isSwiping = false;
+                currentDx = 0;
                 card.classList.add('swiping');
             }, { passive: true });
             card.addEventListener('touchmove', (e) => {
@@ -1352,23 +1425,25 @@
                 }
                 if (isSwiping) {
                     e.preventDefault();
-                    let tx = Math.max(-80, Math.min(80, dx));
-                    card.style.transform = `translateX(${tx}px)`;
+                    currentDx = Math.max(-80, Math.min(80, dx));
+                    card.style.transform = `translateX(${currentDx}px)`;
                 }
             }, { passive: false });
             card.addEventListener('touchend', (e) => {
                 card.classList.remove('swiping');
                 card.style.transform = '';
                 if (isSwiping) {
-                    const dx = e.changedTouches[0].clientX - startX;
-                    if (dx > 55) {
-                        // 左滑 → 删除
-                        deleteLogEntry(log.id);
-                    } else if (dx < -55) {
+                    if (currentDx > 55) {
+                        // 左滑 → 确认删除
+                        if (confirm(`确认删除「${displayName(log)}」？`)) {
+                            deleteLogEntry(log.id);
+                        }
+                    } else if (currentDx < -55) {
                         // 右滑 → 修改
                         openEdit(idx);
                     }
                     isSwiping = false;
+                    currentDx = 0;
                 }
             }, { passive: true });
 
@@ -1707,6 +1782,13 @@
             document.getElementById('drawer').classList.remove('hidden'); 
             renderPicker(); 
         }
+        function openParallelShortcutPicker() {
+            pickerMode = 'parallel-shortcut';
+            document.getElementById('drawer-title').innerText = "设为并行快捷";
+            document.getElementById('drawer-footer').classList.add('hidden');
+            document.getElementById('drawer').classList.remove('hidden');
+            renderPicker();
+        }
         function addShortcut(l1, l2, icon) {
             if (shortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
             shortcuts.push({ l1, l2, icon: icon || "📌" });
@@ -1800,6 +1882,54 @@
                             btn.addEventListener('click', () => removeShortcut(c.name, s));
                         } else {
                             btn.addEventListener('click', () => addShortcut(c.name, s, getSubIcon(s, c.icon)));
+                        }
+                        l2Box.appendChild(btn);
+                    });
+                });
+                return;
+            }
+
+            // parallel-shortcut 模式：跟 shortcut 一样，但用 parallelShortcuts 判断已选
+            if (pickerMode === 'parallel-shortcut') {
+                l1Box.style.display = 'none';
+                l2Box.className = "w-full p-3 overflow-y-auto grid grid-cols-4 gap-2 h-fit";
+                cats.forEach(c => {
+                    if (!c.subs.length) {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = "bg-white border border-slate-100 rounded-xl p-2 text-center text-[10px] font-bold shadow-sm";
+                        btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${c.icon}</div><div class=\"leading-tight\">${c.name}</div>`;
+                        const already = parallelShortcuts.some(s => s.l1 === c.name && s.l2 === "");
+                        if (already) {
+                            btn.style.background = '#f1f5f9'; btn.style.color = '#94a3b8'; btn.style.cursor = 'pointer'; btn.style.opacity = '0.6';
+                            btn.style.borderLeft = `4px solid ${c.color || '#6366f1'}`;
+                            btn.addEventListener('click', () => {
+                                parallelShortcuts = parallelShortcuts.filter(s => !(s.l1 === c.name && s.l2 === ""));
+                                localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
+                                renderPicker(); renderAll();
+                            });
+                        } else {
+                            btn.addEventListener('click', () => { drawerPick(c.name, ""); });
+                        }
+                        l2Box.appendChild(btn);
+                        return;
+                    }
+                    c.subs.forEach(s => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = "bg-white border border-slate-100 rounded-xl p-2 text-center text-[10px] font-bold shadow-sm";
+                        btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${getSubIcon(s, c.icon)}</div><div class=\"leading-tight\">${s}</div>`;
+                        const already = parallelShortcuts.some(sm => sm.l1 === c.name && sm.l2 === s);
+                        if (already) {
+                            btn.style.background = '#f1f5f9'; btn.style.color = '#94a3b8'; btn.style.cursor = 'pointer'; btn.style.opacity = '0.6';
+                            btn.style.borderLeft = `4px solid ${c.color || '#6366f1'}`;
+                            btn.addEventListener('click', () => {
+                                parallelShortcuts = parallelShortcuts.filter(sm => !(sm.l1 === c.name && sm.l2 === s));
+                                localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
+                                renderPicker(); renderAll();
+                            });
+                        } else {
+                            btn.addEventListener('click', () => drawerPick(c.name, s));
                         }
                         l2Box.appendChild(btn);
                     });
@@ -2049,6 +2179,15 @@
 
             g60.innerHTML = "";
             g24.innerHTML = "";
+            // 内环背景（恒存，无并行也显示空环）
+            const innerBg = (g) => {
+                const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                c.setAttribute("cx","60"); c.setAttribute("cy","60"); c.setAttribute("r","42");
+                c.setAttribute("fill","none"); c.setAttribute("stroke","#f1f5f9"); c.setAttribute("stroke-width","4");
+                g.appendChild(c);
+            };
+            innerBg(g60);
+            innerBg(g24);
             render24hMarks();
 
             const currentLog = current ? { ...current, endTime: now, live: true } : null;
@@ -2204,6 +2343,7 @@
         function saveAll() {
             localStorage.setItem('v9_cats', JSON.stringify(cats));
             localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
+            localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
             localStorage.setItem('v9_logs', JSON.stringify(logs));
             if (current) localStorage.setItem('v9_current', JSON.stringify(current));
             renderAll();
