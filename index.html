@@ -310,6 +310,15 @@
         let logs = JSON.parse(localStorage.getItem('v9_logs')) || [];
         let current = JSON.parse(localStorage.getItem('v9_current')) || null;
         let labelFontSize = parseInt(localStorage.getItem('v9_labelFontSize')) || 13;
+        // 子类图标映射
+        const SUB_ICON_MAP = {
+            '开网约车':'🚕','开会':'📋','会议':'📋','写代码':'💻','编程':'💻','办公':'📝','上班':'📝',
+            '睡觉':'😴','起床':'⏰','休息':'☕','洗漱':'🧴','刷牙':'🪥','洗澡':'🚿',
+            '开车':'🚗','加油':'⛽','早午晚餐':'🍽️','午休':'😪',
+            '学习':'📖','看书':'📖','阅读':'📖','跑步':'🏃','运动':'🏋️','健身':'🏋️','散步':'🚶',
+            '购物':'🛒','做饭':'👨‍🍳'
+        };
+        function getSubIcon(name, parentIcon) { return SUB_ICON_MAP[name] || parentIcon; }
         
         let selL1 = cats[0]?.name || "";
         let pickerMode = 'record';
@@ -611,7 +620,7 @@
 
                 if (showShortcutIcons) {
                     const icon = document.createElement('div');
-                    icon.className = "text-2xl leading-none mb-0.5";
+                    icon.className = "text-base leading-none mb-0.5";
                     icon.innerText = s.icon;
                     item.appendChild(icon);
                 }
@@ -681,7 +690,7 @@
                     : "bg-slate-50 rounded-2xl p-2 text-center text-sm font-bold relative";
                 if (showShortcutIcons) {
                     const icon = document.createElement('div');
-                    icon.className = "text-2xl leading-none mb-0.5";
+                    icon.className = "text-base leading-none mb-0.5";
                     icon.innerText = s.icon;
                     card.appendChild(icon);
                 }
@@ -777,7 +786,7 @@
                     card.className = "bg-slate-50 rounded-xl p-1.5 text-center text-[10px] font-bold relative cursor-pointer";
                     const iconEl = document.createElement('div');
                     iconEl.className = "text-base leading-none mb-0.5";
-                    iconEl.innerText = c.icon;
+                    iconEl.innerText = getSubIcon(name, c.icon);
                     card.appendChild(iconEl);
                     const nameEl = document.createElement('div');
                     nameEl.className = "leading-tight";
@@ -861,22 +870,21 @@
 
                     const body = document.createElement('div');
                     body.className = "flex-1 min-w-0 flex flex-col gap-1";
-                    // 压缩成一行：时间 + 时长 + 活动名
                     const top = document.createElement('div');
-                    top.className = "flex items-center gap-2 text-xs text-slate-400 font-bold";
+                    top.className = "flex items-center text-xs text-slate-400 font-bold";
                     const time = document.createElement('span');
                     time.className = "font-mono shrink-0";
                     time.innerText = formatBeijingClock(log.startTime) + (log._crossDay ? ' (跨天继续)' : '');
-                    const dur = document.createElement('span');
-                    dur.className = "text-indigo-500 font-black shrink-0";
-                    dur.innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
                     const name = document.createElement('span');
-                    name.className = "font-black text-slate-700 truncate";
+                    name.className = "flex-1 font-black text-slate-700 truncate text-center mx-2";
                     name.innerText = displayName(log) + (log._crossDay ? ' 🌙' : '');
                     const l1 = document.createElement('span');
                     l1.className = "text-[10px] font-bold text-slate-300 shrink-0";
                     l1.innerText = log.l1 || '';
-                    top.append(time, dur, name, l1);
+                    const dur = document.createElement('span');
+                    dur.className = "text-indigo-500 font-black shrink-0 ml-auto";
+                    dur.innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
+                    top.append(time, name, l1, dur);
                     body.appendChild(top);
 
                     const noteRow = document.createElement('div');
