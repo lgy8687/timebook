@@ -119,10 +119,6 @@ function formatBeijingClock(ms) {
     const d = new Date(ms + BJ_OFFSET);
     return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
 }
-function formatBeijingClockSec(ms) {
-    const d = new Date(ms + BJ_OFFSET);
-    return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
-}
 
 function formatBeijingDate(ms) {
     const d = new Date(ms + BJ_OFFSET);
@@ -137,43 +133,8 @@ function displayName(log) {
     return log?.l2 || log?.l1 || "未分类";
 }
 
-function formatMinutes(ms) {
-    return `${Math.max(1, Math.round(ms / 60000))} 分钟`;
-}
-
 function formatHours(ms) {
     return `${(ms / HOUR_MS).toFixed(1)}h`;
-}
-
-function formatShortDuration(ms) {
-    const totalMinutes = Math.max(0, Math.floor(ms / 60000));
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    return `${h}h ${pad2(m)}m`;
-}
-
-function formatClock(ms) {
-    return formatBeijingClock(ms);
-}
-
-function circleSegment(parent, r, startMs, endMs, rangeStart, rangeEnd, color, cls, data) {
-    const total = rangeEnd - rangeStart;
-    const start = Math.max(startMs, rangeStart);
-    const end = Math.min(endMs, rangeEnd);
-    if (end <= start) return null;
-    const c = Math.PI * 2 * r;
-    const offset = ((start - rangeStart) / total) * c;
-    const len = ((end - start) / total) * c;
-    const seg = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    seg.setAttribute("cx", "60");
-    seg.setAttribute("cy", "60");
-    seg.setAttribute("r", r);
-    seg.setAttribute("stroke", color);
-    seg.setAttribute("class", cls);
-    seg.setAttribute("stroke-dasharray", `${len} ${c - len}`);
-    seg.setAttribute("stroke-dashoffset", -offset);
-    parent.appendChild(seg);
-    return seg;
 }
 
 function drawClockSegment(parent, r, startMs, endMs, rangeStart, rangeEnd, color, data, strokeWidth) {
@@ -247,12 +208,7 @@ function confirmPrompt() {
     if (promptCallback) promptCallback(val);
     promptCallback = null;
 }
-function closePrompt() {
-    document.getElementById('prompt-modal').classList.add('hidden');
-    if (promptCallback) promptCallback(null);
-    promptCallback = null;
-}
-let catEmojiPickerCb = null;
+
 function showCategoryPicker(title, callback) {
     catEmojiPickerCb = callback;
     document.getElementById('cat-emoji-picker-title').innerText = title || '选择图标';
@@ -317,70 +273,7 @@ function showConfirm(title, message, okText, callback) {
     confirmCallback = callback;
     document.getElementById('confirm-modal').classList.remove('hidden');
 }
-function closeConfirm(result) {
-    document.getElementById('confirm-modal').classList.add('hidden');
-    if (confirmCallback) confirmCallback(result);
-    confirmCallback = null;
-}
 
-let keyboardActiveModal = null;
-let keyboardShifts = new WeakMap();
-const KEYBOARD_GAP = 80;
-document.addEventListener('focusin', (e) => {
-    const input = e.target;
-    if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
-    const modal = input.closest('#prompt-modal, #edit-modal, #cat-emoji-picker');
-    if (!modal) return;
-    keyboardActiveModal = modal;
-    if (window.visualViewport) {
-        setTimeout(() => {
-            const vv = window.visualViewport;
-            const body = modal.querySelector('.bg-white');
-            if (!body) return;
-            const rect = body.getBoundingClientRect();
-            if (rect.bottom > vv.height) {
-                const overlap = rect.bottom - vv.height + KEYBOARD_GAP;
-                keyboardShifts.set(body, body.style.marginTop);
-                body.style.marginTop = `-${overlap}px`;
-            }
-        }, 350);
-    }
-});
-document.addEventListener('focusout', (e) => {
-    const input = e.target;
-    if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
-    const modal = input.closest('#prompt-modal, #edit-modal, #cat-emoji-picker');
-    if (!modal) return;
-    setTimeout(() => {
-        if (!modal.contains(document.activeElement)) {
-            const body = modal.querySelector('.bg-white');
-            if (body && keyboardShifts.has(body)) {
-                body.style.marginTop = keyboardShifts.get(body);
-                keyboardShifts.delete(body);
-            }
-            keyboardActiveModal = null;
-        }
-    }, 150);
-});
-if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', () => {
-        if (!keyboardActiveModal) return;
-        const vv = window.visualViewport;
-        const body = keyboardActiveModal.querySelector('.bg-white');
-        if (!body) return;
-        const rect = body.getBoundingClientRect();
-        if (rect.bottom > vv.height) {
-            const overlap = rect.bottom - vv.height + KEYBOARD_GAP;
-            keyboardShifts.set(body, body.style.marginTop || '');
-            body.style.marginTop = `-${overlap}px`;
-        } else if (keyboardShifts.has(body)) {
-            body.style.marginTop = keyboardShifts.get(body);
-            keyboardShifts.delete(body);
-        }
-    });
-}
-
-let editOldL1 = null, editOldL2 = null;
 function openEdit(index) {
     editIndex = index;
     const log = logs[index];
@@ -426,11 +319,7 @@ function confirmEdit() {
     editOldL1 = null; editOldL2 = null;
     renderAll();
 }
-function closeEdit() {
-    document.getElementById('edit-modal').classList.add('hidden');
-    editIndex = null;
-    editOldL1 = null; editOldL2 = null;
-}
+
 function deleteLogEntry(id) {
     const target = logs.find(l => l.id === id);
     if (target && !target.parallel) {
@@ -454,30 +343,6 @@ function deleteLogEntry(id) {
     mergeAdjacentSameActivity();
     localStorage.setItem('v9_logs', JSON.stringify(logs));
     renderAll();
-}
-function addParallelEntry(parentId) {
-    const parent = logs.find(l => l.id === parentId);
-    if (!parent) return;
-    _parallelCallback = (l1, l2) => {
-        const now = Date.now();
-        const cat = getCat(l1);
-        logs.unshift({
-            id: Date.now() + Math.random(),
-            startTime: now,
-            endTime: now,
-            duration: 0,
-            l1, l2, tag: '', note: '',
-            color: cat?.color || '#cbd5e1',
-            parentId: parent.id,
-            parallel: true
-        });
-        localStorage.setItem('v9_logs', JSON.stringify(logs));
-        renderAll();
-    };
-    pickerMode = 'parallel-' + parentId;
-    document.getElementById('drawer-title').innerText = "➕ 添加并行活动";
-    document.getElementById('drawer-footer').classList.add('hidden');
-    showDrawer();
 }
 
 function executeRecord(l1, l2, tag, note) {
@@ -749,33 +614,6 @@ function editShortcut(idx) {
             renderAll();
         }
     });
-}
-
-function toggleConfigEdit() {
-    configEditMode = !configEditMode;
-    const btn = document.getElementById('config-edit-btn');
-    if (btn) {
-        btn.innerText = configEditMode ? '完成' : '编辑';
-        btn.className = configEditMode ? 'text-[10px] bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-full font-black' : 'text-[10px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-black';
-    }
-    renderConfig();
-}
-
-function toggleShortcutIcons() {
-    showShortcutIcons = !showShortcutIcons;
-    const toggle = document.getElementById('shortcut-icon-toggle');
-    const text = document.getElementById('shortcut-icon-toggle-text');
-    if (showShortcutIcons) {
-        toggle.style.background = '#6366f1';
-        toggle.querySelector('div').style.transform = 'translateX(14px)';
-        if (text) text.innerText = '图标';
-    } else {
-        toggle.style.background = '#94a3b8';
-        toggle.querySelector('div').style.transform = 'translateX(0)';
-        if (text) text.innerText = '隐藏';
-    }
-    renderShortcuts();
-    renderConfig();
 }
 
 function renderConfig() {
@@ -1633,17 +1471,6 @@ function initTimeField(el, max) {
         if (isNaN(val)) this.value = '00';
         else this.value = String(Math.min(val, max)).padStart(2, '0');
     });
-    el.addEventListener('change', function() {
-        snapTimeToRange();
-    });
-}
-
-function validateRealtime(prefix) {
-    if (!_backfillRange) return;
-    const { start: prStart, end: prEnd } = _backfillRange;
-    const ms = parseTimeFromInput(prefix, prStart);
-    const ok = ms >= prStart && ms <= prEnd;
-    setFieldColor(prefix, ok ? '' : '#fee2e2');
 }
 
 function setFieldColor(prefix, bg) {
@@ -1780,11 +1607,6 @@ function renderReport() {
     renderDistribution('report-l1-dist', l1Rows, totalMs);
     renderDistribution('report-l2-dist', l2Rows, totalMs);
     renderReportDetails(segments);
-}
-
-function setReportMode(mode) {
-    reportMode = mode;
-    renderReport();
 }
 
 function aggregateBy(segments, keyFn) {
@@ -1947,16 +1769,6 @@ function renderReportDetails(segments) {
     });
 }
 
-function openDrawer() {
-    pickerMode = 'record';
-    document.getElementById('drawer-title').innerText = "记一笔活动";
-    document.getElementById('parallel-time-row').classList.add('hidden');
-    showDrawer();
-    renderDrawerToggle();
-    document.getElementById('drawer-note').value = "";
-    document.getElementById('drawer-footer').classList.remove('hidden');
-    renderPicker();
-}
 function showDrawer() {
     const drawer = document.getElementById('drawer');
     drawer.classList.remove('hidden');
@@ -1967,20 +1779,8 @@ function showDrawer() {
         panel.classList.add('drawer-up');
     }
 }
-function openShortcutPicker() {
-    pickerMode = 'shortcut';
-    document.getElementById('drawer-title').innerText = "设为首页大图标";
-    document.getElementById('drawer-footer').classList.add('hidden');
-    showDrawer();
-    renderPicker();
-}
-function openParallelShortcutPicker() {
-    pickerMode = 'parallel-shortcut';
-    document.getElementById('drawer-title').innerText = "设为并行快捷";
-    document.getElementById('drawer-footer').classList.add('hidden');
-    showDrawer();
-    renderPicker();
-}
+
+
 function addShortcut(l1, l2, icon) {
     if (shortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
     shortcuts.push({ l1, l2, icon: icon || "📌" });
@@ -2388,93 +2188,9 @@ function renderFlow() {
     hand24.style.transform = `translateX(-50%) rotate(${angle24}deg)`;
 }
 
-function switchTab(t) {
-    pickerMode = 'record';
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.getElementById('page-'+t).classList.add('active');
-    ['record', 'report'].forEach(name => {
-        const nav = document.getElementById('nav-' + name);
-        if (nav) {
-            nav.classList.remove('text-indigo-600');
-            nav.classList.add('text-slate-400');
-        }
-    });
-    const btn = document.getElementById('nav-'+t); if(btn) btn.classList.replace('text-slate-400','text-indigo-600');
-    if (t === 'report') renderReport();
-}
 function closeDrawer() { document.getElementById('drawer').classList.add('hidden'); pickerMode = 'record'; _parallelCallback = null; }
-function handleFreeInput() {
-    const el = document.getElementById('free-input'); const val = el.value.trim(); if(!val) return;
-    const backfillVisible = !document.getElementById('free-backfill').classList.contains('hidden');
-    if (backfillVisible) {
-        // 带时间段的补录模式
-        const now = Date.now();
-        const dayStart = beijingPeriodStart(now, DAY_MS);
-        const fbH = parseInt(document.getElementById('fb-h').value) || 0;
-        const fbM = parseInt(document.getElementById('fb-m').value) || 0;
-        const fbS = parseInt(document.getElementById('fb-s').value) || 0;
-        const feH = parseInt(document.getElementById('fe-h').value) || 0;
-        const feM = parseInt(document.getElementById('fe-m').value) || 0;
-        const feS = parseInt(document.getElementById('fe-s').value) || 0;
-        const startMs = dayStart + fbH * 3600000 + fbM * 60000 + fbS * 1000;
-        const endMs = dayStart + feH * 3600000 + feM * 60000 + feS * 1000;
-        if (endMs <= startMs) { showConfirm('⏱ 时间不合法', '结束时间必须晚于开始时间。', '知道了', () => {}); return; }
-        // 解析分类
-        const matches = [];
-        cats.forEach(c => c.subs.forEach(s => { const idx = val.indexOf(s); if (idx >= 0) matches.push({ l1: c.name, l2: s, idx }); }));
-        cats.forEach(c => { const idx = val.indexOf(c.name); if (idx >= 0) matches.push({ l1: c.name, l2: "", idx }); });
-        matches.sort((a, b) => a.idx - b.idx || b.l2.length - a.l2.length);
-        const match = matches[0] || { l1: "", l2: "" };
-        const cat = getCat(match.l1);
-        const entry = {
-            id: Date.now() + Math.random(),
-            startTime: startMs,
-            endTime: endMs,
-            duration: Math.round((endMs - startMs) / 60000),
-            l1: match.l1, l2: match.l2 || '',
-            tag: val.match(/#(\S+)/)?.[1] || '',
-            note: val,
-            color: cat?.color || '#cbd5e1',
-            parallel: false
-        };
-        logs.unshift(entry);
-        localStorage.setItem('v9_logs', JSON.stringify(logs));
-        el.value = '';
-        document.getElementById('free-backfill').classList.add('hidden');
-        renderAll();
-        return;
-    }
-    // 普通模式（无时间选择）
-    const matches = [];
-    cats.forEach(c => c.subs.forEach(s => {
-        const index = val.indexOf(s);
-        if (index >= 0) matches.push({ l1: c.name, l2: s, index });
-    }));
-    cats.forEach(c => {
-        const index = val.indexOf(c.name);
-        if (index >= 0) matches.push({ l1: c.name, l2: "", index });
-    });
-    matches.sort((a, b) => a.index - b.index || b.l2.length - a.l2.length);
-    const match = matches[0] || { l1: "", l2: "" };
-    const tag = val.match(/#(\S+)/)?.[1] || "";
-    executeRecord(match.l1, match.l2, tag, val); el.value = "";
-}
-function toggleFreeBackfill() {
-    const el = document.getElementById('free-backfill');
-    el.classList.toggle('hidden');
-    if (!el.classList.contains('hidden')) {
-        // 初始化时间为当前小时的前后
-        const now = Date.now();
-        const d = new Date(now);
-        const h = d.getHours();
-        document.getElementById('fb-h').value = String(Math.max(0, h-2)).padStart(2,'0');
-        document.getElementById('fb-m').value = '00';
-        document.getElementById('fb-s').value = '00';
-        document.getElementById('fe-h').value = String(h).padStart(2,'0');
-        document.getElementById('fe-m').value = String(d.getMinutes()).padStart(2,'0');
-        document.getElementById('fe-s').value = String(d.getSeconds()).padStart(2,'0');
-    }
-}
+
+
 function addL1() {
     showPrompt("新建一级分类", "输入大类名称", "", (n) => {
         if (n && n.trim()) {
