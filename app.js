@@ -615,6 +615,33 @@ function editShortcut(idx) {
         }
     });
 }
+function toggleConfigEdit() {
+    configEditMode = !configEditMode;
+    const btn = document.getElementById('config-edit-btn');
+    if (btn) {
+        btn.innerText = configEditMode ? '完成' : '编辑';
+        btn.className = configEditMode ? 'text-[10px] bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-full font-black' : 'text-[10px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-black';
+    }
+    renderConfig();
+}
+
+function toggleShortcutIcons() {
+    showShortcutIcons = !showShortcutIcons;
+    const toggle = document.getElementById('shortcut-icon-toggle');
+    const text = document.getElementById('shortcut-icon-toggle-text');
+    if (showShortcutIcons) {
+        toggle.style.background = '#6366f1';
+        toggle.querySelector('div').style.transform = 'translateX(14px)';
+        if (text) text.innerText = '图标';
+    } else {
+        toggle.style.background = '#94a3b8';
+        toggle.querySelector('div').style.transform = 'translateX(0)';
+        if (text) text.innerText = '隐藏';
+    }
+    renderShortcuts();
+    renderConfig();
+}
+
 
 function renderConfig() {
     const shortcutList = document.getElementById('shortcut-list');
@@ -1608,6 +1635,11 @@ function renderReport() {
     renderDistribution('report-l2-dist', l2Rows, totalMs);
     renderReportDetails(segments);
 }
+function setReportMode(mode) {
+    reportMode = mode;
+    renderReport();
+}
+
 
 function aggregateBy(segments, keyFn) {
     const map = new Map();
@@ -1780,6 +1812,20 @@ function showDrawer() {
     }
 }
 
+function openShortcutPicker() {
+    pickerMode = 'shortcut';
+    document.getElementById('drawer-title').innerText = "设为首页大图标";
+    document.getElementById('drawer-footer').classList.add('hidden');
+    showDrawer();
+    renderPicker();
+}
+function openParallelShortcutPicker() {
+    pickerMode = 'parallel-shortcut';
+    document.getElementById('drawer-title').innerText = "设为并行快捷";
+    document.getElementById('drawer-footer').classList.add('hidden');
+    showDrawer();
+    renderPicker();
+}
 
 function addShortcut(l1, l2, icon) {
     if (shortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
@@ -2187,9 +2233,95 @@ function renderFlow() {
     hand60.style.transform = `translateX(-50%) rotate(${angle60}deg)`;
     hand24.style.transform = `translateX(-50%) rotate(${angle24}deg)`;
 }
+function switchTab(t) {
+    pickerMode = 'record';
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.getElementById('page-'+t).classList.add('active');
+    ['record', 'report'].forEach(name => {
+        const nav = document.getElementById('nav-' + name);
+        if (nav) {
+            nav.classList.remove('text-indigo-600');
+            nav.classList.add('text-slate-400');
+        }
+    });
+    const btn = document.getElementById('nav-'+t); if(btn) btn.classList.replace('text-slate-400','text-indigo-600');
+    if (t === 'report') renderReport();
+}
+function handleFreeInput() {
+    const el = document.getElementById('free-input'); const val = el.value.trim(); if(!val) return;
+    const backfillVisible = !document.getElementById('free-backfill').classList.contains('hidden');
+    if (backfillVisible) {
+        // 带时间段的补录模式
+        const now = Date.now();
+        const dayStart = beijingPeriodStart(now, DAY_MS);
+        const fbH = parseInt(document.getElementById('fb-h').value) || 0;
+        const fbM = parseInt(document.getElementById('fb-m').value) || 0;
+        const fbS = parseInt(document.getElementById('fb-s').value) || 0;
+        const feH = parseInt(document.getElementById('fe-h').value) || 0;
+        const feM = parseInt(document.getElementById('fe-m').value) || 0;
+        const feS = parseInt(document.getElementById('fe-s').value) || 0;
+        const startMs = dayStart + fbH * 3600000 + fbM * 60000 + fbS * 1000;
+        const endMs = dayStart + feH * 3600000 + feM * 60000 + feS * 1000;
+        if (endMs <= startMs) { showConfirm('⏱ 时间不合法', '结束时间必须晚于开始时间。', '知道了', () => {}); return; }
+        // 解析分类
+        const matches = [];
+        cats.forEach(c => c.subs.forEach(s => { const idx = val.indexOf(s); if (idx >= 0) matches.push({ l1: c.name, l2: s, idx }); }));
+        cats.forEach(c => { const idx = val.indexOf(c.name); if (idx >= 0) matches.push({ l1: c.name, l2: "", idx }); });
+        matches.sort((a, b) => a.idx - b.idx || b.l2.length - a.l2.length);
+        const match = matches[0] || { l1: "", l2: "" };
+        const cat = getCat(match.l1);
+        const entry = {
+            id: Date.now() + Math.random(),
+            startTime: startMs,
+            endTime: endMs,
+            duration: Math.round((endMs - startMs) / 60000),
+            l1: match.l1, l2: match.l2 || '',
+            tag: val.match(/#(\S+)/)?.[1] || '',
+            note: val,
+            color: cat?.color || '#cbd5e1',
+            parallel: false
+        };
+        logs.unshift(entry);
+        localStorage.setItem('v9_logs', JSON.stringify(logs));
+        el.value = '';
+        document.getElementById('free-backfill').classList.add('hidden');
+        renderAll();
+        return;
+    }
+    // 普通模式（无时间选择）
+    const matches = [];
+    cats.forEach(c => c.subs.forEach(s => {
+        const index = val.indexOf(s);
+        if (index >= 0) matches.push({ l1: c.name, l2: s, index });
+    }));
+    cats.forEach(c => {
+        const index = val.indexOf(c.name);
+        if (index >= 0) matches.push({ l1: c.name, l2: "", index });
+    });
+    matches.sort((a, b) => a.index - b.index || b.l2.length - a.l2.length);
+    const match = matches[0] || { l1: "", l2: "" };
+    const tag = val.match(/#(\S+)/)?.[1] || "";
+    executeRecord(match.l1, match.l2, tag, val); el.value = "";
+}
 
 function closeDrawer() { document.getElementById('drawer').classList.add('hidden'); pickerMode = 'record'; _parallelCallback = null; }
 
+function toggleFreeBackfill() {
+    const el = document.getElementById('free-backfill');
+    el.classList.toggle('hidden');
+    if (!el.classList.contains('hidden')) {
+        // 初始化时间为当前小时的前后
+        const now = Date.now();
+        const d = new Date(now);
+        const h = d.getHours();
+        document.getElementById('fb-h').value = String(Math.max(0, h-2)).padStart(2,'0');
+        document.getElementById('fb-m').value = '00';
+        document.getElementById('fb-s').value = '00';
+        document.getElementById('fe-h').value = String(h).padStart(2,'0');
+        document.getElementById('fe-m').value = String(d.getMinutes()).padStart(2,'0');
+        document.getElementById('fe-s').value = String(d.getSeconds()).padStart(2,'0');
+    }
+}
 
 function addL1() {
     showPrompt("新建一级分类", "输入大类名称", "", (n) => {
