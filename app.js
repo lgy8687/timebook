@@ -1581,6 +1581,23 @@ function initTimeField(el, max) {
     el.addEventListener('touchstart', function() {
         this.select();
     });
+    el.addEventListener('focus', function() {
+        this.setSelectionRange(0, this.value.length);
+        let tries = 0;
+        const poll = setInterval(() => {
+            tries++;
+            if (document.activeElement !== this) {
+                clearInterval(poll);
+                return;
+            }
+            if (this.selectionStart === 0 && this.selectionEnd === this.value.length) {
+                clearInterval(poll);
+            } else {
+                this.setSelectionRange(0, this.value.length);
+            }
+            if (tries > 20) clearInterval(poll);
+        }, 50);
+    });
     el.addEventListener('input', function() {
         this.value = this.value.replace(/\D/g, '').slice(0, 2);
         if (this.value.length >= 2) {
@@ -1589,8 +1606,11 @@ function initTimeField(el, max) {
             if (idx >= 0 && idx < all.length - 1) {
                 const next = all[idx + 1];
                 next.focus();
-                next.select();
+                setTimeout(() => {
+                    next.setSelectionRange(0, next.value.length);
+                }, 80);
             }
+            if (_backfillRange) snapTimeToRange();
         }
         // 输入→进度条视觉同步（不写回输入框）
         if (_backfillRange) {
