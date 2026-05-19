@@ -24,7 +24,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v0538</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v0539</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -56,6 +56,26 @@
             <div class="flex space-x-2">
                 <input type="text" id="free-input" placeholder="输入：#标签 内容" class="flex-1 bg-white border-none rounded-2xl px-4 py-4 shadow-sm text-base focus:ring-2 focus:ring-indigo-100">
                 <button onclick="handleFreeInput()" class="bg-slate-800 text-white px-6 rounded-2xl font-bold btn-active text-lg">记</button>
+            </div>
+            <div id="free-backfill" class="hidden space-y-2">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-sm font-mono font-bold">
+                        <input type="text" id="fb-h" inputmode="numeric" maxlength="2" class="w-6 bg-transparent text-center border-none focus:outline-none" value="08" placeholder="HH" autocomplete="off">
+                        <span class="text-slate-300 font-bold text-[10px]">:</span>
+                        <input type="text" id="fb-m" inputmode="numeric" maxlength="2" class="w-6 bg-transparent text-center border-none focus:outline-none" value="00" placeholder="MM" autocomplete="off">
+                        <span class="text-slate-300 font-bold text-[10px]">:</span>
+                        <input type="text" id="fb-s" inputmode="numeric" maxlength="2" class="w-6 bg-transparent text-center border-none focus:outline-none" value="00" placeholder="SS" autocomplete="off">
+                    </div>
+                    <span class="text-slate-300 text-[10px] font-bold mx-1">→</span>
+                    <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-sm font-mono font-bold">
+                        <input type="text" id="fe-h" inputmode="numeric" maxlength="2" class="w-6 bg-transparent text-center border-none focus:outline-none" value="18" placeholder="HH" autocomplete="off">
+                        <span class="text-slate-300 font-bold text-[10px]">:</span>
+                        <input type="text" id="fe-m" inputmode="numeric" maxlength="2" class="w-6 bg-transparent text-center border-none focus:outline-none" value="00" placeholder="MM" autocomplete="off">
+                        <span class="text-slate-300 font-bold text-[10px]">:</span>
+                        <input type="text" id="fe-s" inputmode="numeric" maxlength="2" class="w-6 bg-transparent text-center border-none focus:outline-none" value="00" placeholder="SS" autocomplete="off">
+                    </div>
+                    <button onclick="toggleFreeBackfill()" class="text-[10px] text-indigo-400 font-bold shrink-0 ml-1">🕐</button>
+                </div>
             </div>
             <div class="bg-white rounded-[32px] p-5 shadow-sm border border-slate-100">
                 <div class="clock-stage">
@@ -106,7 +126,7 @@
                 <div class="text-right">
                     <div id="report-cur-l2" class="text-base font-black text-indigo-600">空闲</div>
                     <div id="report-cur-timer" class="text-sm font-mono font-black text-slate-400">00:00:00</div>
-                    <div id="page-version-badge" class="text-xs font-black text-red-500 mt-1">v0538</div>
+                    <div id="page-version-badge" class="text-xs font-black text-red-500 mt-1">v0539</div>
                 </div>
             </div>
 

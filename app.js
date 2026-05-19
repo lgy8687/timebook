@@ -434,8 +434,9 @@ function closeEdit() {
 function deleteLogEntry(id) {
     const target = logs.find(l => l.id === id);
     if (target && !target.parallel) {
+        // 删除：时间段合并到前一段（同一天）
         const sameDay = logs
-            .filter(l => !l.parallel && l.id !== id && formatBeijingDate(l.startTime) === formatBeijingDate(target.startTime))
+            .filter(l => !l.parallel && formatBeijingDate(l.startTime) === formatBeijingDate(target.startTime))
             .sort((a, b) => a.startTime - b.startTime);
         const idx = sameDay.findIndex(l => l.id === id);
         if (idx > 0) {
@@ -446,6 +447,10 @@ function deleteLogEntry(id) {
         }
     }
     logs = logs.filter(l => l.id !== id);
+    // 级联删除挂载的并行子记录
+    if (target && !target.parallel) {
+        logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
+    }
     mergeAdjacentSameActivity();
     localStorage.setItem('v9_logs', JSON.stringify(logs));
     renderAll();
@@ -1100,7 +1105,14 @@ function renderLogs() {
         const header = document.createElement('div');
         header.className = "text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 py-2 border-b border-slate-100 mb-2";
         const isToday = day === formatBeijingDate(Date.now());
-        header.innerText = isToday ? '📋 今日流水' : `📅 ${day}`;
+        let headerText = `📅 ${day}`;
+        if (isToday) {
+            const elapsed = Math.floor((Date.now() - beijingPeriodStart(Date.now(), DAY_MS)) / 60000);
+            const h = Math.floor(elapsed / 60);
+            const m = elapsed % 60;
+            headerText = `📋 今日流水 · 逝 ${h}h ${m}m`;
+        }
+        header.innerText = headerText;
         list.appendChild(header);
 
         const normalLogs = dayMap.get(day).filter(l => !l.parallel).sort((a,b) => b.startTime - a.startTime);
@@ -1119,18 +1131,7 @@ function renderLogs() {
                 list.appendChild(wrap);
             });
         });
-        // 今日已流逝时间放底部
-        if (isToday) {
-            const elapsed = Math.floor((Date.now() - beijingPeriodStart(Date.now(), DAY_MS)) / 60000);
-            const h = Math.floor(elapsed / 60);
-            const m = elapsed % 60;
-            const footer = document.createElement('div');
-            footer.className = "text-[10px] font-black text-slate-300 text-right pt-2 border-t border-slate-100 mt-2";
-            footer.innerText = `⏳ 已流逝 ${h}h ${m}m`;
-            list.appendChild(footer);
-        }
     });
-
     moreWrap.innerHTML = "";
     const pastHidden = logs.filter(l => formatBeijingDate(l.startTime) !== today).length - pastLogs.length;
     if (pastHidden > 0) {
@@ -1420,6 +1421,8 @@ function snapToNearestFreeZone(pct, parentLog, parentEnd) {
         }))
         .filter(r => r.end > r.start)
         .sort((a, b) => a.start - b.start);
+    // 没有并行占位 → 自由拖动，不磁吸
+    if (occupied.length === 0) return Math.max(0, Math.min(1, pct));
     // 计算空闲区段
     const freeZones = [];
     let cursor = pStart;
@@ -1694,6 +1697,12 @@ function isTimeInParentRange() {
     return ps >= prStart && ps < pe && pe <= prEnd;
 }
 ['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const max = id.endsWith('-h') ? 23 : 59;
+    initTimeField(el, max);
+});
+['fb-h','fb-m','fb-s','fe-h','fe-m','fe-s'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const max = id.endsWith('-h') ? 23 : 59;
@@ -2328,7 +2337,7 @@ function renderFlow() {
         .map(l => ({ ...l, endTime: l.endTime || l.startTime }))
         .concat(currentLog ? [currentLog] : [])
         .concat(parallelCurrent ? [{ ...parallelCurrent, endTime: now, parallel: true, parentId: current?.id || null }] : [])
-        .concat(parallelHistory.map(p => ({ ...p, endTime: p.endTime || (p.startTime + (p.duration || 0) * 60000) })))
+        .concat(parallelHistory.filter(p => p.endTime > dayStart || (p.startTime && p.startTime < dayEnd)).map(p => ({ ...p, endTime: p.endTime || (p.startTime + (p.duration || 0) * 60000) })))
         .filter(Boolean);
     const dayLogs = all.filter(l => l.endTime > dayStart && l.startTime < dayEnd);
     const hourLogs = dayLogs.filter(l => l.endTime > hourStart && l.startTime < hourEnd);
@@ -2381,6 +2390,46 @@ function switchTab(t) {
 function closeDrawer() { document.getElementById('drawer').classList.add('hidden'); pickerMode = 'record'; _parallelCallback = null; }
 function handleFreeInput() {
     const el = document.getElementById('free-input'); const val = el.value.trim(); if(!val) return;
+    const backfillVisible = !document.getElementById('free-backfill').classList.contains('hidden');
+    if (backfillVisible) {
+        // 带时间段的补录模式
+        const now = Date.now();
+        const dayStart = beijingPeriodStart(now, DAY_MS);
+        const fbH = parseInt(document.getElementById('fb-h').value) || 0;
+        const fbM = parseInt(document.getElementById('fb-m').value) || 0;
+        const fbS = parseInt(document.getElementById('fb-s').value) || 0;
+        const feH = parseInt(document.getElementById('fe-h').value) || 0;
+        const feM = parseInt(document.getElementById('fe-m').value) || 0;
+        const feS = parseInt(document.getElementById('fe-s').value) || 0;
+        const startMs = dayStart + fbH * 3600000 + fbM * 60000 + fbS * 1000;
+        const endMs = dayStart + feH * 3600000 + feM * 60000 + feS * 1000;
+        if (endMs <= startMs) { showConfirm('⏱ 时间不合法', '结束时间必须晚于开始时间。', '知道了', () => {}); return; }
+        // 解析分类
+        const matches = [];
+        cats.forEach(c => c.subs.forEach(s => { const idx = val.indexOf(s); if (idx >= 0) matches.push({ l1: c.name, l2: s, idx }); }));
+        cats.forEach(c => { const idx = val.indexOf(c.name); if (idx >= 0) matches.push({ l1: c.name, l2: "", idx }); });
+        matches.sort((a, b) => a.idx - b.idx || b.l2.length - a.l2.length);
+        const match = matches[0] || { l1: "", l2: "" };
+        const cat = getCat(match.l1);
+        const entry = {
+            id: Date.now() + Math.random(),
+            startTime: startMs,
+            endTime: endMs,
+            duration: Math.round((endMs - startMs) / 60000),
+            l1: match.l1, l2: match.l2 || '',
+            tag: val.match(/#(\S+)/)?.[1] || '',
+            note: val,
+            color: cat?.color || '#cbd5e1',
+            parallel: false
+        };
+        logs.unshift(entry);
+        localStorage.setItem('v9_logs', JSON.stringify(logs));
+        el.value = '';
+        document.getElementById('free-backfill').classList.add('hidden');
+        renderAll();
+        return;
+    }
+    // 普通模式（无时间选择）
     const matches = [];
     cats.forEach(c => c.subs.forEach(s => {
         const index = val.indexOf(s);
@@ -2394,6 +2443,22 @@ function handleFreeInput() {
     const match = matches[0] || { l1: "", l2: "" };
     const tag = val.match(/#(\S+)/)?.[1] || "";
     executeRecord(match.l1, match.l2, tag, val); el.value = "";
+}
+function toggleFreeBackfill() {
+    const el = document.getElementById('free-backfill');
+    el.classList.toggle('hidden');
+    if (!el.classList.contains('hidden')) {
+        // 初始化时间为当前小时的前后
+        const now = Date.now();
+        const d = new Date(now);
+        const h = d.getHours();
+        document.getElementById('fb-h').value = String(Math.max(0, h-2)).padStart(2,'0');
+        document.getElementById('fb-m').value = '00';
+        document.getElementById('fb-s').value = '00';
+        document.getElementById('fe-h').value = String(h).padStart(2,'0');
+        document.getElementById('fe-m').value = String(d.getMinutes()).padStart(2,'0');
+        document.getElementById('fe-s').value = String(d.getSeconds()).padStart(2,'0');
+    }
 }
 function addL1() {
     showPrompt("新建一级分类", "输入大类名称", "", (n) => {
