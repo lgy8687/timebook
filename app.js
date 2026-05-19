@@ -1582,7 +1582,7 @@ let _backfillRange = null;
 
 function initTimeField(el, max) {
     el.addEventListener('touchstart', function() {
-        this.select();
+        this.focus();
     });
     el.addEventListener('input', function() {
         this.value = this.value.replace(/\D/g, '').slice(0, 2);
@@ -1592,15 +1592,24 @@ function initTimeField(el, max) {
             if (idx >= 0 && idx < all.length - 1) {
                 const next = all[idx + 1];
                 next.focus();
-                next.select();
             }
         }
         const prefix = this.id.replace(/-(h|m|s)$/, '');
         validateRealtime(prefix);
-        // 输入→进度条反向同步
+        // 输入→进度条视觉同步（不写回输入框）
         if (_backfillRange) {
             const { start, end } = _backfillRange;
-            syncBackfillProgress({ startTime: start, endTime: end, duration: (end - start) / 60000 });
+            const total = end - start;
+            if (total > 0) {
+                const startMs = parseTimeFromInput('ps', start);
+                const endMs = parseTimeFromInput('pe', start);
+                const left = Math.max(0, ((startMs - start) / total) * 100);
+                const right = Math.min(100, ((endMs - start) / total) * 100);
+                document.getElementById('backfill-fill').style.left = left + '%';
+                document.getElementById('backfill-fill').style.width = Math.max(2, right - left) + '%';
+                document.getElementById('backfill-start-handle').style.left = left + '%';
+                document.getElementById('backfill-end-handle').style.left = right + '%';
+            }
         }
     });
     el.addEventListener('blur', function() {
