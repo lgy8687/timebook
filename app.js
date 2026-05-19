@@ -1084,7 +1084,11 @@ function renderLogs() {
     }
 
     const dayMap = new Map();
-    const show = logs.slice(0, logLimit);
+    const today = formatBeijingDate(Date.now());
+    // 今天不折叠，过去的天数用 logLimit 截断
+    const todayLogs = logs.filter(l => formatBeijingDate(l.startTime) === today);
+    const pastLogs = logs.filter(l => formatBeijingDate(l.startTime) !== today).slice(0, logLimit);
+    const show = [...todayLogs, ...pastLogs];
     show.forEach(log => {
         const startDay = formatBeijingDate(log.startTime);
         if (!dayMap.has(startDay)) dayMap.set(startDay, []);
@@ -1128,11 +1132,12 @@ function renderLogs() {
     });
 
     moreWrap.innerHTML = "";
-    if (logs.length > logLimit) {
+    const pastHidden = logs.filter(l => formatBeijingDate(l.startTime) !== today).length - pastLogs.length;
+    if (pastHidden > 0) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = "text-[10px] text-indigo-400 font-bold py-3 btn-active";
-        btn.innerText = `加载更多 (${logs.length - logLimit} 条隐藏)`;
+        btn.innerText = `加载更多 (${pastHidden} 条隐藏)`;
         btn.addEventListener('click', () => { logLimit += 10; renderLogs(); });
         moreWrap.appendChild(btn);
     }
