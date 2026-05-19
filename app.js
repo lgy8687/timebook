@@ -1032,7 +1032,7 @@ function renderLogs() {
         nEl.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
         nEl.innerText = displayName(parallel);
         const dEl = document.createElement('span');
-        dEl.className = isActive ? "text-emerald-500 font-black shrink-0 text-right w-auto" : "text-slate-400 font-black shrink-0 text-right w-auto";
+        dEl.className = isActive ? "text-emerald-500 font-black shrink-0 text-right w-auto pr-3" : "text-slate-400 font-black shrink-0 text-right w-auto pr-3";
         if (isActive) {
             dEl.id = "live-parallel-duration";
             dEl.innerText = formatDuration(Date.now()-parallel.startTime);
@@ -1055,6 +1055,24 @@ function renderLogs() {
     }
 
     // ── 并行使卡片（实时 + 已结束，与主线同款样式） ──
+    if (parallelCurrent || parallelHistory.length > 0) {
+        const ph = document.createElement('div');
+        ph.className = "flex items-center gap-2 px-1 pt-4 pb-1";
+        const icon = document.createElement('span');
+        icon.className = "text-[14px] text-violet-400";
+        icon.innerText = "↳";
+        const label = document.createElement('span');
+        label.className = "text-[11px] font-black text-violet-500 uppercase tracking-widest";
+        label.innerText = "并行";
+        ph.append(icon, label);
+        if (parallelCurrent) {
+            const badge = document.createElement('span');
+            badge.className = "text-[8px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full";
+            badge.innerText = "运行中";
+            ph.appendChild(badge);
+        }
+        list.appendChild(ph);
+    }
     if (parallelCurrent) {
         createLiveParallelCard(list, parallelCurrent, true, 0);
     }
@@ -1369,6 +1387,43 @@ function mergeAdjacentSameActivity() {
     }
     logs = merged;
 }
+// 吸附到最近的空闲区段边界（考虑已有并行占用）
+function snapToNearestFreeZone(pct, parentLog, parentEnd) {
+    const pStart = parentLog.startTime;
+    const pEnd = parentEnd || (pStart + (parentLog.duration || 60) * 60000);
+    const total = pEnd - pStart;
+    if (total <= 0) return Math.max(0, Math.min(1, pct));
+    const pid = parentLog.id || parentLog.startTime;
+    // 收集所有已占用的时间区间
+    const occupied = [...logs.filter(l => l.parallel && l.parentId === pid), ...parallelHistory]
+        .map(p => ({
+            start: Math.max(p.startTime, pStart),
+            end: Math.min(p.endTime || (p.startTime + (p.duration || 0) * 60000), pEnd)
+        }))
+        .filter(r => r.end > r.start)
+        .sort((a, b) => a.start - b.start);
+    // 计算空闲区段
+    const freeZones = [];
+    let cursor = pStart;
+    occupied.forEach(r => {
+        if (r.start > cursor) freeZones.push({ start: cursor, end: r.start });
+        cursor = Math.max(cursor, r.end);
+    });
+    if (cursor < pEnd) freeZones.push({ start: cursor, end: pEnd });
+    if (freeZones.length === 0) return 0.5; // 全占满则落在正中
+    const clickMs = pStart + total * pct;
+    // 找最近的空闲区段边界
+    let bestEdge = freeZones[0].start;
+    let bestDist = Infinity;
+    freeZones.forEach(z => {
+        [z.start, z.end].forEach(edge => {
+            // 忽略全同的区间（起止一样）
+            const dist = Math.abs(edge - clickMs);
+            if (dist < bestDist) { bestDist = dist; bestEdge = edge; }
+        });
+    });
+    return Math.max(0, Math.min(1, (bestEdge - pStart) / total));
+}
 function setupBackfillDrag(parentLog, parentEnd) {
     let dragTarget = null;
     const total = parentEnd - parentLog.startTime;
@@ -1400,17 +1455,32 @@ function setupBackfillDrag(parentLog, parentEnd) {
         const pct = (clientXFromEvent(e) - rect.left) / rect.width;
         setTimeFromPct(pct, dragTarget);
     };
-    const onEnd = () => { dragTarget = null; };
+    const onEnd = () => {
+        if (dragTarget) {
+            // 释放时吸附到最近的空闲区段边界
+            const rect = newTrack.getBoundingClientRect();
+            const curEl = document.getElementById('backfill-' + dragTarget + '-handle');
+            if (curEl) {
+                const curPct = parseFloat(curEl.style.left) / 100;
+                const snapped = snapToNearestFreeZone(curPct, parentLog, parentEnd);
+                setTimeFromPct(snapped, dragTarget);
+            }
+        }
+        dragTarget = null;
+    };
 
     const onTrackTap = (clientX) => {
         const rect = newTrack.getBoundingClientRect();
         let pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        const clickMs = parentLog.startTime + total * pct;
+        const snapped = snapToNearestFreeZone(pct, parentLog, parentEnd);
+        const clickMs = parentLog.startTime + total * snapped;
         const curStart = parseTimeFromInput('ps', parentLog.startTime);
         const curEnd = parseTimeFromInput('pe', parentLog.startTime);
         const distToStart = Math.abs(clickMs - curStart);
         const distToEnd = Math.abs(clickMs - curEnd);
-        setTimeFromPct(pct, distToStart <= distToEnd ? 'start' : 'end');
+        const target = distToStart <= distToEnd ? 'start' : 'end';
+        // 目标位置的最近空闲区段：如果点和目标有距离偏移，取偏移后的位置
+        setTimeFromPct(snapped, target);
     };
 
     newTrack.addEventListener('click', (e) => {
@@ -1847,13 +1917,13 @@ function openDrawer() {
 }
 function showDrawer() {
     const drawer = document.getElementById('drawer');
+    drawer.classList.remove('hidden');
     const panel = drawer.querySelector('.drawer-up');
     if (panel) {
         panel.classList.remove('drawer-up');
-        void panel.offsetWidth;
+        void panel.offsetHeight;
         panel.classList.add('drawer-up');
     }
-    drawer.classList.remove('hidden');
 }
 function openShortcutPicker() {
     pickerMode = 'shortcut';
