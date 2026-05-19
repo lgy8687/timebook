@@ -208,6 +208,12 @@ function confirmPrompt() {
     if (promptCallback) promptCallback(val);
     promptCallback = null;
 }
+function closePrompt() {
+    document.getElementById('prompt-modal').classList.add('hidden');
+    if (promptCallback) promptCallback(null);
+    promptCallback = null;
+}
+let catEmojiPickerCb = null;
 
 function showCategoryPicker(title, callback) {
     catEmojiPickerCb = callback;
@@ -264,6 +270,70 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 let confirmCallback = null;
+function closeConfirm(result) {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    if (confirmCallback) confirmCallback(result);
+    confirmCallback = null;
+}
+
+let keyboardActiveModal = null;
+let keyboardShifts = new WeakMap();
+const KEYBOARD_GAP = 80;
+document.addEventListener('focusin', (e) => {
+    const input = e.target;
+    if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
+    const modal = input.closest('#prompt-modal, #edit-modal, #cat-emoji-picker');
+    if (!modal) return;
+    keyboardActiveModal = modal;
+    if (window.visualViewport) {
+        setTimeout(() => {
+            const vv = window.visualViewport;
+            const body = modal.querySelector('.bg-white');
+            if (!body) return;
+            const rect = body.getBoundingClientRect();
+            if (rect.bottom > vv.height) {
+                const overlap = rect.bottom - vv.height + KEYBOARD_GAP;
+                keyboardShifts.set(body, body.style.marginTop);
+                body.style.marginTop = `-${overlap}px`;
+            }
+        }, 350);
+    }
+});
+document.addEventListener('focusout', (e) => {
+    const input = e.target;
+    if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
+    const modal = input.closest('#prompt-modal, #edit-modal, #cat-emoji-picker');
+    if (!modal) return;
+    setTimeout(() => {
+        if (!modal.contains(document.activeElement)) {
+            const body = modal.querySelector('.bg-white');
+            if (body && keyboardShifts.has(body)) {
+                body.style.marginTop = keyboardShifts.get(body);
+                keyboardShifts.delete(body);
+            }
+            keyboardActiveModal = null;
+        }
+    }, 150);
+});
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+        if (!keyboardActiveModal) return;
+        const vv = window.visualViewport;
+        const body = keyboardActiveModal.querySelector('.bg-white');
+        if (!body) return;
+        const rect = body.getBoundingClientRect();
+        if (rect.bottom > vv.height) {
+            const overlap = rect.bottom - vv.height + KEYBOARD_GAP;
+            keyboardShifts.set(body, body.style.marginTop || '');
+            body.style.marginTop = `-${overlap}px`;
+        } else if (keyboardShifts.has(body)) {
+            body.style.marginTop = keyboardShifts.get(body);
+            keyboardShifts.delete(body);
+        }
+    });
+}
+
+let editOldL1 = null, editOldL2 = null;
 function showConfirm(title, message, okText, callback) {
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
@@ -318,6 +388,11 @@ function confirmEdit() {
     editIndex = null;
     editOldL1 = null; editOldL2 = null;
     renderAll();
+}
+function closeEdit() {
+    document.getElementById('edit-modal').classList.add('hidden');
+    editIndex = null;
+    editOldL1 = null; editOldL2 = null;
 }
 
 function deleteLogEntry(id) {
@@ -582,6 +657,16 @@ function updateParallelStatus() {
     } else {
         badge.classList.add('hidden');
     }
+function openDrawer() {
+    pickerMode = 'record';
+    document.getElementById('drawer-title').innerText = "记一笔活动";
+    document.getElementById('parallel-time-row').classList.add('hidden');
+    showDrawer();
+    renderDrawerToggle();
+    document.getElementById('drawer-note').value = "";
+    document.getElementById('drawer-footer').classList.remove('hidden');
+    renderPicker();
+}
 }
 function openDrawerForRecord() {
     pickerMode = 'record';
