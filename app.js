@@ -1592,7 +1592,6 @@ function initTimeField(el, max) {
             }
         }
         const prefix = this.id.replace(/-(h|m|s)$/, '');
-        validateRealtime(prefix);
         // 输入→进度条视觉同步（不写回输入框）
         if (_backfillRange) {
             const { start, end } = _backfillRange;
