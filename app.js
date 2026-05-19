@@ -139,11 +139,6 @@ function formatHours(ms) {
     return `${(ms / HOUR_MS).toFixed(1)}h`;
 }
 
-function formatForTimeInput(ts) {
-    const d = new Date(ts);
-    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
-}
-
 function formatShortDuration(ms) {
     const totalMinutes = Math.max(0, Math.floor(ms / 60000));
     const h = Math.floor(totalMinutes / 60);
@@ -387,12 +382,11 @@ function openEdit(index) {
     editOldL1 = log.l1;
     editOldL2 = log.l2;
     document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
-    document.getElementById('edit-start-time').value = formatForTimeInput(log.startTime);
-    document.getElementById('edit-duration').value = Math.round(((log.endTime||Date.now())-log.startTime)/60000);
+    document.getElementById('edit-start-display').innerText = formatBeijingClock(log.startTime);
+    document.getElementById('edit-duration-display').innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)}`;
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
-    setTimeout(() => document.getElementById('edit-note-input').focus(), 100);
 }
 function updateEditCatDisplay(l1, l2) {
     const d = document.getElementById('edit-cat-display');
@@ -414,18 +408,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function confirmEdit() {
     if (editIndex !== null && logs[editIndex]) {
         const log = logs[editIndex];
-        const timeStr = document.getElementById('edit-start-time').value;
-        if (timeStr) {
-            const parts = timeStr.split(':');
-            const d = new Date(log.startTime);
-            d.setHours(+parts[0], +parts[1], parts[2]||0, 0);
-            log.startTime = d.getTime();
-        }
-        const dur = parseInt(document.getElementById('edit-duration').value);
-        if (dur > 0) {
-            log.endTime = log.startTime + dur * 60000;
-            log.duration = dur;
-        }
         if (editOldL1) { log.l1 = editOldL1; log.l2 = editOldL2; }
         log.note = document.getElementById('edit-note-input').value;
         localStorage.setItem('v9_logs', JSON.stringify(logs));
@@ -441,7 +423,11 @@ function closeEdit() {
     editOldL1 = null; editOldL2 = null;
 }
 function deleteLogEntry(id) {
+    const target = logs.find(l => l.id === id);
     logs = logs.filter(l => l.id !== id);
+    if (target && !target.parallel) {
+        logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
+    }
     localStorage.setItem('v9_logs', JSON.stringify(logs));
     renderAll();
 }
@@ -578,7 +564,8 @@ function renderShortcuts() {
     shortcuts.forEach((s, idx) => {
         const item = document.createElement('button');
         item.type = 'button';
-        item.className = "bg-white rounded-xl py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-700 shadow-sm btn-active min-h-[44px]";
+        const isPressed = current && current.l1 === s.l1 && current.l2 === s.l2;
+        item.className = `keycap${isPressed ? ' pressed' : ''} py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-700 btn-active min-h-[44px]`;
         let pressTimer = null;
         let longPressed = false;
         const clearPress = () => { if (pressTimer) clearTimeout(pressTimer); pressTimer = null; };
@@ -629,10 +616,7 @@ function renderParallelShortcuts() {
         const item = document.createElement('button');
         item.type = 'button';
         const isActive = parallelCurrent && parallelCurrent.l1 === s.l1 && parallelCurrent.l2 === s.l2;
-        item.className = (isActive
-            ? "bg-violet-100 ring-2 ring-violet-400"
-            : "bg-white border border-slate-100")
-            + " rounded-xl py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-600 btn-active min-h-[44px]";
+        item.className = `keycap${isActive ? ' pressed' : ''} py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-600 btn-active min-h-[44px]`;
         const icon = document.createElement('div');
         icon.className = "text-base leading-none";
         icon.innerText = s.icon;
@@ -1038,8 +1022,21 @@ function createLogRow(list, log, idx) {
     }, { passive: true });
 
     if (!log.parallel && !log._crossDay) {
-        card.addEventListener('click', (e) => {
+        let _wasLongPress = false;
+        let _lpTimer = null;
+        card.addEventListener('pointerdown', (e) => {
             if (isSwiping) return;
+            _wasLongPress = false;
+            _lpTimer = setTimeout(() => {
+                _wasLongPress = true;
+                openSplitDrawer(log);
+            }, 500);
+        });
+        card.addEventListener('pointerup', () => { clearTimeout(_lpTimer); });
+        card.addEventListener('pointerleave', () => { clearTimeout(_lpTimer); });
+        card.addEventListener('pointercancel', () => { clearTimeout(_lpTimer); });
+        card.addEventListener('click', (e) => {
+            if (isSwiping || _wasLongPress) return;
             openBackfillDrawer(log);
         });
     }
@@ -1135,6 +1132,70 @@ function openBackfillDrawer(parentLog) {
     renderPicker();
     renderDrawerToggle();
     document.getElementById('drawer').classList.remove('hidden');
+}
+function openSplitDrawer(parentLog) {
+    pickerMode = 'split';
+    const pStart = parentLog.startTime;
+    const pEnd = parentLog.endTime || (pStart + (parentLog.duration || 60) * 60000);
+    document.getElementById('drawer-title').innerText = `✂️ 切割 — ${displayName(parentLog)}`;
+    document.getElementById('parallel-time-row').classList.remove('hidden');
+    document.getElementById('drawer-footer').classList.remove('hidden');
+    document.getElementById('drawer-note').value = '';
+    document.getElementById('drawer-note').placeholder = '备注（选填）';
+    _backfillRange = { start: pStart, end: pEnd };
+    setTimeInFields('ps', new Date(pStart));
+    setTimeInFields('pe', new Date(pEnd));
+    const sync = () => syncBackfillProgress(parentLog);
+    ['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s'].forEach(id => {
+        document.getElementById(id).addEventListener('change', sync);
+    });
+    setupBackfillDrag(parentLog, pEnd);
+    _parallelCallback = (l1, l2) => { executeSplit(parentLog, l1, l2); };
+    if (drawerViewMode === 'columns') drawerViewMode = 'flat';
+    renderPicker();
+    renderDrawerToggle();
+    document.getElementById('drawer').classList.remove('hidden');
+}
+function executeSplit(parentLog, l1, l2) {
+    const pStart = parentLog.startTime;
+    const pEnd = parentLog.endTime || (pStart + (parentLog.duration || 60) * 60000);
+    const startMs = parseTimeFromInput('ps', pStart);
+    const endMs = parseTimeFromInput('pe', pStart);
+    const splitStart = Math.max(pStart, Math.min(pEnd, startMs));
+    const splitEnd = Math.max(pStart, Math.min(pEnd, endMs));
+    if (splitEnd - splitStart < 60000) { closeDrawer(); return; }
+    const idx = logs.indexOf(parentLog);
+    if (idx === -1) { closeDrawer(); return; }
+    logs.splice(idx, 1);
+    const cat = getCat(l1);
+    const color = cat?.color || '#cbd5e1';
+    const note = document.getElementById('drawer-note').value || '';
+    const newLogs = [];
+    if (splitStart > pStart) {
+        newLogs.push({ ...parentLog, id: Date.now() + Math.random(), startTime: pStart, endTime: splitStart, duration: Math.round((splitStart - pStart) / 60000) });
+    }
+    newLogs.push({ id: Date.now() + Math.random() + 1, startTime: splitStart, endTime: splitEnd, duration: Math.round((splitEnd - splitStart) / 60000), l1, l2: l2 || '', tag: '', note, color });
+    if (splitEnd < pEnd) {
+        newLogs.push({ ...parentLog, id: Date.now() + Math.random() + 2, startTime: splitEnd, endTime: pEnd, duration: Math.round((pEnd - splitEnd) / 60000) });
+    }
+    logs.splice(idx, 0, ...newLogs);
+    mergeAdjacentSameActivity();
+    localStorage.setItem('v9_logs', JSON.stringify(logs));
+    closeDrawer();
+    renderAll();
+}
+function mergeAdjacentSameActivity() {
+    const merged = [];
+    for (const log of logs) {
+        const last = merged[merged.length - 1];
+        if (last && last.l1 === log.l1 && last.l2 === log.l2 && last.endTime === log.startTime && last.parallel === log.parallel) {
+            last.endTime = log.endTime;
+            last.duration = Math.round((last.endTime - last.startTime) / 60000);
+        } else {
+            merged.push({ ...log });
+        }
+    }
+    logs = merged;
 }
 function setupBackfillDrag(parentLog, parentEnd) {
     let dragTarget = null;
