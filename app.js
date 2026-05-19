@@ -953,12 +953,57 @@ function renderLogs() {
         liveWrap.appendChild(liveCard);
         list.appendChild(liveWrap);
 
-        // 并行实时（依附在主活动下方）
+        // 并行实时（依附在主活动下方，带滑动编辑/删除）
         if (parallelCurrent) {
             const pWrap = document.createElement('div');
-            pWrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1";
+            pWrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1 swipe-wrap";
+
+            const rightActions = document.createElement('div');
+            rightActions.className = "swipe-actions right";
+            const editBtn = document.createElement('div');
+            editBtn.className = "swipe-action-btn edit";
+            editBtn.innerText = "切换";
+            rightActions.appendChild(editBtn);
+            pWrap.appendChild(rightActions);
+
+            const leftActions = document.createElement('div');
+            leftActions.className = "swipe-actions left";
+            const delBtn = document.createElement('div');
+            delBtn.className = "swipe-action-btn delete";
+            delBtn.innerText = "关闭";
+            leftActions.appendChild(delBtn);
+            pWrap.appendChild(leftActions);
+
             const pCard = document.createElement('div');
             pCard.className = "swipe-card";
+            let pStartX = 0, pStartY = 0, pIsSwiping = false, pDx = 0;
+            pCard.addEventListener('touchstart', (e) => {
+                const t = e.touches[0];
+                pStartX = t.clientX; pStartY = t.clientY;
+                pIsSwiping = false; pDx = 0;
+                pCard.classList.add('swiping');
+            }, { passive: true });
+            pCard.addEventListener('touchmove', (e) => {
+                const dx = e.touches[0].clientX - pStartX;
+                const dy = e.touches[0].clientY - pStartY;
+                if (!pIsSwiping && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) pIsSwiping = true;
+                if (pIsSwiping) { e.preventDefault(); pDx = Math.max(-80, Math.min(80, dx)); pCard.style.transform = `translateX(${pDx}px)`; }
+            }, { passive: false });
+            pCard.addEventListener('touchend', () => {
+                pCard.classList.remove('swiping');
+                pCard.style.transform = '';
+                if (pIsSwiping) {
+                    if (pDx > 55) {
+                        showConfirm("关闭并行", `关闭「${displayName(parallelCurrent)}」？不会记入日志。`, "关闭", (ok) => {
+                            if (ok) { parallelCurrent = null; localStorage.removeItem('v9_parallel'); renderAll(); }
+                        });
+                    } else if (pDx < -55) {
+                        _parallelPending = true;
+                        openDrawerForRecord();
+                    }
+                    pIsSwiping = false; pDx = 0;
+                }
+            }, { passive: true });
             const pInner = document.createElement('div');
             pInner.className = "flex items-center";
             const pBar = document.createElement('div');
