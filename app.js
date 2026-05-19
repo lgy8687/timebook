@@ -1096,13 +1096,13 @@ function renderLogs() {
         header.innerText = isToday ? '📋 今日流水' : `📅 ${day}`;
         list.appendChild(header);
 
-        const normalLogs = dayMap.get(day).filter(l => !l.parallel);
+        const normalLogs = dayMap.get(day).filter(l => !l.parallel).sort((a,b) => a.startTime - b.startTime);
         const parallelLogs = dayMap.get(day).filter(l => l.parallel);
 
         normalLogs.forEach((log, idx) => {
             const realIdx = logs.indexOf(log);
             createLogRow(list, log, realIdx);
-            const children = parallelLogs.filter(p => p.parentId === log.id);
+            const children = parallelLogs.filter(p => p.parentId === log.id).sort((a,b) => a.startTime - b.startTime);
             children.forEach(child => {
                 const childIdx = logs.indexOf(child);
                 const parent = logs.find(l => l.id === child.parentId);
