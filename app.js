@@ -2309,6 +2309,8 @@ function renderFlow() {
     const all = logs
         .map(l => ({ ...l, endTime: l.endTime || l.startTime }))
         .concat(currentLog ? [currentLog] : [])
+        .concat(parallelCurrent ? [{ ...parallelCurrent, endTime: now, parallel: true, parentId: current?.id || null }] : [])
+        .concat(parallelHistory.map(p => ({ ...p, endTime: p.endTime || (p.startTime + (p.duration || 0) * 60000) })))
         .filter(Boolean);
     const dayLogs = all.filter(l => l.endTime > dayStart && l.startTime < dayEnd);
     const hourLogs = dayLogs.filter(l => l.endTime > hourStart && l.startTime < hourEnd);
@@ -2319,18 +2321,18 @@ function renderFlow() {
     }, 0);
 
     hourLogs.forEach(log => {
-        const color = log.color || getCat(log.l1)?.color || "#cbd5e1";
+        const color = log.color || getCat(log.l1)?.color || (log.parallel ? '#8b5cf6' : '#cbd5e1');
         if (log.parallel) {
-            drawClockSegment(g60, 38, log.startTime, log.endTime, hourStart, hourEnd, '#8b5cf6', log, 10);
+            drawClockSegment(g60, 38, log.startTime, log.endTime, hourStart, hourEnd, color, log, 10);
         } else {
             drawClockSegment(g60, 50, log.startTime, log.endTime, hourStart, hourEnd, color, log);
         }
     });
 
     dayLogs.forEach(log => {
-        const color = log.color || getCat(log.l1)?.color || "#cbd5e1";
+        const color = log.color || getCat(log.l1)?.color || (log.parallel ? '#8b5cf6' : '#cbd5e1');
         if (log.parallel) {
-            drawClockSegment(g24, 38, log.startTime, log.endTime, dayStart, dayEnd, '#8b5cf6', log, 10);
+            drawClockSegment(g24, 38, log.startTime, log.endTime, dayStart, dayEnd, color, log, 10);
         } else {
             drawClockSegment(g24, 50, log.startTime, log.endTime, dayStart, dayEnd, color, log);
         }
