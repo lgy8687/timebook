@@ -1096,17 +1096,10 @@ function renderLogs() {
         const header = document.createElement('div');
         header.className = "text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 py-2 border-b border-slate-100 mb-2";
         const isToday = day === formatBeijingDate(Date.now());
-        if (isToday) {
-            const elapsed = Math.floor((Date.now() - beijingPeriodStart(Date.now(), DAY_MS)) / 60000);
-            const h = Math.floor(elapsed / 60);
-            const m = elapsed % 60;
-            header.innerText = `📋 今日流水 — 已流逝 ${h}h ${m}m`;
-        } else {
-            header.innerText = `📅 ${day}`;
-        }
+        header.innerText = isToday ? '📋 今日流水' : `📅 ${day}`;
         list.appendChild(header);
 
-        const normalLogs = dayMap.get(day).filter(l => !l.parallel).sort((a,b) => a.startTime - b.startTime);
+        const normalLogs = dayMap.get(day).filter(l => !l.parallel).sort((a,b) => b.startTime - a.startTime);
         const parallelLogs = dayMap.get(day).filter(l => l.parallel);
 
         normalLogs.forEach((log, idx) => {
@@ -1122,6 +1115,16 @@ function renderLogs() {
                 list.appendChild(wrap);
             });
         });
+        // 今日已流逝时间放底部
+        if (isToday) {
+            const elapsed = Math.floor((Date.now() - beijingPeriodStart(Date.now(), DAY_MS)) / 60000);
+            const h = Math.floor(elapsed / 60);
+            const m = elapsed % 60;
+            const footer = document.createElement('div');
+            footer.className = "text-[10px] font-black text-slate-300 text-right pt-2 border-t border-slate-100 mt-2";
+            footer.innerText = `⏳ 已流逝 ${h}h ${m}m`;
+            list.appendChild(footer);
+        }
     });
 
     moreWrap.innerHTML = "";
