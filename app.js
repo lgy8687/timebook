@@ -1584,23 +1584,6 @@ function initTimeField(el, max) {
     el.addEventListener('touchstart', function() {
         this.select();
     });
-    el.addEventListener('focus', function() {
-        this.setSelectionRange(0, this.value.length);
-        let tries = 0;
-        const poll = setInterval(() => {
-            tries++;
-            if (document.activeElement !== this) {
-                clearInterval(poll);
-                return;
-            }
-            if (this.selectionStart === 0 && this.selectionEnd === this.value.length) {
-                clearInterval(poll);
-            } else {
-                this.setSelectionRange(0, this.value.length);
-            }
-            if (tries > 20) clearInterval(poll);
-        }, 100);
-    });
     el.addEventListener('input', function() {
         this.value = this.value.replace(/\D/g, '').slice(0, 2);
         if (this.value.length >= 2) {
@@ -1614,6 +1597,11 @@ function initTimeField(el, max) {
         }
         const prefix = this.id.replace(/-(h|m|s)$/, '');
         validateRealtime(prefix);
+        // 输入→进度条反向同步
+        if (_backfillRange) {
+            const { start, end } = _backfillRange;
+            syncBackfillProgress({ startTime: start, endTime: end, duration: (end - start) / 60000 });
+        }
     });
     el.addEventListener('blur', function() {
         const val = parseInt(this.value);
