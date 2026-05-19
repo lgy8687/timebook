@@ -334,12 +334,14 @@ if (window.visualViewport) {
 }
 
 let editOldL1 = null, editOldL2 = null;
-function showConfirm(title, message, okText, callback) {
+function showConfirm(title, message, okText, callback, cancelText) {
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
     const okBtn = document.getElementById('confirm-ok-btn');
     okBtn.innerText = okText || '确定';
     okBtn.className = 'flex-1 py-3 text-sm font-bold text-white ' + (okText === '删除' ? 'bg-red-500' : 'bg-indigo-600') + ' rounded-2xl';
+    const cancelBtn = document.getElementById('confirm-cancel-btn');
+    if (cancelBtn) cancelBtn.innerText = cancelText || '取消';
     confirmCallback = callback;
     document.getElementById('confirm-modal').classList.remove('hidden');
 }
@@ -423,32 +425,39 @@ function deleteLogEntry(id) {
 function executeRecord(l1, l2, tag, note) {
     if (parallelCurrent) {
         const pName = displayName(parallelCurrent);
-        showConfirm("⏎ 并行还在跑", `「${pName}」还在运行，要一起结束吗？`, "一起结束", (ok) => {
+        showConfirm("⏎ 并行还在运行", `「${pName}」还在跑，是结束它还是结转到下一条主线？`, "一起结束", (ok) => {
             if (!ok) {
-                // 不结束并行，但正常推进
-                doExecuteRecord(l1, l2, tag, note, false);
+                // 结转：结束当前段，重启续上
+                doExecuteRecord(l1, l2, tag, note, false, true);
             } else {
-                doExecuteRecord(l1, l2, tag, note, true);
+                doExecuteRecord(l1, l2, tag, note, true, false);
             }
-        });
+        }, "结转");
         return;
     }
     doExecuteRecord(l1, l2, tag, note, false);
 }
-function doExecuteRecord(l1, l2, tag, note, endParallel) {
+function doExecuteRecord(l1, l2, tag, note, endParallel, rollover) {
     const now = Date.now();
     const cat = getCat(l1);
     const color = cat ? cat.color : "#cbd5e1";
     if (current) {
         const dur = Math.max(1, Math.round((now - current.startTime) / 60000));
         logs.unshift({ ...current, endTime: now, duration: dur, color: current.color || color, status: current.l1 ? 'ok' : 'pending' });
-        // 主线切换时，一并结算所有并行
+        // 主线切换时，结算并行
         const pid = current.id;
-        if (parallelCurrent && endParallel) {
+        if (parallelCurrent && (endParallel || rollover)) {
             const pDur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
             logs.unshift({ ...parallelCurrent, endTime: now, duration: pDur, parallel: true, parentId: pid, note: parallelCurrent.note || '' });
-            parallelCurrent = null;
-            localStorage.removeItem('v9_parallel');
+            if (rollover) {
+                // 结转：结束当前段，重启续上
+                parallelCurrent = { ...parallelCurrent, id: now + 0.001, startTime: now };
+                localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+            } else {
+                // 一起结束
+                parallelCurrent = null;
+                localStorage.removeItem('v9_parallel');
+            }
         }
         parallelHistory.forEach(p => {
             logs.unshift({ ...p, parentId: pid });
