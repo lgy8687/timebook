@@ -1990,7 +1990,7 @@ function removeShortcut(l1, l2) {
 function renderDrawerToggle() {
     const btn = document.getElementById('drawer-view-toggle');
     if (!btn) return;
-    if (pickerMode === 'record' || pickerMode === 'parallel-backfill') {
+    if (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split') {
         btn.classList.remove('hidden');
         const modes = [
             { key: 'columns', icon: '◧', title: '左右分栏' },
@@ -2119,7 +2119,7 @@ function renderPicker() {
         return;
     }
 
-    if (drawerViewMode === 'flat' && (pickerMode === 'record' || pickerMode === 'parallel-backfill')) {
+    if (drawerViewMode === 'flat' && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split')) {
         l1Box.style.display = 'none';
         l2Box.className = "w-full p-3 overflow-y-auto grid grid-cols-5 gap-1.5 h-fit";
         cats.forEach(c => {
@@ -2144,7 +2144,7 @@ function renderPicker() {
         return;
     }
 
-    if (drawerViewMode === 'stacked' && (pickerMode === 'record' || pickerMode === 'parallel-backfill')) {
+    if (drawerViewMode === 'stacked' && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split')) {
         l1Box.style.display = 'none';
         l2Box.className = "w-full p-4 overflow-y-auto h-fit";
         cats.forEach(c => {
