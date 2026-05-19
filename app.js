@@ -2097,51 +2097,51 @@ function tick() {
     const sec24 = document.getElementById('second-24h');
     if (sec24) sec24.style.transform = `rotate(${secAngle}deg)`;
 
-    const hourRemain = Math.ceil((hourEnd - now) / 60000);
-    setText('label-60m-remain', hourRemain);
-    const dayRemainMs = Math.max(0, dayEnd - now);
-    const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
-    const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
-    setText('label-24h-remain', `${String(dayRemainH).padStart(2,'0')}:${String(dayRemainM).padStart(2,'0')}`);
-
-    if (current) {
-        const diff = now - current.startTime;
-        const el = document.getElementById('header-timer');
-        if (el) el.innerText = formatDuration(diff);
-        const liveDur = document.getElementById('live-main-duration');
-        if (liveDur) liveDur.innerText = formatDuration(diff);
-    }
-    if (parallelCurrent) {
-        const diff = now - parallelCurrent.startTime;
-        const badge = document.getElementById('parallel-status');
-        if (badge) {
-            badge.classList.remove('hidden');
-            badge.innerText = `${parallelCurrent.icon || '⏎'} ${(parallelCurrent.l2 || parallelCurrent.l1)} ${formatDuration(diff)}`;
-        }
-        const livePDur = document.getElementById('live-parallel-duration');
-        if (livePDur) livePDur.innerText = formatDuration(diff);
-    } else {
-        const badge = document.getElementById('parallel-status');
-        if (badge && !badge._pinned) badge.classList.add('hidden');
-    }
-    renderDayRemain();
-
-    if(current) {
-        document.getElementById('status-light').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
-        setText('header-l2', displayName(current));
-        setText('header-memo', current.note || "");
-        setText('report-cur-l2', displayName(current));
-        setText('report-cur-timer', formatDuration(now - current.startTime));
-    } else {
-        setText('header-l2', "等待开启...");
-        setText('header-memo', "");
-        setText('report-cur-l2', "空闲");
-        setText('report-cur-timer', "00:00:00");
-    }
-
     const sec = Math.floor(now / 1000);
     if (sec !== lastSecondTs) {
         lastSecondTs = sec;
+
+        const hourRemain = Math.ceil((hourEnd - now) / 60000);
+        setText('label-60m-remain', hourRemain);
+        const dayRemainMs = Math.max(0, dayEnd - now);
+        const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
+        const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
+        setText('label-24h-remain', `${String(dayRemainH).padStart(2,'0')}:${String(dayRemainM).padStart(2,'0')}`);
+
+        if (current) {
+            const diff = now - current.startTime;
+            const el = document.getElementById('header-timer');
+            if (el) el.innerText = formatDuration(diff);
+            const liveDur = document.getElementById('live-main-duration');
+            if (liveDur) liveDur.innerText = formatDuration(diff);
+        }
+        if (parallelCurrent) {
+            const diff = now - parallelCurrent.startTime;
+            const badge = document.getElementById('parallel-status');
+            if (badge) {
+                badge.classList.remove('hidden');
+                badge.innerText = `${parallelCurrent.icon || '⏎'} ${(parallelCurrent.l2 || parallelCurrent.l1)} ${formatDuration(diff)}`;
+            }
+            const livePDur = document.getElementById('live-parallel-duration');
+            if (livePDur) livePDur.innerText = formatDuration(diff);
+        } else {
+            const badge = document.getElementById('parallel-status');
+            if (badge && !badge._pinned) badge.classList.add('hidden');
+        }
+        renderDayRemain();
+
+        if(current) {
+            document.getElementById('status-light').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
+            setText('header-l2', displayName(current));
+            setText('header-memo', current.note || "");
+            setText('report-cur-l2', displayName(current));
+            setText('report-cur-timer', formatDuration(now - current.startTime));
+        } else {
+            setText('header-l2', "等待开启...");
+            setText('header-memo', "");
+            setText('report-cur-l2', "空闲");
+            setText('report-cur-timer', "00:00:00");
+        }
         updateUI();
     }
 }
