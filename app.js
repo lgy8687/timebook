@@ -115,9 +115,9 @@ function pad2(n) {
     return String(n).padStart(2, '0');
 }
 
-function formatBeijingClock(ms) {
+function formatBeijingClockSec(ms) {
     const d = new Date(ms + BJ_OFFSET);
-    return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+    return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
 }
 
 function formatBeijingDate(ms) {
@@ -353,7 +353,7 @@ function openEdit(index) {
     editOldL1 = log.l1;
     editOldL2 = log.l2;
     document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration((log.endTime||Date.now())-log.startTime)}`;
-    document.getElementById('edit-start-display').innerText = formatBeijingClock(log.startTime);
+    document.getElementById('edit-start-display').innerText = formatBeijingClockSec(log.startTime);
     document.getElementById('edit-duration-display').innerText = formatDuration((log.duration || Math.max(1, Math.round(((log.endTime||Date.now())-log.startTime)/60000))) * 60000);
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
@@ -935,7 +935,7 @@ function renderLogs() {
         top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
         const time = document.createElement('span');
         time.className = "font-mono shrink-0";
-        time.innerText = formatBeijingClock(current.startTime);
+        time.innerText = formatBeijingClockSec(current.startTime);
         const name = document.createElement('span');
         name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
         name.innerText = displayName(current);
@@ -987,10 +987,10 @@ function renderLogs() {
         const tEl = document.createElement('span');
         tEl.className = "font-mono shrink-0";
         if (isActive) {
-            tEl.innerText = formatBeijingClock(parallel.startTime);
+            tEl.innerText = formatBeijingClockSec(parallel.startTime);
         } else {
             const et = parallel.endTime||(parallel.startTime+(parallel.duration||60)*60000);
-            tEl.innerText = formatBeijingClock(parallel.startTime)+'-'+formatBeijingClock(et);
+            tEl.innerText = formatBeijingClockSec(parallel.startTime)+'-'+formatBeijingClockSec(et);
         }
         const nEl = document.createElement('span');
         nEl.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
@@ -1200,7 +1200,7 @@ function createLogRow(list, log, idx) {
     const time = document.createElement('span');
     time.className = "font-mono shrink-0";
     const endTime = log.endTime || (log.startTime + (log.duration || 60) * 60000);
-    time.innerText = `${formatBeijingClock(log.startTime)}-${formatBeijingClock(endTime)}`;
+    time.innerText = `${formatBeijingClockSec(log.startTime)}-${formatBeijingClockSec(endTime)}`;
     const name = document.createElement('span');
     name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
     name.innerText = displayName(log);
@@ -1500,8 +1500,8 @@ function syncBackfillProgress(parentLog) {
     document.getElementById('backfill-fill').style.width = Math.max(2, right - left) + '%';
     document.getElementById('backfill-start-handle').style.left = left + '%';
     document.getElementById('backfill-end-handle').style.left = right + '%';
-    document.getElementById('backfill-track-start').innerText = formatBeijingClock(parentLog.startTime);
-    document.getElementById('backfill-track-end').innerText = formatBeijingClock(parentEnd);
+    document.getElementById('backfill-track-start').innerText = formatBeijingClockSec(parentLog.startTime);
+    document.getElementById('backfill-track-end').innerText = formatBeijingClockSec(parentEnd);
     // 渲染已有并行占用区段（灰色块）
     const occupiedBox = document.getElementById('backfill-occupied');
     if (occupiedBox) {
@@ -1759,7 +1759,7 @@ function renderReportTimeline(segments, dayStart) {
         block.style.width = `${Math.max(width, 0.25)}%`;
         block.style.background = getCat(l.l1)?.color || "#94a3b8";
         block.innerText = width > 7 ? displayName(l) : "";
-        block.title = `${displayName(l)} ${formatBeijingClock(l.clippedStart)}-${formatBeijingClock(l.clippedEnd)}`;
+        block.title = `${displayName(l)} ${formatBeijingClockSec(l.clippedStart)}-${formatBeijingClockSec(l.clippedEnd)}`;
         track.appendChild(block);
     });
     const nowLeft = ((Date.now() - dayStart) / DAY_MS) * 100;
@@ -1877,7 +1877,7 @@ function renderReportDetails(segments) {
         row.className = "grid grid-cols-[86px_1fr_56px] gap-3 items-center text-sm";
         const time = document.createElement('div');
         time.className = "font-mono font-black text-slate-400";
-        time.innerText = `${formatBeijingClock(l.clippedStart)}-${formatBeijingClock(l.clippedEnd)}`;
+        time.innerText = `${formatBeijingClockSec(l.clippedStart)}-${formatBeijingClockSec(l.clippedEnd)}`;
         const main = document.createElement('div');
         main.className = "min-w-0";
         const title = document.createElement('div');
