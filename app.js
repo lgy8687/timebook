@@ -476,6 +476,13 @@ function executeRecord(l1, l2, tag, note) {
     if (current) {
         const dur = Math.max(1, Math.round((now - current.startTime) / 60000));
         logs.unshift({ ...current, endTime: now, duration: dur, color: current.color || color, status: current.l1 ? 'ok' : 'pending' });
+        // 主线切换时，一并结算正在跑的并行
+        if (parallelCurrent) {
+            const pDur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
+            logs.unshift({ ...parallelCurrent, endTime: now, duration: pDur, parallel: true, parentId: current.id, note: parallelCurrent.note || '' });
+            parallelCurrent = null;
+            localStorage.removeItem('v9_parallel');
+        }
         localStorage.setItem('v9_logs', JSON.stringify(logs));
     }
     current = { id: now, startTime: now, l1, l2, tag, note, color };
