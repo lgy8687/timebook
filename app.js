@@ -1581,9 +1581,6 @@ function setTimeInFields(prefix, date) {
 let _backfillRange = null;
 
 function initTimeField(el, max) {
-    el.addEventListener('touchstart', function() {
-        this.focus();
-    });
     el.addEventListener('input', function() {
         this.value = this.value.replace(/\D/g, '').slice(0, 2);
         if (this.value.length >= 2) {
