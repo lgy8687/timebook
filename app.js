@@ -955,16 +955,10 @@ function renderLogs() {
 
         // 并行实时（依附在主活动下方，带滑动编辑/删除）
         if (parallelCurrent) {
+            const pOuter = document.createElement('div');
+            pOuter.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1";
             const pWrap = document.createElement('div');
-            pWrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1 swipe-wrap";
-
-            const rightActions = document.createElement('div');
-            rightActions.className = "swipe-actions right";
-            const editBtn = document.createElement('div');
-            editBtn.className = "swipe-action-btn edit";
-            editBtn.innerText = "切换";
-            rightActions.appendChild(editBtn);
-            pWrap.appendChild(rightActions);
+            pWrap.className = "swipe-wrap";
 
             const leftActions = document.createElement('div');
             leftActions.className = "swipe-actions left";
@@ -973,6 +967,14 @@ function renderLogs() {
             delBtn.innerText = "关闭";
             leftActions.appendChild(delBtn);
             pWrap.appendChild(leftActions);
+
+            const rightActions = document.createElement('div');
+            rightActions.className = "swipe-actions right";
+            const editBtn = document.createElement('div');
+            editBtn.className = "swipe-action-btn edit";
+            editBtn.innerText = "切换";
+            rightActions.appendChild(editBtn);
+            pWrap.appendChild(rightActions);
 
             const pCard = document.createElement('div');
             pCard.className = "swipe-card";
@@ -1028,7 +1030,8 @@ function renderLogs() {
             pInner.append(pBar, pBody);
             pCard.appendChild(pInner);
             pWrap.appendChild(pCard);
-            list.appendChild(pWrap);
+            pOuter.appendChild(pWrap);
+            list.appendChild(pOuter);
         }
     }
 
