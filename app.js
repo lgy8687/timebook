@@ -1429,7 +1429,8 @@ function setupBackfillDrag(parentLog, parentEnd) {
         if (!dragTarget) return;
         e.preventDefault();
         const rect = newTrack.getBoundingClientRect();
-        const pct = (clientXFromEvent(e) - rect.left) / rect.width;
+        const handleHalfW = 5; // w-2.5 的一半
+        const pct = (clientXFromEvent(e) - rect.left + (dragTarget === 'end' ? handleHalfW : 0)) / rect.width;
         setTimeFromPct(pct, dragTarget);
     };
     const onEnd = () => {
