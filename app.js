@@ -398,8 +398,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('edit-cat-btn');
     if (btn) btn.addEventListener('click', () => {
         if (editIndex === null) return;
-        _parallelCallback = (l1, l2) => { editOldL1 = l1; editOldL2 = l2; updateEditCatDisplay(l1, l2); };
+        _parallelCallback = (l1, l2) => { editOldL1 = l1; editOldL2 = l2; updateEditCatDisplay(l1, l2); document.getElementById('edit-modal').classList.remove('hidden'); };
         pickerMode = 'edit';
+        document.getElementById('edit-modal').classList.add('hidden');
         document.getElementById('drawer-title').innerText = "修改分类";
         document.getElementById('drawer-footer').classList.add('hidden');
         document.getElementById('drawer').classList.remove('hidden');
@@ -424,10 +425,20 @@ function closeEdit() {
 }
 function deleteLogEntry(id) {
     const target = logs.find(l => l.id === id);
+    const idx = logs.findIndex(l => l.id === id);
+    if (target && !target.parallel && idx >= 0 && idx < logs.length - 1) {
+        const prev = logs[idx + 1];
+        if (prev && prev.endTime === target.startTime) {
+            const extra = target.duration || Math.round(((target.endTime||Date.now()) - target.startTime) / 60000);
+            prev.endTime = target.endTime || (target.startTime + (target.duration || 60) * 60000);
+            prev.duration = Math.round((prev.endTime - prev.startTime) / 60000);
+        }
+    }
     logs = logs.filter(l => l.id !== id);
     if (target && !target.parallel) {
         logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
     }
+    mergeAdjacentSameActivity();
     localStorage.setItem('v9_logs', JSON.stringify(logs));
     renderAll();
 }
@@ -442,7 +453,7 @@ function addParallelEntry(parentId) {
             startTime: now,
             endTime: now,
             duration: 0,
-            l1, l2, tag: '', note: '并行',
+            l1, l2, tag: '', note: '',
             color: cat?.color || '#cbd5e1',
             parentId: parent.id,
             parallel: true
@@ -519,7 +530,7 @@ function drawerPick(l1, l2) {
             endTime: d.getTime() + dur * 60000,
             duration: dur,
             l1, l2: l2 || '',
-            tag: '', note: document.getElementById('drawer-note').value || '并行补录',
+            tag: '', note: document.getElementById('drawer-note').value || '',
             color: cat?.color || '#cbd5e1',
             parallel: true,
             parentId: null
@@ -528,7 +539,7 @@ function drawerPick(l1, l2) {
         localStorage.setItem('v9_logs', JSON.stringify(logs));
         closeDrawer();
         renderAll();
-    } else if (pickerMode === 'edit' || (pickerMode && pickerMode.startsWith('parallel-backfill'))) {
+    } else if (pickerMode === 'edit' || pickerMode === 'split' || (pickerMode && pickerMode.startsWith('parallel-backfill'))) {
         if (pickerMode.startsWith('parallel-backfill')) {
             snapTimeToRange();
             if (!isTimeInParentRange()) {
@@ -636,14 +647,14 @@ function toggleParallel(l1, l2, icon) {
         if (parallelCurrent.l1 === l1 && parallelCurrent.l2 === l2) {
             const now = Date.now();
             const dur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
-            logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: null, note: parallelCurrent.note || '并行' });
+            logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: null, note: parallelCurrent.note || '' });
             localStorage.setItem('v9_logs', JSON.stringify(logs));
             parallelCurrent = null;
             localStorage.removeItem('v9_parallel');
         } else {
             const now = Date.now();
             const dur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
-            logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: null, note: parallelCurrent.note || '并行' });
+            logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: null, note: parallelCurrent.note || '' });
             parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '' };
             localStorage.setItem('v9_logs', JSON.stringify(logs));
             localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
@@ -937,13 +948,6 @@ function renderLogs() {
                 const wrap = document.createElement('div');
                 wrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1";
                 const row = createLogRow(wrap, child, childIdx);
-                const card = row.querySelector('.swipe-card');
-                if (card) {
-                    const badge = document.createElement('div');
-                    badge.className = "text-[9px] font-bold text-violet-500 bg-violet-50 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mb-1 border border-violet-100";
-                    badge.innerText = `⏎ ${displayName(parent || {})}`;
-                    card.prepend(badge);
-                }
                 list.appendChild(wrap);
             });
         });
@@ -984,6 +988,7 @@ function createLogRow(list, log, idx) {
     card.className = "swipe-card";
 
     let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
+    let _wasLongPress = false, _lpTimer = null;
     card.addEventListener('touchstart', (e) => {
         const touch = e.touches[0];
         startX = touch.clientX;
@@ -998,6 +1003,7 @@ function createLogRow(list, log, idx) {
         const dy = touch.clientY - startY;
         if (!isSwiping && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
             isSwiping = true;
+            if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
         }
         if (isSwiping) {
             e.preventDefault();
@@ -1023,12 +1029,11 @@ function createLogRow(list, log, idx) {
     }, { passive: true });
 
     if (!log.parallel && !log._crossDay) {
-        let _wasLongPress = false;
-        let _lpTimer = null;
         card.addEventListener('pointerdown', (e) => {
             if (isSwiping) return;
             _wasLongPress = false;
             _lpTimer = setTimeout(() => {
+                if (isSwiping) return;
                 _wasLongPress = true;
                 openSplitDrawer(log);
             }, 500);
@@ -1055,7 +1060,8 @@ function createLogRow(list, log, idx) {
     top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
     const time = document.createElement('span');
     time.className = "font-mono shrink-0";
-    time.innerText = formatBeijingClock(log.startTime);
+    const endTime = log.endTime || (log.startTime + (log.duration || 60) * 60000);
+    time.innerText = `${formatBeijingClock(log.startTime)}-${formatBeijingClock(endTime)}`;
     const name = document.createElement('span');
     name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
     name.innerText = displayName(log);
@@ -1120,7 +1126,7 @@ function openBackfillDrawer(parentLog) {
             endTime: e,
             duration: dur,
             l1, l2: l2 || '',
-            tag: '', note: document.getElementById('drawer-note').value || '并行补录',
+            tag: '', note: document.getElementById('drawer-note').value || '',
             color: cat?.color || '#cbd5e1',
             parallel: true,
             parentId: parentLog.id || parentLog.startTime
