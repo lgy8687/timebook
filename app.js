@@ -381,9 +381,9 @@ function openEdit(index) {
     if (!log) return;
     editOldL1 = log.l1;
     editOldL2 = log.l2;
-    document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
+    document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration((log.endTime||Date.now())-log.startTime)}`;
     document.getElementById('edit-start-display').innerText = formatBeijingClock(log.startTime);
-    document.getElementById('edit-duration-display').innerText = `${log.duration || Math.round(((log.endTime||Date.now())-log.startTime)/60000)}`;
+    document.getElementById('edit-duration-display').innerText = formatDuration((log.duration || Math.max(1, Math.round(((log.endTime||Date.now())-log.startTime)/60000))) * 60000);
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -404,6 +404,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('drawer-title').innerText = "修改分类";
         document.getElementById('drawer-footer').classList.add('hidden');
         document.getElementById('drawer').classList.remove('hidden');
+        renderPicker();
+        renderDrawerToggle();
     });
 });
 function confirmEdit() {
@@ -919,6 +921,72 @@ function renderLogs() {
     const moreWrap = document.getElementById('load-more-wrap');
     list.innerHTML = "";
 
+    // ── 实时卡片（如果 current 正在跑） ──
+    if (current) {
+        const liveWrap = document.createElement('div');
+        liveWrap.className = "swipe-wrap";
+        const liveCard = document.createElement('div');
+        liveCard.className = "swipe-card";
+        const inner = document.createElement('div');
+        inner.className = "flex items-center";
+        const bar = document.createElement('div');
+        bar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
+        bar.style.background = (cats.find(c => c.name === current.l1)?.color) || '#6366f1';
+        const body = document.createElement('div');
+        body.className = "flex-1 min-w-0 flex flex-col gap-1";
+        const top = document.createElement('div');
+        top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
+        const time = document.createElement('span');
+        time.className = "font-mono shrink-0";
+        time.innerText = formatBeijingClock(current.startTime);
+        const name = document.createElement('span');
+        name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
+        name.innerText = displayName(current);
+        const dur = document.createElement('span');
+        dur.className = "text-emerald-500 font-black shrink-0 text-right w-auto";
+        dur.id = "live-main-duration";
+        dur.innerText = formatDuration(Date.now() - current.startTime);
+        top.append(time, name, dur);
+        body.appendChild(top);
+        inner.append(bar, body);
+        liveCard.appendChild(inner);
+        liveWrap.appendChild(liveCard);
+        list.appendChild(liveWrap);
+
+        // 并行实时（如果 parallelCurrent 也在跑）
+        if (parallelCurrent) {
+            const pWrap = document.createElement('div');
+            pWrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1";
+            const pCard = document.createElement('div');
+            pCard.className = "swipe-card";
+            const pInner = document.createElement('div');
+            pInner.className = "flex items-center";
+            const pBar = document.createElement('div');
+            pBar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
+            pBar.style.background = (cats.find(c => c.name === parallelCurrent.l1)?.color) || '#a78bfa';
+            const pBody = document.createElement('div');
+            pBody.className = "flex-1 min-w-0 flex flex-col gap-1";
+            const pTop = document.createElement('div');
+            pTop.className = "flex items-center text-xs text-slate-400 font-bold w-full";
+            const pTime = document.createElement('span');
+            pTime.className = "font-mono shrink-0";
+            pTime.innerText = formatBeijingClock(parallelCurrent.startTime);
+            const pName = document.createElement('span');
+            pName.className = "flex-1 font-black text-violet-700 truncate ml-2 min-w-0";
+            pName.innerText = displayName(parallelCurrent);
+            const pDur = document.createElement('span');
+            pDur.className = "text-violet-500 font-black shrink-0 text-right w-auto";
+            pDur.id = "live-parallel-duration";
+            pDur.innerText = formatDuration(Date.now() - parallelCurrent.startTime);
+            pTop.append(pTime, pName, pDur);
+            pBody.appendChild(pTop);
+            pInner.append(pBar, pBody);
+            pCard.appendChild(pInner);
+            pWrap.appendChild(pCard);
+            list.appendChild(pWrap);
+        }
+    }
+
     const dayMap = new Map();
     const show = logs.slice(0, logLimit);
     show.forEach(log => {
@@ -1067,7 +1135,7 @@ function createLogRow(list, log, idx) {
     name.innerText = displayName(log);
     const dur = document.createElement('span');
     dur.className = "text-indigo-500 font-black shrink-0 text-right w-auto";
-    dur.innerText = `${log.duration || Math.max(0, Math.round(((log.endTime||Date.now())-log.startTime)/60000))}min`;
+    dur.innerText = formatDuration((log.duration || Math.max(1, Math.round(((log.endTime||Date.now())-log.startTime)/60000))) * 60000);
     top.append(time, name, dur);
     body.appendChild(top);
 
@@ -1957,6 +2025,8 @@ function tick() {
         const diff = now - current.startTime;
         const el = document.getElementById('header-timer');
         if (el) el.innerText = formatDuration(diff);
+        const liveDur = document.getElementById('live-main-duration');
+        if (liveDur) liveDur.innerText = formatDuration(diff);
     }
     if (parallelCurrent) {
         const diff = now - parallelCurrent.startTime;
@@ -1965,6 +2035,8 @@ function tick() {
             badge.classList.remove('hidden');
             badge.innerText = `${parallelCurrent.icon || '⏎'} ${(parallelCurrent.l2 || parallelCurrent.l1)} ${formatDuration(diff)}`;
         }
+        const livePDur = document.getElementById('live-parallel-duration');
+        if (livePDur) livePDur.innerText = formatDuration(diff);
     } else {
         const badge = document.getElementById('parallel-status');
         if (badge && !badge._pinned) badge.classList.add('hidden');
