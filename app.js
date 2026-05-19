@@ -139,11 +139,6 @@ function formatHours(ms) {
     return `${(ms / HOUR_MS).toFixed(1)}h`;
 }
 
-function formatForTimeInput(ts) {
-    const d = new Date(ts);
-    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
-}
-
 function formatShortDuration(ms) {
     const totalMinutes = Math.max(0, Math.floor(ms / 60000));
     const h = Math.floor(totalMinutes / 60);
@@ -307,14 +302,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 let confirmCallback = null;
-function showConfirm(title, message, okText, callback, cancelText) {
+function showConfirm(title, message, okText, callback) {
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
     const okBtn = document.getElementById('confirm-ok-btn');
     okBtn.innerText = okText || '确定';
     okBtn.className = 'flex-1 py-3 text-sm font-bold text-white ' + (okText === '删除' ? 'bg-red-500' : 'bg-indigo-600') + ' rounded-2xl';
-    const cancelBtn = document.querySelector('#confirm-modal .flex button:first-child');
-    if (cancelBtn) cancelBtn.innerText = cancelText || '取消';
     confirmCallback = callback;
     document.getElementById('confirm-modal').classList.remove('hidden');
 }
@@ -388,13 +381,12 @@ function openEdit(index) {
     if (!log) return;
     editOldL1 = log.l1;
     editOldL2 = log.l2;
-    document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${Math.round(((log.endTime||Date.now())-log.startTime)/60000)}min`;
-    document.getElementById('edit-start-time').value = formatForTimeInput(log.startTime);
-    document.getElementById('edit-duration').value = Math.round(((log.endTime||Date.now())-log.startTime)/60000);
+    document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration((log.endTime||Date.now())-log.startTime)}`;
+    document.getElementById('edit-start-display').innerText = formatBeijingClock(log.startTime);
+    document.getElementById('edit-duration-display').innerText = formatDuration((log.duration || Math.max(1, Math.round(((log.endTime||Date.now())-log.startTime)/60000))) * 60000);
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
-    setTimeout(() => document.getElementById('edit-note-input').focus(), 100);
 }
 function updateEditCatDisplay(l1, l2) {
     const d = document.getElementById('edit-cat-display');
@@ -406,28 +398,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('edit-cat-btn');
     if (btn) btn.addEventListener('click', () => {
         if (editIndex === null) return;
-        _parallelCallback = (l1, l2) => { editOldL1 = l1; editOldL2 = l2; updateEditCatDisplay(l1, l2); };
+        _parallelCallback = (l1, l2) => { editOldL1 = l1; editOldL2 = l2; updateEditCatDisplay(l1, l2); document.getElementById('edit-modal').classList.remove('hidden'); };
         pickerMode = 'edit';
+        document.getElementById('edit-modal').classList.add('hidden');
         document.getElementById('drawer-title').innerText = "修改分类";
         document.getElementById('drawer-footer').classList.add('hidden');
         document.getElementById('drawer').classList.remove('hidden');
+        renderPicker();
+        renderDrawerToggle();
     });
 });
 function confirmEdit() {
     if (editIndex !== null && logs[editIndex]) {
         const log = logs[editIndex];
-        const timeStr = document.getElementById('edit-start-time').value;
-        if (timeStr) {
-            const parts = timeStr.split(':');
-            const d = new Date(log.startTime);
-            d.setHours(+parts[0], +parts[1], parts[2]||0, 0);
-            log.startTime = d.getTime();
-        }
-        const dur = parseInt(document.getElementById('edit-duration').value);
-        if (dur > 0) {
-            log.endTime = log.startTime + dur * 60000;
-            log.duration = dur;
-        }
         if (editOldL1) { log.l1 = editOldL1; log.l2 = editOldL2; }
         log.note = document.getElementById('edit-note-input').value;
         localStorage.setItem('v9_logs', JSON.stringify(logs));
@@ -443,7 +426,21 @@ function closeEdit() {
     editOldL1 = null; editOldL2 = null;
 }
 function deleteLogEntry(id) {
+    const target = logs.find(l => l.id === id);
+    const idx = logs.findIndex(l => l.id === id);
+    if (target && !target.parallel && idx >= 0 && idx < logs.length - 1) {
+        const prev = logs[idx + 1];
+        if (prev && prev.endTime === target.startTime) {
+            const extra = target.duration || Math.round(((target.endTime||Date.now()) - target.startTime) / 60000);
+            prev.endTime = target.endTime || (target.startTime + (target.duration || 60) * 60000);
+            prev.duration = Math.round((prev.endTime - prev.startTime) / 60000);
+        }
+    }
     logs = logs.filter(l => l.id !== id);
+    if (target && !target.parallel) {
+        logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
+    }
+    mergeAdjacentSameActivity();
     localStorage.setItem('v9_logs', JSON.stringify(logs));
     renderAll();
 }
@@ -458,7 +455,7 @@ function addParallelEntry(parentId) {
             startTime: now,
             endTime: now,
             duration: 0,
-            l1, l2, tag: '', note: '并行',
+            l1, l2, tag: '', note: '',
             color: cat?.color || '#cbd5e1',
             parentId: parent.id,
             parallel: true
@@ -477,53 +474,10 @@ function executeRecord(l1, l2, tag, note) {
     const cat = getCat(l1);
     const color = cat ? cat.color : "#cbd5e1";
     if (current) {
-        if (parallelCurrent) {
-            _pendingMainSwitch = { l1, l2, tag, note, color, now, oldId: current.id };
-            showConfirm(
-                "并行任务进行中",
-                `${displayName(parallelCurrent)} 正在进行，同步结束还是继续跑？`,
-                "同步结束",
-                (syncEnd) => _finalizeMainSwitch(!!syncEnd),
-                "继续跑"
-            );
-            return;
-        }
         const dur = Math.max(1, Math.round((now - current.startTime) / 60000));
         logs.unshift({ ...current, endTime: now, duration: dur, color: current.color || color, status: current.l1 ? 'ok' : 'pending' });
         localStorage.setItem('v9_logs', JSON.stringify(logs));
     }
-    current = { id: now, startTime: now, l1, l2, tag, note, color };
-    localStorage.setItem('v9_current', JSON.stringify(current));
-    closeDrawer(); renderAll();
-}
-
-function _finalizeMainSwitch(syncEnd) {
-    const p = _pendingMainSwitch;
-    _pendingMainSwitch = null;
-    if (!p || !current || !parallelCurrent) return;
-    const { l1, l2, tag, note, color, now, oldId } = p;
-
-    // 结算旧主线
-    const dur = Math.max(1, Math.round((now - current.startTime) / 60000));
-    logs.unshift({ ...current, endTime: now, duration: dur, color: current.color || color, status: current.l1 ? 'ok' : 'pending' });
-
-    // 并行段落结算在旧主线下
-    const pDur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
-    logs.unshift({ ...parallelCurrent, endTime: now, duration: pDur, parallel: true, parentId: oldId, note: parallelCurrent.note || '并行' });
-
-    if (syncEnd) {
-        // 同步结束：并行清掉
-        parallelCurrent = null;
-        localStorage.removeItem('v9_parallel');
-    } else {
-        // 继续跑：开新段落，同活动内容，新计时
-        parallelCurrent = { ...parallelCurrent, id: now + 1, startTime: now };
-        localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
-    }
-
-    localStorage.setItem('v9_logs', JSON.stringify(logs));
-
-    // 开新主线
     current = { id: now, startTime: now, l1, l2, tag, note, color };
     localStorage.setItem('v9_current', JSON.stringify(current));
     closeDrawer(); renderAll();
@@ -552,7 +506,6 @@ function executeEditShortcut(l1, l2) {
 
 let _parallelPending = false;
 let _parallelCallback = null;
-let _pendingMainSwitch = null;
 function drawerPick(l1, l2) {
     if (_parallelPending) {
         _parallelPending = false;
@@ -579,7 +532,7 @@ function drawerPick(l1, l2) {
             endTime: d.getTime() + dur * 60000,
             duration: dur,
             l1, l2: l2 || '',
-            tag: '', note: document.getElementById('drawer-note').value || '并行补录',
+            tag: '', note: document.getElementById('drawer-note').value || '',
             color: cat?.color || '#cbd5e1',
             parallel: true,
             parentId: null
@@ -588,7 +541,7 @@ function drawerPick(l1, l2) {
         localStorage.setItem('v9_logs', JSON.stringify(logs));
         closeDrawer();
         renderAll();
-    } else if (pickerMode === 'edit' || (pickerMode && pickerMode.startsWith('parallel-backfill'))) {
+    } else if (pickerMode === 'edit' || pickerMode === 'split' || (pickerMode && pickerMode.startsWith('parallel-backfill'))) {
         if (pickerMode.startsWith('parallel-backfill')) {
             snapTimeToRange();
             if (!isTimeInParentRange()) {
@@ -624,7 +577,8 @@ function renderShortcuts() {
     shortcuts.forEach((s, idx) => {
         const item = document.createElement('button');
         item.type = 'button';
-        item.className = "bg-white rounded-xl py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-700 shadow-sm btn-active min-h-[44px]";
+        const isPressed = current && current.l1 === s.l1 && current.l2 === s.l2;
+        item.className = `keycap${isPressed ? ' pressed' : ''} py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-700 btn-active min-h-[44px]`;
         let pressTimer = null;
         let longPressed = false;
         const clearPress = () => { if (pressTimer) clearTimeout(pressTimer); pressTimer = null; };
@@ -637,6 +591,7 @@ function renderShortcuts() {
         item.addEventListener('pointercancel', clearPress);
         item.addEventListener('click', (e) => {
             if (longPressed) { e.preventDefault(); return; }
+            if (current && current.l1 === s.l1 && current.l2 === s.l2) return;
             pickerMode = 'record';
             executeRecord(s.l1, s.l2, "", "");
         });
@@ -675,10 +630,7 @@ function renderParallelShortcuts() {
         const item = document.createElement('button');
         item.type = 'button';
         const isActive = parallelCurrent && parallelCurrent.l1 === s.l1 && parallelCurrent.l2 === s.l2;
-        item.className = (isActive
-            ? "bg-violet-100 ring-2 ring-violet-400"
-            : "bg-white border border-slate-100")
-            + " rounded-xl py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-600 btn-active min-h-[44px]";
+        item.className = `keycap${isActive ? ' pressed' : ''} py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-600 btn-active min-h-[44px]`;
         const icon = document.createElement('div');
         icon.className = "text-base leading-none";
         icon.innerText = s.icon;
@@ -969,6 +921,120 @@ function renderLogs() {
     const moreWrap = document.getElementById('load-more-wrap');
     list.innerHTML = "";
 
+    // ── 实时卡片（如果 current 正在跑） ──
+    if (current) {
+        const liveWrap = document.createElement('div');
+        liveWrap.className = "swipe-wrap";
+        const liveCard = document.createElement('div');
+        liveCard.className = "swipe-card";
+        const inner = document.createElement('div');
+        inner.className = "flex items-center";
+        const bar = document.createElement('div');
+        bar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
+        bar.style.background = (cats.find(c => c.name === current.l1)?.color) || '#6366f1';
+        const body = document.createElement('div');
+        body.className = "flex-1 min-w-0 flex flex-col gap-1";
+        const top = document.createElement('div');
+        top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
+        const time = document.createElement('span');
+        time.className = "font-mono shrink-0";
+        time.innerText = formatBeijingClock(current.startTime);
+        const name = document.createElement('span');
+        name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
+        name.innerText = displayName(current);
+        const dur = document.createElement('span');
+        dur.className = "text-emerald-500 font-black shrink-0 text-right w-auto";
+        dur.id = "live-main-duration";
+        dur.innerText = formatDuration(Date.now() - current.startTime);
+        top.append(time, name, dur);
+        body.appendChild(top);
+        inner.append(bar, body);
+        liveCard.appendChild(inner);
+        liveWrap.appendChild(liveCard);
+        list.appendChild(liveWrap);
+
+        // 并行实时（依附在主活动下方，带滑动编辑/删除）
+        if (parallelCurrent) {
+            const pOuter = document.createElement('div');
+            pOuter.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1";
+            const pWrap = document.createElement('div');
+            pWrap.className = "swipe-wrap";
+
+            const leftActions = document.createElement('div');
+            leftActions.className = "swipe-actions left";
+            const delBtn = document.createElement('div');
+            delBtn.className = "swipe-action-btn delete";
+            delBtn.innerText = "关闭";
+            leftActions.appendChild(delBtn);
+            pWrap.appendChild(leftActions);
+
+            const rightActions = document.createElement('div');
+            rightActions.className = "swipe-actions right";
+            const editBtn = document.createElement('div');
+            editBtn.className = "swipe-action-btn edit";
+            editBtn.innerText = "切换";
+            rightActions.appendChild(editBtn);
+            pWrap.appendChild(rightActions);
+
+            const pCard = document.createElement('div');
+            pCard.className = "swipe-card";
+            let pStartX = 0, pStartY = 0, pIsSwiping = false, pDx = 0;
+            pCard.addEventListener('touchstart', (e) => {
+                const t = e.touches[0];
+                pStartX = t.clientX; pStartY = t.clientY;
+                pIsSwiping = false; pDx = 0;
+                pCard.classList.add('swiping');
+            }, { passive: true });
+            pCard.addEventListener('touchmove', (e) => {
+                const dx = e.touches[0].clientX - pStartX;
+                const dy = e.touches[0].clientY - pStartY;
+                if (!pIsSwiping && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) pIsSwiping = true;
+                if (pIsSwiping) { e.preventDefault(); pDx = Math.max(-80, Math.min(80, dx)); pCard.style.transform = `translateX(${pDx}px)`; }
+            }, { passive: false });
+            pCard.addEventListener('touchend', () => {
+                pCard.classList.remove('swiping');
+                pCard.style.transform = '';
+                if (pIsSwiping) {
+                    if (pDx > 55) {
+                        showConfirm("关闭并行", `关闭「${displayName(parallelCurrent)}」？不会记入日志。`, "关闭", (ok) => {
+                            if (ok) { parallelCurrent = null; localStorage.removeItem('v9_parallel'); renderAll(); }
+                        });
+                    } else if (pDx < -55) {
+                        _parallelPending = true;
+                        openDrawerForRecord();
+                    }
+                    pIsSwiping = false; pDx = 0;
+                }
+            }, { passive: true });
+            const pInner = document.createElement('div');
+            pInner.className = "flex items-center";
+            const pBar = document.createElement('div');
+            pBar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
+            pBar.style.background = (cats.find(c => c.name === parallelCurrent.l1)?.color) || '#a78bfa';
+            const pBody = document.createElement('div');
+            pBody.className = "flex-1 min-w-0 flex flex-col gap-1";
+            const pTop = document.createElement('div');
+            pTop.className = "flex items-center text-xs text-slate-400 font-bold w-full";
+            const pTime = document.createElement('span');
+            pTime.className = "font-mono shrink-0";
+            pTime.innerText = formatBeijingClock(parallelCurrent.startTime);
+            const pName = document.createElement('span');
+            pName.className = "flex-1 font-black text-violet-700 truncate ml-2 min-w-0";
+            pName.innerText = displayName(parallelCurrent);
+            const pDur = document.createElement('span');
+            pDur.className = "text-violet-500 font-black shrink-0 text-right w-auto";
+            pDur.id = "live-parallel-duration";
+            pDur.innerText = formatDuration(Date.now() - parallelCurrent.startTime);
+            pTop.append(pTime, pName, pDur);
+            pBody.appendChild(pTop);
+            pInner.append(pBar, pBody);
+            pCard.appendChild(pInner);
+            pWrap.appendChild(pCard);
+            pOuter.appendChild(pWrap);
+            list.appendChild(pOuter);
+        }
+    }
+
     const dayMap = new Map();
     const show = logs.slice(0, logLimit);
     show.forEach(log => {
@@ -998,13 +1064,6 @@ function renderLogs() {
                 const wrap = document.createElement('div');
                 wrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1";
                 const row = createLogRow(wrap, child, childIdx);
-                const card = row.querySelector('.swipe-card');
-                if (card) {
-                    const badge = document.createElement('div');
-                    badge.className = "text-[9px] font-bold text-violet-500 bg-violet-50 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mb-1 border border-violet-100";
-                    badge.innerText = `⏎ ${displayName(parent || {})}`;
-                    card.prepend(badge);
-                }
                 list.appendChild(wrap);
             });
         });
@@ -1045,6 +1104,7 @@ function createLogRow(list, log, idx) {
     card.className = "swipe-card";
 
     let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
+    let _wasLongPress = false, _lpTimer = null;
     card.addEventListener('touchstart', (e) => {
         const touch = e.touches[0];
         startX = touch.clientX;
@@ -1059,6 +1119,7 @@ function createLogRow(list, log, idx) {
         const dy = touch.clientY - startY;
         if (!isSwiping && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
             isSwiping = true;
+            if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
         }
         if (isSwiping) {
             e.preventDefault();
@@ -1084,8 +1145,20 @@ function createLogRow(list, log, idx) {
     }, { passive: true });
 
     if (!log.parallel && !log._crossDay) {
-        card.addEventListener('click', (e) => {
+        card.addEventListener('pointerdown', (e) => {
             if (isSwiping) return;
+            _wasLongPress = false;
+            _lpTimer = setTimeout(() => {
+                if (isSwiping) return;
+                _wasLongPress = true;
+                openSplitDrawer(log);
+            }, 500);
+        });
+        card.addEventListener('pointerup', () => { clearTimeout(_lpTimer); });
+        card.addEventListener('pointerleave', () => { clearTimeout(_lpTimer); });
+        card.addEventListener('pointercancel', () => { clearTimeout(_lpTimer); });
+        card.addEventListener('click', (e) => {
+            if (isSwiping || _wasLongPress) return;
             openBackfillDrawer(log);
         });
     }
@@ -1103,13 +1176,14 @@ function createLogRow(list, log, idx) {
     top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
     const time = document.createElement('span');
     time.className = "font-mono shrink-0";
-    time.innerText = formatBeijingClock(log.startTime);
+    const endTime = log.endTime || (log.startTime + (log.duration || 60) * 60000);
+    time.innerText = `${formatBeijingClock(log.startTime)}-${formatBeijingClock(endTime)}`;
     const name = document.createElement('span');
     name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
     name.innerText = displayName(log);
     const dur = document.createElement('span');
     dur.className = "text-indigo-500 font-black shrink-0 text-right w-auto";
-    dur.innerText = `${log.duration || Math.max(0, Math.round(((log.endTime||Date.now())-log.startTime)/60000))}min`;
+    dur.innerText = formatDuration((log.duration || Math.max(1, Math.round(((log.endTime||Date.now())-log.startTime)/60000))) * 60000);
     top.append(time, name, dur);
     body.appendChild(top);
 
@@ -1168,7 +1242,7 @@ function openBackfillDrawer(parentLog) {
             endTime: e,
             duration: dur,
             l1, l2: l2 || '',
-            tag: '', note: document.getElementById('drawer-note').value || '并行补录',
+            tag: '', note: document.getElementById('drawer-note').value || '',
             color: cat?.color || '#cbd5e1',
             parallel: true,
             parentId: parentLog.id || parentLog.startTime
@@ -1181,6 +1255,70 @@ function openBackfillDrawer(parentLog) {
     renderPicker();
     renderDrawerToggle();
     document.getElementById('drawer').classList.remove('hidden');
+}
+function openSplitDrawer(parentLog) {
+    pickerMode = 'split';
+    const pStart = parentLog.startTime;
+    const pEnd = parentLog.endTime || (pStart + (parentLog.duration || 60) * 60000);
+    document.getElementById('drawer-title').innerText = `✂️ 切割 — ${displayName(parentLog)}`;
+    document.getElementById('parallel-time-row').classList.remove('hidden');
+    document.getElementById('drawer-footer').classList.remove('hidden');
+    document.getElementById('drawer-note').value = '';
+    document.getElementById('drawer-note').placeholder = '备注（选填）';
+    _backfillRange = { start: pStart, end: pEnd };
+    setTimeInFields('ps', new Date(pStart));
+    setTimeInFields('pe', new Date(pEnd));
+    const sync = () => syncBackfillProgress(parentLog);
+    ['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s'].forEach(id => {
+        document.getElementById(id).addEventListener('change', sync);
+    });
+    setupBackfillDrag(parentLog, pEnd);
+    _parallelCallback = (l1, l2) => { executeSplit(parentLog, l1, l2); };
+    if (drawerViewMode === 'columns') drawerViewMode = 'flat';
+    renderPicker();
+    renderDrawerToggle();
+    document.getElementById('drawer').classList.remove('hidden');
+}
+function executeSplit(parentLog, l1, l2) {
+    const pStart = parentLog.startTime;
+    const pEnd = parentLog.endTime || (pStart + (parentLog.duration || 60) * 60000);
+    const startMs = parseTimeFromInput('ps', pStart);
+    const endMs = parseTimeFromInput('pe', pStart);
+    const splitStart = Math.max(pStart, Math.min(pEnd, startMs));
+    const splitEnd = Math.max(pStart, Math.min(pEnd, endMs));
+    if (splitEnd - splitStart < 60000) { closeDrawer(); return; }
+    const idx = logs.indexOf(parentLog);
+    if (idx === -1) { closeDrawer(); return; }
+    logs.splice(idx, 1);
+    const cat = getCat(l1);
+    const color = cat?.color || '#cbd5e1';
+    const note = document.getElementById('drawer-note').value || '';
+    const newLogs = [];
+    if (splitStart > pStart) {
+        newLogs.push({ ...parentLog, id: Date.now() + Math.random(), startTime: pStart, endTime: splitStart, duration: Math.round((splitStart - pStart) / 60000) });
+    }
+    newLogs.push({ id: Date.now() + Math.random() + 1, startTime: splitStart, endTime: splitEnd, duration: Math.round((splitEnd - splitStart) / 60000), l1, l2: l2 || '', tag: '', note, color });
+    if (splitEnd < pEnd) {
+        newLogs.push({ ...parentLog, id: Date.now() + Math.random() + 2, startTime: splitEnd, endTime: pEnd, duration: Math.round((pEnd - splitEnd) / 60000) });
+    }
+    logs.splice(idx, 0, ...newLogs);
+    mergeAdjacentSameActivity();
+    localStorage.setItem('v9_logs', JSON.stringify(logs));
+    closeDrawer();
+    renderAll();
+}
+function mergeAdjacentSameActivity() {
+    const merged = [];
+    for (const log of logs) {
+        const last = merged[merged.length - 1];
+        if (last && last.l1 === log.l1 && last.l2 === log.l2 && last.endTime === log.startTime && last.parallel === log.parallel) {
+            last.endTime = log.endTime;
+            last.duration = Math.round((last.endTime - last.startTime) / 60000);
+        } else {
+            merged.push({ ...log });
+        }
+    }
+    logs = merged;
 }
 function setupBackfillDrag(parentLog, parentEnd) {
     let dragTarget = null;
@@ -1935,6 +2073,8 @@ function tick() {
         const diff = now - current.startTime;
         const el = document.getElementById('header-timer');
         if (el) el.innerText = formatDuration(diff);
+        const liveDur = document.getElementById('live-main-duration');
+        if (liveDur) liveDur.innerText = formatDuration(diff);
     }
     if (parallelCurrent) {
         const diff = now - parallelCurrent.startTime;
@@ -1943,6 +2083,8 @@ function tick() {
             badge.classList.remove('hidden');
             badge.innerText = `${parallelCurrent.icon || '⏎'} ${(parallelCurrent.l2 || parallelCurrent.l1)} ${formatDuration(diff)}`;
         }
+        const livePDur = document.getElementById('live-parallel-duration');
+        if (livePDur) livePDur.innerText = formatDuration(diff);
     } else {
         const badge = document.getElementById('parallel-status');
         if (badge && !badge._pinned) badge.classList.add('hidden');
