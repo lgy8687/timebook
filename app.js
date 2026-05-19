@@ -1611,7 +1611,6 @@ function initTimeField(el, max) {
         const val = parseInt(this.value);
         if (isNaN(val)) this.value = '00';
         else this.value = String(Math.min(val, max)).padStart(2, '0');
-        snapTimeToRange();
     });
 }
 
