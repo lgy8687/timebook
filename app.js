@@ -578,6 +578,7 @@ function renderShortcuts() {
         item.addEventListener('pointercancel', clearPress);
         item.addEventListener('click', (e) => {
             if (longPressed) { e.preventDefault(); return; }
+            if (current && current.l1 === s.l1 && current.l2 === s.l2) return;
             pickerMode = 'record';
             executeRecord(s.l1, s.l2, "", "");
         });
