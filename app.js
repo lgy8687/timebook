@@ -1429,8 +1429,12 @@ function setupBackfillDrag(parentLog, parentEnd) {
         if (!dragTarget) return;
         e.preventDefault();
         const rect = newTrack.getBoundingClientRect();
-        const handleHalfW = 5; // w-2.5 的一半
-        const pct = (clientXFromEvent(e) - rect.left + (dragTarget === 'end' ? handleHalfW : 0)) / rect.width;
+        const HANDLE_W = 10; // w-2.5 = 10px（半宽=5）
+        let x = clientXFromEvent(e);
+        if (dragTarget === 'end') {
+            x += HANDLE_W / 2; // 拖右棍：手指在棍子中心，补半宽偏移
+        }
+        const pct = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
         setTimeFromPct(pct, dragTarget);
     };
     const onEnd = () => {
