@@ -649,14 +649,14 @@ function toggleParallel(l1, l2, icon) {
         if (parallelCurrent.l1 === l1 && parallelCurrent.l2 === l2) {
             const now = Date.now();
             const dur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
-            logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: null, note: parallelCurrent.note || '' });
+            logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: current?.id || null, note: parallelCurrent.note || '' });
             localStorage.setItem('v9_logs', JSON.stringify(logs));
             parallelCurrent = null;
             localStorage.removeItem('v9_parallel');
         } else {
             const now = Date.now();
             const dur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
-            logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: null, note: parallelCurrent.note || '' });
+            logs.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: current?.id || null, note: parallelCurrent.note || '' });
             parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '' };
             localStorage.setItem('v9_logs', JSON.stringify(logs));
             localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
@@ -921,7 +921,7 @@ function renderLogs() {
     const moreWrap = document.getElementById('load-more-wrap');
     list.innerHTML = "";
 
-    // ── 实时卡片（如果 current 正在跑） ──
+    // ── 实时卡片 ──
     if (current) {
         const liveWrap = document.createElement('div');
         liveWrap.className = "swipe-wrap";
@@ -952,39 +952,38 @@ function renderLogs() {
         liveCard.appendChild(inner);
         liveWrap.appendChild(liveCard);
         list.appendChild(liveWrap);
-
-        // 并行实时（如果 parallelCurrent 也在跑）
-        if (parallelCurrent) {
-            const pWrap = document.createElement('div');
-            pWrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1";
-            const pCard = document.createElement('div');
-            pCard.className = "swipe-card";
-            const pInner = document.createElement('div');
-            pInner.className = "flex items-center";
-            const pBar = document.createElement('div');
-            pBar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
-            pBar.style.background = (cats.find(c => c.name === parallelCurrent.l1)?.color) || '#a78bfa';
-            const pBody = document.createElement('div');
-            pBody.className = "flex-1 min-w-0 flex flex-col gap-1";
-            const pTop = document.createElement('div');
-            pTop.className = "flex items-center text-xs text-slate-400 font-bold w-full";
-            const pTime = document.createElement('span');
-            pTime.className = "font-mono shrink-0";
-            pTime.innerText = formatBeijingClock(parallelCurrent.startTime);
-            const pName = document.createElement('span');
-            pName.className = "flex-1 font-black text-violet-700 truncate ml-2 min-w-0";
-            pName.innerText = displayName(parallelCurrent);
-            const pDur = document.createElement('span');
-            pDur.className = "text-violet-500 font-black shrink-0 text-right w-auto";
-            pDur.id = "live-parallel-duration";
-            pDur.innerText = formatDuration(Date.now() - parallelCurrent.startTime);
-            pTop.append(pTime, pName, pDur);
-            pBody.appendChild(pTop);
-            pInner.append(pBar, pBody);
-            pCard.appendChild(pInner);
-            pWrap.appendChild(pCard);
-            list.appendChild(pWrap);
-        }
+    }
+    // 并行实时（独立于主活动渲染）
+    if (parallelCurrent) {
+        const pWrap = document.createElement('div');
+        pWrap.className = current ? "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1" : "swipe-wrap";
+        const pCard = document.createElement('div');
+        pCard.className = "swipe-card";
+        const pInner = document.createElement('div');
+        pInner.className = "flex items-center";
+        const pBar = document.createElement('div');
+        pBar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
+        pBar.style.background = (cats.find(c => c.name === parallelCurrent.l1)?.color) || '#a78bfa';
+        const pBody = document.createElement('div');
+        pBody.className = "flex-1 min-w-0 flex flex-col gap-1";
+        const pTop = document.createElement('div');
+        pTop.className = "flex items-center text-xs text-slate-400 font-bold w-full";
+        const pTime = document.createElement('span');
+        pTime.className = "font-mono shrink-0";
+        pTime.innerText = formatBeijingClock(parallelCurrent.startTime);
+        const pName = document.createElement('span');
+        pName.className = "flex-1 font-black text-violet-700 truncate ml-2 min-w-0";
+        pName.innerText = displayName(parallelCurrent);
+        const pDur = document.createElement('span');
+        pDur.className = "text-violet-500 font-black shrink-0 text-right w-auto";
+        pDur.id = "live-parallel-duration";
+        pDur.innerText = formatDuration(Date.now() - parallelCurrent.startTime);
+        pTop.append(pTime, pName, pDur);
+        pBody.appendChild(pTop);
+        pInner.append(pBar, pBody);
+        pCard.appendChild(pInner);
+        pWrap.appendChild(pCard);
+        list.appendChild(pWrap);
     }
 
     const dayMap = new Map();
