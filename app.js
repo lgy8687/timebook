@@ -1407,8 +1407,15 @@ function setupBackfillDrag(parentLog, parentEnd) {
 
     const setTimeFromPct = (pct, target) => {
         pct = Math.max(0, Math.min(1, pct));
-        const ms = parentLog.startTime + total * pct;
         const prefix = target === 'start' ? 'ps' : 'pe';
+        let ms;
+        if (target === 'end' && pct >= 0.997) {
+            ms = parentEnd; // 精确对齐，避免输入框精度丢失
+        } else if (target === 'start' && pct <= 0.003) {
+            ms = parentLog.startTime;
+        } else {
+            ms = parentLog.startTime + total * pct;
+        }
         setTimeInFields(prefix, new Date(ms));
         syncBackfillProgress(parentLog);
     };
