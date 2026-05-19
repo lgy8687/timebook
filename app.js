@@ -1425,12 +1425,17 @@ function snapToNearestFreeZone(pct, parentLog, parentEnd) {
     if (cursor < pEnd) freeZones.push({ start: cursor, end: pEnd });
     if (freeZones.length === 0) return 0.5; // 全占满则落在正中
     const clickMs = pStart + total * pct;
-    // 找最近的空闲区段边界
+    // 判断点击位置落在什么区
+    const inOccupied = occupied.some(r => clickMs >= r.start && clickMs <= r.end);
+    if (!inOccupied) {
+        // 落在空闲区 → 不磁吸，停在原地
+        return Math.max(0, Math.min(1, pct));
+    }
+    // 落在占用区 → 吸到最近空闲边界
     let bestEdge = freeZones[0].start;
     let bestDist = Infinity;
     freeZones.forEach(z => {
         [z.start, z.end].forEach(edge => {
-            // 忽略全同的区间（起止一样）
             const dist = Math.abs(edge - clickMs);
             if (dist < bestDist) { bestDist = dist; bestEdge = edge; }
         });
@@ -1573,6 +1578,9 @@ function setTimeInFields(prefix, date) {
 let _backfillRange = null;
 
 function initTimeField(el, max) {
+    el.addEventListener('touchstart', function() {
+        this.select();
+    });
     el.addEventListener('input', function() {
         this.value = this.value.replace(/\D/g, '').slice(0, 2);
         if (this.value.length >= 2) {
