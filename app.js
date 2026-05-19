@@ -433,19 +433,19 @@ function closeEdit() {
 }
 function deleteLogEntry(id) {
     const target = logs.find(l => l.id === id);
-    const idx = logs.findIndex(l => l.id === id);
-    if (target && !target.parallel && idx >= 0 && idx < logs.length - 1) {
-        const prev = logs[idx + 1];
-        if (prev && prev.endTime === target.startTime) {
-            const extra = target.duration || Math.round(((target.endTime||Date.now()) - target.startTime) / 60000);
-            prev.endTime = target.endTime || (target.startTime + (target.duration || 60) * 60000);
+    if (target && !target.parallel) {
+        const sameDay = logs
+            .filter(l => !l.parallel && l.id !== id && formatBeijingDate(l.startTime) === formatBeijingDate(target.startTime))
+            .sort((a, b) => a.startTime - b.startTime);
+        const idx = sameDay.findIndex(l => l.id === id);
+        if (idx > 0) {
+            const prev = sameDay[idx - 1];
+            const targetEnd = target.endTime || (target.startTime + (target.duration || 0) * 60000);
+            prev.endTime = Math.max(prev.endTime || prev.startTime, targetEnd);
             prev.duration = Math.round((prev.endTime - prev.startTime) / 60000);
         }
     }
     logs = logs.filter(l => l.id !== id);
-    if (target && !target.parallel) {
-        logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
-    }
     mergeAdjacentSameActivity();
     localStorage.setItem('v9_logs', JSON.stringify(logs));
     renderAll();
@@ -476,15 +476,30 @@ function addParallelEntry(parentId) {
 }
 
 function executeRecord(l1, l2, tag, note) {
+    if (parallelCurrent) {
+        const pName = displayName(parallelCurrent);
+        showConfirm("⏎ 并行还在跑", `「${pName}」还在运行，要一起结束吗？`, "一起结束", (ok) => {
+            if (!ok) {
+                // 不结束并行，但正常推进
+                doExecuteRecord(l1, l2, tag, note, false);
+            } else {
+                doExecuteRecord(l1, l2, tag, note, true);
+            }
+        });
+        return;
+    }
+    doExecuteRecord(l1, l2, tag, note, false);
+}
+function doExecuteRecord(l1, l2, tag, note, endParallel) {
     const now = Date.now();
     const cat = getCat(l1);
     const color = cat ? cat.color : "#cbd5e1";
     if (current) {
         const dur = Math.max(1, Math.round((now - current.startTime) / 60000));
         logs.unshift({ ...current, endTime: now, duration: dur, color: current.color || color, status: current.l1 ? 'ok' : 'pending' });
-        // 主线切换时，一并结算所有并行（正在跑 + 历史）
+        // 主线切换时，一并结算所有并行
         const pid = current.id;
-        if (parallelCurrent) {
+        if (parallelCurrent && endParallel) {
             const pDur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
             logs.unshift({ ...parallelCurrent, endTime: now, duration: pDur, parallel: true, parentId: pid, note: parallelCurrent.note || '' });
             parallelCurrent = null;
@@ -1074,7 +1089,7 @@ function renderLogs() {
                 const childIdx = logs.indexOf(child);
                 const parent = logs.find(l => l.id === child.parentId);
                 const wrap = document.createElement('div');
-                wrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-1 mb-1";
+                wrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-2 space-y-2 mb-2";
                 const row = createLogRow(wrap, child, childIdx);
                 list.appendChild(wrap);
             });
@@ -1194,7 +1209,7 @@ function createLogRow(list, log, idx) {
     name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
     name.innerText = displayName(log);
     const dur = document.createElement('span');
-    dur.className = "text-indigo-500 font-black shrink-0 text-right w-auto";
+    dur.className = "text-indigo-500 font-black shrink-0 text-right w-auto pr-3";
     dur.innerText = formatDuration((log.duration || Math.max(1, Math.round(((log.endTime||Date.now())-log.startTime)/60000))) * 60000);
     top.append(time, name, dur);
     body.appendChild(top);
@@ -1248,6 +1263,17 @@ function openBackfillDrawer(parentLog) {
         const clampedEnd = Math.max(parentLog.startTime, Math.min(realParentEnd, parseTimeFromInput('pe', parentLog.startTime)));
         const e = clampedEnd > clampedStart ? clampedEnd : Math.min(realParentEnd, clampedStart + 60000);
         const dur = Math.round((e - clampedStart) / 60000);
+        // 时间唯一性：检查与已有并行是否重叠
+        const parentId = parentLog.id || parentLog.startTime;
+        const existingParallels = [...logs.filter(l => l.parallel && l.parentId === parentId), ...parallelHistory];
+        const overlapConflict = existingParallels.some(p => {
+            const pEnd = p.endTime || (p.startTime + (p.duration || 0) * 60000);
+            return p.startTime < e && pEnd > clampedStart;
+        });
+        if (overlapConflict) {
+            showConfirm('⏰ 时间已被占用', '该时段已有其他并行活动，请调整时间后重试。', '知道了', () => {});
+            return;
+        }
         const entry = {
             id: Date.now() + Math.random(),
             startTime: clampedStart,
@@ -1299,6 +1325,17 @@ function executeSplit(parentLog, l1, l2) {
     const splitStart = Math.max(pStart, Math.min(pEnd, startMs));
     const splitEnd = Math.max(pStart, Math.min(pEnd, endMs));
     if (splitEnd - splitStart < 60000) { closeDrawer(); return; }
+    // 时间唯一性：切割区间不能与已有并行重叠
+    const splitParentId = parentLog.id || parentLog.startTime;
+    const splitConflicts = [...logs.filter(l => l.parallel && l.parentId === splitParentId), ...parallelHistory].some(p => {
+        const pEnd = p.endTime || (p.startTime + (p.duration || 0) * 60000);
+        return p.startTime < splitEnd && pEnd > splitStart;
+    });
+    if (splitConflicts) {
+        showConfirm('⏰ 时间已被占用', '切割区间与已有并行活动冲突，请调整切割范围后重试，或先删除冲突的并行。', '知道了', () => {});
+        closeDrawer();
+        return;
+    }
     const idx = logs.indexOf(parentLog);
     if (idx === -1) { closeDrawer(); return; }
     logs.splice(idx, 1);
@@ -1418,6 +1455,24 @@ function syncBackfillProgress(parentLog) {
     document.getElementById('backfill-end-handle').style.left = right + '%';
     document.getElementById('backfill-track-start').innerText = formatBeijingClock(parentLog.startTime);
     document.getElementById('backfill-track-end').innerText = formatBeijingClock(parentEnd);
+    // 渲染已有并行占用区段（灰色块）
+    const occupiedBox = document.getElementById('backfill-occupied');
+    if (occupiedBox) {
+        const pid = parentLog.id || parentLog.startTime;
+        occupiedBox.innerHTML = '';
+        [...logs.filter(l => l.parallel && l.parentId === pid), ...parallelHistory].forEach(p => {
+            const pStart = Math.max(p.startTime, parentLog.startTime);
+            const pEnd = Math.min(p.endTime || (p.startTime + (p.duration || 0) * 60000), parentEnd);
+            if (pEnd <= pStart) return;
+            const oLeft = ((pStart - parentLog.startTime) / total) * 100;
+            const oWidth = ((pEnd - pStart) / total) * 100;
+            const block = document.createElement('div');
+            block.className = "absolute inset-y-0 bg-slate-300/60 rounded";
+            block.style.left = oLeft + '%';
+            block.style.width = Math.max(2, oWidth) + '%';
+            occupiedBox.appendChild(block);
+        });
+    }
 }
 function parseTimeFromInput(prefix, refDate) {
     const h = parseInt(document.getElementById(prefix + '-h').value) || 0;

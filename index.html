@@ -24,7 +24,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v0530</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v0532</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -106,7 +106,7 @@
                 <div class="text-right">
                     <div id="report-cur-l2" class="text-base font-black text-indigo-600">空闲</div>
                     <div id="report-cur-timer" class="text-sm font-mono font-black text-slate-400">00:00:00</div>
-                    <div id="page-version-badge" class="text-xs font-black text-red-500 mt-1">v0530</div>
+                    <div id="page-version-badge" class="text-xs font-black text-red-500 mt-1">v0532</div>
                 </div>
             </div>
 
@@ -259,7 +259,8 @@
                     </div>
                     <!-- 父活动区间进度条（下面） -->
                     <div class="relative h-7 bg-slate-100 rounded-lg overflow-hidden" id="backfill-track">
-                        <div id="backfill-fill" class="absolute inset-y-0 bg-indigo-300/40 rounded-lg" style="left:0%;width:100%"></div>
+                        <div id="backfill-occupied" class="absolute inset-y-0 left-0 right-0 pointer-events-none z-[1]"></div>
+                        <div id="backfill-fill" class="absolute inset-y-0 bg-indigo-300/40 rounded-lg z-[2]" style="left:0%;width:100%"></div>
                         <div id="backfill-start-handle" class="absolute top-0.5 bottom-0.5 w-2.5 bg-indigo-500 rounded-full -ml-1.25 z-10 shadow-sm cursor-grab"></div>
                         <div id="backfill-end-handle" class="absolute top-0.5 bottom-0.5 w-2.5 bg-indigo-500 rounded-full -ml-1.25 z-10 shadow-sm cursor-grab"></div>
                         <div class="absolute inset-x-0 top-0 text-[8px] font-mono font-bold text-slate-400 flex justify-between px-2 leading-7 pointer-events-none">
