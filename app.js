@@ -1012,12 +1012,12 @@ function renderLogs() {
         card.addEventListener('touchmove', e=>{const d=e.touches[0].clientX-sx;const dy=e.touches[0].clientY-sy;if(!swiping&&Math.abs(d)>Math.abs(dy)&&Math.abs(d)>10)swiping=true;if(swiping){e.preventDefault();dx=Math.max(-80,Math.min(80,d));card.style.transform=`translateX(${dx}px)`;}},{passive:false});
         card.addEventListener('touchend',()=>{card.classList.remove('swiping');card.style.transform='';if(swiping){if(dx>55){if(isActive){showConfirm('关闭并行','关闭「'+displayName(parallel)+'」？不会记入日志。','关闭',ok=>{if(ok){parallelCurrent=null;localStorage.removeItem('v9_parallel');renderAll();}})}else{showConfirm('删除并行','删除已结束的「'+displayName(parallel)+'」？','删除',ok=>{if(ok){parallelHistory.splice(idx,1);localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}})}}else if(dx<-55){const cb=(l1,l2)=>{if(isActive){_parallelPending=true;toggleParallel(l1,l2||'',(getCat(l1)?.icon)||'📌');_parallelPending=false;}else{const p=parallelHistory[idx];if(p){p.l1=l1;p.l2=l2||'';const cat=getCat(l1);p.color=cat?.color||'#cbd5e1';localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}}};pickerMode='edit';document.getElementById('drawer-title').innerText=isActive?'切换并行':'修改并行';document.getElementById('drawer-footer').classList.add('hidden');_parallelCallback=cb;showDrawer();renderPicker();renderDrawerToggle();}swiping=false;dx=0;}},{passive:true});
         const inner = document.createElement('div');
-        inner.className = "flex items-center";
+        inner.className = "flex items-center self-stretch";
         const bar = document.createElement('div');
-        bar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
+        bar.className = "w-1.5 self-stretch rounded-full mr-4 shrink-0";
         bar.style.background = (cats.find(c=>c.name===parallel.l1)?.color)||(isActive?'#a78bfa':'#cbd5e1');
         const body = document.createElement('div');
-        body.className = "flex-1 min-w-0 flex flex-col gap-1";
+        body.className = "flex-1 min-w-0 flex flex-col justify-center gap-1";
         const top = document.createElement('div');
         top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
         const tEl = document.createElement('span');
@@ -1072,13 +1072,16 @@ function renderLogs() {
             ph.appendChild(badge);
         }
         list.appendChild(ph);
+        const pWrap = document.createElement('div');
+        pWrap.className = "ml-5 pl-3 border-l-2 border-violet-200 space-y-2";
+        if (parallelCurrent) {
+            createLiveParallelCard(pWrap, parallelCurrent, true, 0);
+        }
+        parallelHistory.forEach((p, i) => {
+            createLiveParallelCard(pWrap, p, false, i);
+        });
+        list.appendChild(pWrap);
     }
-    if (parallelCurrent) {
-        createLiveParallelCard(list, parallelCurrent, true, 0);
-    }
-    parallelHistory.forEach((p, i) => {
-        createLiveParallelCard(list, p, false, i);
-    });
 
     const dayMap = new Map();
     const show = logs.slice(0, logLimit);
@@ -1093,7 +1096,14 @@ function renderLogs() {
         const header = document.createElement('div');
         header.className = "text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 py-2 border-b border-slate-100 mb-2";
         const isToday = day === formatBeijingDate(Date.now());
-        header.innerText = isToday ? '📋 今日流水' : `📅 ${day}`;
+        if (isToday) {
+            const elapsed = Math.floor((Date.now() - beijingPeriodStart(Date.now(), DAY_MS)) / 60000);
+            const h = Math.floor(elapsed / 60);
+            const m = elapsed % 60;
+            header.innerText = `📋 今日流水 — 已流逝 ${h}h ${m}m`;
+        } else {
+            header.innerText = `📅 ${day}`;
+        }
         list.appendChild(header);
 
         const normalLogs = dayMap.get(day).filter(l => !l.parallel).sort((a,b) => a.startTime - b.startTime);
@@ -1209,10 +1219,10 @@ function createLogRow(list, log, idx) {
     }
 
     const inner = document.createElement('div');
-    inner.className = "flex items-center";
+    inner.className = "flex items-center self-stretch";
 
     const bar = document.createElement('div');
-    bar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
+    bar.className = "w-1.5 self-stretch rounded-full mr-4 shrink-0";
     bar.style.background = (cats.find(c => c.name === log.l1)?.color) || '#cbd5e1';
 
     const body = document.createElement('div');
