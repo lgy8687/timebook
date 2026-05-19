@@ -1287,10 +1287,6 @@ function openBackfillDrawer(parentLog) {
     setTimeInFields('ps', new Date(parentLog.startTime));
     setTimeInFields('pe', new Date(parentEnd));
     syncBackfillProgress(parentLog);
-    const sync = () => syncBackfillProgress(parentLog);
-    ['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s'].forEach(id => {
-        document.getElementById(id).addEventListener('change', sync);
-    });
     setupBackfillDrag(parentLog, parentEnd);
     _parallelCallback = (l1, l2) => {
         const cat = getCat(l1);
@@ -1343,10 +1339,6 @@ function openSplitDrawer(parentLog) {
     _backfillRange = { start: pStart, end: pEnd };
     setTimeInFields('ps', new Date(pStart));
     setTimeInFields('pe', new Date(pEnd));
-    const sync = () => syncBackfillProgress(parentLog);
-    ['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s'].forEach(id => {
-        document.getElementById(id).addEventListener('change', sync);
-    });
     setupBackfillDrag(parentLog, pEnd);
     _parallelCallback = (l1, l2) => { executeSplit(parentLog, l1, l2); };
     if (drawerViewMode === 'columns') drawerViewMode = 'flat';
@@ -1591,7 +1583,6 @@ function initTimeField(el, max) {
                 next.focus();
             }
         }
-        const prefix = this.id.replace(/-(h|m|s)$/, '');
         // 输入→进度条视觉同步（不写回输入框）
         if (_backfillRange) {
             const { start, end } = _backfillRange;
