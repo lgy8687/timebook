@@ -114,9 +114,6 @@ function logFlowCardClass(kind) {
     return 'swipe-card log-flow-card log-flow-card--' + kind;
 }
 
-/** 并行键帽外框：克莱因蓝 / 绿，白底无填色 */
-const PARALLEL_KEYCAP_BORDER = ['#002FA7', '#10b981'];
-
 function setText(id, value) {
     const el = document.getElementById(id);
     if (el) el.innerText = value;
@@ -633,9 +630,8 @@ function renderParallelShortcuts() {
         const item = document.createElement('button');
         item.type = 'button';
         const isActive = parallelCurrent && parallelCurrent.l1 === s.l1 && parallelCurrent.l2 === s.l2;
-        const borderColor = PARALLEL_KEYCAP_BORDER[idx % PARALLEL_KEYCAP_BORDER.length];
         item.className = `keycap keycap--parallel-slot${isActive ? ' pressed' : ''} btn-active`;
-        item.style.borderColor = borderColor;
+        item.dataset.slotIdx = String(idx % 2);
         item.title = s.l2 || s.l1;
         const icon = document.createElement('span');
         icon.className = "keycap-icon";
@@ -1055,10 +1051,10 @@ function renderLogs() {
         const ph = document.createElement('div');
         ph.className = "flex items-center gap-2 px-1 pt-4 pb-1";
         const icon = document.createElement('span');
-        icon.className = "text-[14px] text-slate-400";
+        icon.className = "parallel-flow-icon text-[14px]";
         icon.innerText = "↳";
         const label = document.createElement('span');
-        label.className = "text-[11px] font-black text-slate-500 uppercase tracking-widest";
+        label.className = "parallel-flow-label text-[11px] font-black uppercase tracking-widest";
         label.innerText = "并行";
         ph.append(icon, label);
         if (parallelCurrent) {
@@ -1094,7 +1090,7 @@ function renderLogs() {
     const days = [...dayMap.keys()].sort((a,b) => b.localeCompare(a));
     days.forEach(day => {
         const header = document.createElement('div');
-        header.className = "text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 py-2 border-b border-slate-100 mb-2";
+        header.className = "log-day-header text-[10px] font-black uppercase tracking-widest px-1 py-2 border-b border-slate-100 mb-2";
         const isToday = day === formatBeijingDate(Date.now());
         let headerText = `📅 ${day}`;
         if (isToday) {
@@ -2338,7 +2334,9 @@ function renderFlow() {
 function switchTab(t) {
     pickerMode = 'record';
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.getElementById('page-'+t).classList.add('active');
+    const page = document.getElementById('page-' + t);
+    if (page) page.classList.add('active');
+    if (t === 'dev' && typeof renderDevAppearancePanel === 'function') renderDevAppearancePanel();
     ['record', 'report'].forEach(name => {
         const nav = document.getElementById('nav-' + name);
         if (nav) {

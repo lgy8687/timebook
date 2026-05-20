@@ -8,7 +8,8 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.9">
+    <link rel="stylesheet" href="style.css?v=4.10">
+    <link rel="stylesheet" href="dev-theme.css?v=4.10">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
 
@@ -24,7 +25,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v4.9</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v4.10</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -47,8 +48,8 @@
             <!-- ↳ 并行快捷区 -->
             <div id="parallel-section" class="space-y-2">
                 <div class="flex items-center gap-2 px-1">
-                    <span class="text-[14px] text-violet-400">↳</span>
-                    <span class="text-[11px] font-black text-violet-500 uppercase tracking-widest">并行</span>
+                    <span id="parallel-label-icon" class="text-[14px]">↳</span>
+                    <span id="parallel-label-text" class="text-[11px] font-black uppercase tracking-widest">并行</span>
                     <span id="parallel-status" class="hidden text-[8px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">运行中</span>
                 </div>
                 <div id="parallel-shortcuts"></div>
@@ -126,7 +127,7 @@
                 <div class="text-right">
                     <div id="report-cur-l2" class="text-base font-black text-indigo-600">空闲</div>
                     <div id="report-cur-timer" class="text-sm font-mono font-black text-slate-400">00:00:00</div>
-                    <div id="page-version-badge" class="text-xs font-black text-red-500 mt-1">v4.9</div>
+                    <div id="page-version-badge" class="text-xs font-black text-red-500 mt-1">v4.10</div>
                 </div>
             </div>
 
@@ -215,7 +216,21 @@
                 </div>
                 <div id="full-cat-list" class="space-y-4"></div>
             </div>
+            <button type="button" id="dev-appearance-entry" onclick="openDevAppearance()" class="w-full py-3.5 text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl">🛠 开发者外观</button>
             <button onclick="if(confirm('清空？')){localStorage.clear();location.reload();}" class="w-full py-4 text-[10px] text-slate-300 font-bold uppercase tracking-widest">Factory Reset</button>
+        </section>
+
+        <section id="page-dev" class="tab-content space-y-4 pb-8">
+            <div class="sticky top-0 z-10 bg-slate-50 py-3 flex items-center gap-3 border-b border-slate-100 mb-2">
+                <button type="button" onclick="switchTab('config')" class="bg-white w-9 h-9 rounded-xl shadow-sm flex items-center justify-center text-base shrink-0">⬅️</button>
+                <h2 class="text-base font-black text-slate-800">开发者外观</h2>
+            </div>
+            <p class="text-[10px] text-slate-400 px-1 leading-relaxed">按产品分区调节颜色与字号，自动保存。逻辑与手势不在此页修改。上线前将 <code class="text-amber-600">DEV_PANEL_ENABLED</code> 设为 false。</p>
+            <div class="flex gap-2 px-1">
+                <button type="button" onclick="devThemeReset()" class="flex-1 py-2.5 text-[11px] font-black bg-slate-100 text-slate-600 rounded-xl">恢复默认</button>
+                <button type="button" onclick="devThemeExport()" class="flex-1 py-2.5 text-[11px] font-black bg-indigo-50 text-indigo-600 rounded-xl">复制配置</button>
+            </div>
+            <div id="dev-theme-sections"></div>
         </section>
     </main>
 
@@ -359,6 +374,8 @@
         </div>
     </div>
 
-    <script src="app.js?v=4.9"></script>
+    <script src="ui-theme.js?v=4.10"></script>
+    <script src="app.js?v=4.10"></script>
+    <script src="dev-appearance.js?v=4.10"></script>
 </body>
 </html>

@@ -1,4 +1,96 @@
+:root {
+    --tb-body-bg: #f8fafc;
+    --tb-log-main-bg: #fff;
+    --tb-log-parallel-bg: #e8edf4;
+    --tb-log-parallel-border: #cbd5e1;
+    --tb-log-time-color: #94a3b8;
+    --tb-log-time-size: 13px;
+    --tb-log-name-color: #334155;
+    --tb-log-name-size: 16px;
+    --tb-log-dur-live: #10b981;
+    --tb-log-dur-log: #334155;
+    --tb-log-dur-done: #475569;
+    --tb-log-dur-size: 15px;
+    --tb-log-inner-min-h: 52px;
+    --tb-log-bar-w: 6px;
+    --tb-log-bar-h: 32px;
+    --tb-log-parallel-time: #64748b;
+    --tb-log-parallel-name: #64748b;
+    --tb-log-parallel-name-size: 14px;
+    --tb-log-parallel-inner-min-h: 44px;
+    --tb-log-parallel-bar-w: 5px;
+    --tb-log-parallel-bar-h: 26px;
+    --tb-log-nest-border: #cbd5e1;
+    --tb-log-note-color: #94a3b8;
+    --tb-log-note-size: 11px;
+    --tb-main-keycap-bg: #fff;
+    --tb-main-keycap-border: #d1d5db;
+    --tb-main-keycap-text: #334155;
+    --tb-main-keycap-pressed-bg: #f1f5f9;
+    --tb-main-keycap-icon-size: 18px;
+    --tb-main-keycap-label-size: 10px;
+    --tb-parallel-keycap-bg: #fff;
+    --tb-parallel-keycap-text: #334155;
+    --tb-parallel-keycap-border-a: #002FA7;
+    --tb-parallel-keycap-border-b: #002FA7;
+    --tb-parallel-keycap-icon-size: 18px;
+    --tb-parallel-keycap-label-size: 10px;
+    --tb-shortcut-add-main-bg: #eef2ff;
+    --tb-shortcut-add-main-color: #4f46e5;
+    --tb-shortcut-add-parallel-bg: #f1f5f9;
+    --tb-shortcut-add-parallel-color: #475569;
+    --tb-keycap-min-h: 48px;
+    --tb-swipe-delete-bg: #ef4444;
+    --tb-swipe-edit-bg: #3b82f6;
+    --tb-swipe-btn-size: 11px;
+    --tb-log-tag-color: #818cf8;
+    --tb-log-tag-bg: #eef2ff;
+}
 .tab-content { display: none; }
+.dev-theme-block {
+    background: #fff;
+    border-radius: 1rem;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 12px;
+}
+.dev-theme-block-title {
+    font-size: 12px;
+    font-weight: 900;
+    color: #475569;
+    margin-bottom: 10px;
+    letter-spacing: 0.04em;
+}
+.dev-theme-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 10px;
+}
+.dev-theme-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+}
+.dev-theme-field input[type="color"] {
+    width: 100%;
+    height: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 2px;
+    cursor: pointer;
+}
+.dev-theme-field input[type="number"] {
+    width: 100%;
+    height: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
 .tab-content.active { display: block; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .ring-inner { fill: none; stroke: #10b981; stroke-width: 8; stroke-linecap: round; transition: stroke-dasharray 0.3s linear; }
@@ -74,15 +166,15 @@
 .log-flow-inner {
     display: flex;
     align-items: center;
-    min-height: 52px;
+    min-height: var(--tb-log-inner-min-h);
     padding: 12px 12px 12px 10px;
     box-sizing: border-box;
 }
 .log-flow-bar {
-    width: 6px;
-    height: 32px;
-    min-height: 32px;
-    max-height: 32px;
+    width: var(--tb-log-bar-w);
+    height: var(--tb-log-bar-h);
+    min-height: var(--tb-log-bar-h);
+    max-height: var(--tb-log-bar-h);
     margin: auto 10px auto 0;
     border-radius: 999px;
     flex-shrink: 0;
@@ -92,7 +184,7 @@
 .log-flow-nest {
     margin-left: 10px;
     padding-left: 8px;
-    border-left: 2px solid #cbd5e1;
+    border-left: 2px solid var(--tb-log-nest-border);
 }
 .log-flow-nest > .swipe-wrap { margin-bottom: 6px; }
 .log-flow-nest > .swipe-wrap:last-child { margin-bottom: 0; }
@@ -115,9 +207,9 @@
     flex-shrink: 0;
     width: 5.5rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 13px;
+    font-size: var(--tb-log-time-size);
     font-weight: 700;
-    color: #94a3b8;
+    color: var(--tb-log-time-color);
     letter-spacing: -0.02em;
 }
 .log-flow-name {
@@ -126,30 +218,30 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 16px;
+    font-size: var(--tb-log-name-size);
     font-weight: 900;
-    color: #334155;
+    color: var(--tb-log-name-color);
     line-height: 1.2;
 }
 .log-flow-dur {
     flex-shrink: 0;
     min-width: 4.5rem;
     text-align: right;
-    font-size: 15px;
+    font-size: var(--tb-log-dur-size);
     font-weight: 900;
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
 }
-.log-flow-dur--live { color: #10b981; }
-.log-flow-dur--log { color: #334155; }
-.log-flow-dur--done { color: #475569; }
+.log-flow-dur--live { color: var(--tb-log-dur-live); }
+.log-flow-dur--log { color: var(--tb-log-dur-log); }
+.log-flow-dur--done { color: var(--tb-log-dur-done); }
 .log-flow-note {
     display: flex;
     align-items: center;
     gap: 4px;
     min-width: 0;
-    font-size: 11px;
-    color: #94a3b8;
+    font-size: var(--tb-log-note-size);
+    color: var(--tb-log-note-color);
     line-height: 1.25;
 }
 .log-flow-note-text {
@@ -166,38 +258,40 @@
 .swipe-actions.left { left: 0; }
 .swipe-actions.right { right: 0; }
 .swipe-action-btn { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 11px; font-weight: 900; color: #fff; border: none; white-space: nowrap; cursor: pointer; }
-.swipe-action-btn.delete { background: #ef4444; border-radius: 1rem 0 0 1rem; padding: 0 14px; }
-.swipe-action-btn.edit { background: #3b82f6; border-radius: 0 1rem 1rem 0; padding: 0 14px; }
+.swipe-action-btn { font-size: var(--tb-swipe-btn-size); }
+.swipe-action-btn.delete { background: var(--tb-swipe-delete-bg); border-radius: 1rem 0 0 1rem; padding: 0 14px; }
+.swipe-action-btn.edit { background: var(--tb-swipe-edit-bg); border-radius: 0 1rem 1rem 0; padding: 0 14px; }
 .swipe-card { position: relative; z-index: 1; border-radius: 1rem; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1); will-change: transform; }
 /* 流水卡片状态（须在 .swipe-card 之后） */
 .swipe-card.log-flow-card--main-live,
 .swipe-card.log-flow-card--main-log,
-.swipe-card.log-flow-card--parallel-live { background: #fff; }
+.swipe-card.log-flow-card--parallel-live { background: var(--tb-log-main-bg); }
 .swipe-card.log-flow-card--parallel-log {
-    background: #e8edf4;
-    box-shadow: inset 0 0 0 1px #cbd5e1;
+    background: var(--tb-log-parallel-bg);
+    box-shadow: inset 0 0 0 1px var(--tb-log-parallel-border);
 }
 .swipe-card.log-flow-card--parallel-log .log-flow-time,
-.swipe-card.log-flow-card--parallel-log .log-flow-name { color: #64748b; }
+.swipe-card.log-flow-card--parallel-log .log-flow-name { color: var(--tb-log-parallel-time); }
+.swipe-card.log-flow-card--parallel-log .log-flow-name { color: var(--tb-log-parallel-name); }
 .swipe-card.log-flow-card--parallel-log .log-flow-name { font-weight: 800; }
 .swipe-card.log-flow-card--parallel-log .log-flow-bar { opacity: 0.55; filter: saturate(0.6); }
 /* 并行流水行全局略小（进行中/暂存/主线下记录同尺寸） */
 .swipe-card.log-flow-card--parallel-live .log-flow-inner,
 .swipe-card.log-flow-card--parallel-log .log-flow-inner {
-    min-height: 44px;
+    min-height: var(--tb-log-parallel-inner-min-h);
     padding: 9px 10px 9px 8px;
 }
 .swipe-card.log-flow-card--parallel-live .log-flow-bar,
 .swipe-card.log-flow-card--parallel-log .log-flow-bar {
-    width: 5px;
-    height: 26px;
-    min-height: 26px;
-    max-height: 26px;
+    width: var(--tb-log-parallel-bar-w);
+    height: var(--tb-log-parallel-bar-h);
+    min-height: var(--tb-log-parallel-bar-h);
+    max-height: var(--tb-log-parallel-bar-h);
 }
 .swipe-card.log-flow-card--parallel-live .log-flow-name,
-.swipe-card.log-flow-card--parallel-log .log-flow-name { font-size: 14px; }
+.swipe-card.log-flow-card--parallel-log .log-flow-name { font-size: var(--tb-log-parallel-name-size); }
 .swipe-card.log-flow-card--parallel-live .log-flow-dur,
-.swipe-card.log-flow-card--parallel-log .log-flow-dur { font-size: 14px; min-width: 4rem; }
+.swipe-card.log-flow-card--parallel-log .log-flow-dur { font-size: var(--tb-log-parallel-name-size); min-width: 4rem; }
 /* 快捷入口：键帽行（设计文档 §十三） */
 #home-shortcuts,
 #parallel-shortcuts {
@@ -220,18 +314,18 @@
     border: 1px solid #e2e8f0;
 }
 .shortcut-add-btn--main {
-    background: #eef2ff;
-    color: #4f46e5;
+    background: var(--tb-shortcut-add-main-bg);
+    color: var(--tb-shortcut-add-main-color);
     border-color: #c7d2fe;
 }
 .shortcut-add-btn--parallel {
-    background: #f1f5f9;
-    color: #475569;
+    background: var(--tb-shortcut-add-parallel-bg);
+    color: var(--tb-shortcut-add-parallel-color);
     border-color: #cbd5e1;
 }
 .shortcut-grid { flex: 1; min-width: 0; }
 .keycap {
-    min-height: 48px;
+    min-height: var(--tb-keycap-min-h);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -241,24 +335,32 @@
     border-radius: 10px;
 }
 .keycap--main {
-    background: #ffffff;
-    border: 1px solid #d1d5db;
-    color: #334155;
+    background: var(--tb-main-keycap-bg);
+    border: 1px solid var(--tb-main-keycap-border);
+    color: var(--tb-main-keycap-text);
     box-shadow: 0 2px 4px rgba(0,0,0,0.06), 0 3px 6px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9);
 }
 .keycap--main.pressed {
-    background: #f1f5f9;
+    background: var(--tb-main-keycap-pressed-bg);
     border-color: #9ca3af;
     box-shadow: 0 0 2px rgba(0,0,0,0.04), inset 0 2px 4px rgba(0,0,0,0.1);
     transform: translateY(2px);
 }
 .keycap--parallel-slot {
-    background: #fff;
-    color: #334155;
+    background: var(--tb-parallel-keycap-bg);
+    color: var(--tb-parallel-keycap-text);
     border-width: 2px;
     border-style: solid;
     box-shadow: 0 2px 4px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.9);
 }
+.keycap--parallel-slot[data-slot-idx="0"] { border-color: var(--tb-parallel-keycap-border-a); }
+.keycap--parallel-slot[data-slot-idx="1"] { border-color: var(--tb-parallel-keycap-border-b); }
+.keycap--main .keycap-icon { font-size: var(--tb-main-keycap-icon-size); }
+.keycap--main .keycap-label { font-size: var(--tb-main-keycap-label-size); }
+.keycap--parallel-slot .keycap-icon { font-size: var(--tb-parallel-keycap-icon-size); }
+.keycap--parallel-slot .keycap-label { font-size: var(--tb-parallel-keycap-label-size); }
+.log-flow-note .text-indigo-400 { color: var(--tb-log-tag-color) !important; }
+.log-flow-note .bg-indigo-50 { background: var(--tb-log-tag-bg) !important; }
 .keycap--parallel-slot.pressed {
     box-shadow: inset 0 2px 5px rgba(15,23,42,0.12);
     transform: translateY(2px);

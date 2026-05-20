@@ -1,0 +1,32 @@
+/* 开发者主题：CSS 变量 → 各区域（仅外观，不改逻辑） */
+#header-timer { color: var(--tb-header-timer) !important; }
+#header-l2 { color: var(--tb-header-l2) !important; }
+header .text-indigo-500 { color: var(--tb-header-active-label) !important; }
+#cache-buster, #page-version-badge { color: var(--tb-version-badge) !important; }
+.day-remain-fill { background: linear-gradient(180deg, #e0c8a0 0%, var(--tb-day-remain-fill) 100%) !important; }
+.day-remain-label { color: var(--tb-day-remain-label) !important; font-size: var(--tb-day-remain-label-size) !important; }
+.day-remain-track { height: var(--tb-day-remain-track-h) !important; }
+#page-record h3.text-xs { font-size: var(--tb-section-title-size) !important; color: var(--tb-section-title-color) !important; }
+#parallel-label-icon, .parallel-flow-icon { color: var(--tb-parallel-icon-color) !important; }
+#parallel-label-text, .parallel-flow-label { color: var(--tb-parallel-label-color) !important; font-size: var(--tb-parallel-label-size) !important; }
+.log-day-header { color: var(--tb-log-day-header-color) !important; }
+#parallel-status { color: var(--tb-parallel-status-color) !important; }
+#free-input { font-size: var(--tb-free-input-size) !important; }
+button[onclick="handleFreeInput()"] { background: var(--tb-record-btn-bg) !important; color: var(--tb-record-btn-color) !important; }
+.clock-face { background: var(--tb-clock-face-bg) !important; }
+.clock-face svg > circle { stroke: var(--tb-clock-ring-stroke) !important; }
+#label-60m-remain { color: var(--tb-clock-60m-remain) !important; }
+#label-24h-remain { color: var(--tb-clock-24h-remain) !important; }
+#hand-60m { background: var(--tb-clock-hand-60m) !important; }
+#hand-24h { background: var(--tb-clock-hand-24h) !important; }
+.clock-face .text-slate-400 { color: var(--tb-clock-muted-label) !important; }
+#nav-record.text-indigo-600, #nav-report.text-indigo-600 { color: var(--tb-nav-active) !important; }
+#nav-record.text-slate-400, #nav-report.text-slate-400 { color: var(--tb-nav-inactive) !important; }
+nav button.rounded-full.bg-indigo-600 { background: var(--tb-nav-fab-bg) !important; }
+.report-title { color: var(--tb-report-title-color) !important; font-size: var(--tb-report-title-size) !important; }
+.report-card { background: var(--tb-report-card-bg) !important; border-color: var(--tb-report-card-border) !important; }
+.timeline-track { background: var(--tb-timeline-bg) !important; }
+.dist-bar { background: var(--tb-dist-bar-bg) !important; }
+#drawer-title { font-size: var(--tb-drawer-title-size) !important; }
+#drawer { background-color: var(--tb-drawer-overlay) !important; }
+#confirm-ok-btn, #prompt-modal button:last-child, #edit-modal button:last-child { background: var(--tb-confirm-ok-bg) !important; }
