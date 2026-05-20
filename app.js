@@ -109,10 +109,23 @@ function logDurationMs(log, liveEndMs) {
     return 0;
 }
 
-/** main-live=主线进行中 | main-log=今日流水 | parallel-live=并行进行中 | parallel-ended=并行区已结束(仅此灰) */
+/** main-live | main-log | parallel-live | parallel-stash=并行区已结束(白) | parallel-log=主线下并行(灰) */
 function logFlowCardClass(kind) {
     return 'swipe-card log-flow-card log-flow-card--' + kind;
 }
+
+/** 并行快捷 9 色（含克莱因蓝、绿），按槽位 idx 配色便于挑选 */
+const PARALLEL_KEYCAP_PALETTE = [
+    { name: '克莱因蓝', bg: '#e8f1fc', border: '#002FA7', text: '#002FA7' },
+    { name: '翠绿', bg: '#ecfdf5', border: '#10b981', text: '#047857' },
+    { name: '珊瑚', bg: '#fff1f2', border: '#f43f5e', text: '#be123c' },
+    { name: '琥珀', bg: '#fffbeb', border: '#f59e0b', text: '#b45309' },
+    { name: '青碧', bg: '#ecfeff', border: '#06b6d4', text: '#0e7490' },
+    { name: '靛青', bg: '#eef2ff', border: '#4f46e5', text: '#3730a3' },
+    { name: '橙柿', bg: '#fff7ed', border: '#ea580c', text: '#c2410c' },
+    { name: '莓紫', bg: '#fdf4ff', border: '#c026d3', text: '#a21caf' },
+    { name: '岩灰', bg: '#f8fafc', border: '#64748b', text: '#475569' }
+];
 
 function setText(id, value) {
     const el = document.getElementById(id);
@@ -630,7 +643,12 @@ function renderParallelShortcuts() {
         const item = document.createElement('button');
         item.type = 'button';
         const isActive = parallelCurrent && parallelCurrent.l1 === s.l1 && parallelCurrent.l2 === s.l2;
-        item.className = `keycap keycap--parallel${isActive ? ' pressed' : ''} btn-active`;
+        const pal = PARALLEL_KEYCAP_PALETTE[idx % PARALLEL_KEYCAP_PALETTE.length];
+        item.className = `keycap keycap--parallel-slot${isActive ? ' pressed' : ''} btn-active`;
+        item.style.background = pal.bg;
+        item.style.borderColor = pal.border;
+        item.style.color = pal.text;
+        item.title = `${pal.name} · ${s.l2 || s.l1}`;
         const icon = document.createElement('span');
         icon.className = "keycap-icon";
         icon.innerText = s.icon;
@@ -1018,7 +1036,7 @@ function renderLogs() {
         rightAct.appendChild(editBtn);
         wrap.appendChild(rightAct);
         const card = document.createElement('div');
-        card.className = logFlowCardClass(isActive ? 'parallel-live' : 'parallel-ended');
+        card.className = logFlowCardClass(isActive ? 'parallel-live' : 'parallel-stash');
         let sx=0,sy=0,swiping=false,dx=0;
         card.addEventListener('touchstart', e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY;swiping=false;dx=0;card.classList.add('swiping');},{passive:false});
         card.addEventListener('touchmove', e=>{const d=e.touches[0].clientX-sx;const dy=e.touches[0].clientY-sy;if(!swiping&&Math.abs(d)>Math.abs(dy)&&Math.abs(d)>10)swiping=true;if(swiping){e.preventDefault();dx=Math.max(-80,Math.min(80,d));card.style.transform=`translateX(${dx}px)`;}},{passive:false});
@@ -1036,7 +1054,7 @@ function renderLogs() {
             durText: formatDuration(durMs),
             live: isActive,
             durId: isActive ? 'live-parallel-duration' : null,
-            endedParallel: !isActive
+            endedParallel: false
         }));
         inner.append(bar, body);
         card.appendChild(inner);
@@ -1150,7 +1168,7 @@ function createLogRow(list, log, idx) {
     wrap.appendChild(rightActions);
 
     const card = document.createElement('div');
-    card.className = logFlowCardClass('main-log');
+    card.className = logFlowCardClass(log.parallel ? 'parallel-log' : 'main-log');
 
     let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
     let _wasLongPress = false, _lpTimer = null;
@@ -1223,7 +1241,8 @@ function createLogRow(list, log, idx) {
         timeText: formatBeijingClockSec(log.startTime),
         nameText: displayName(log),
         durText: formatDuration(logDurationMs(log)),
-        live: false
+        live: false,
+        endedParallel: !!log.parallel
     }));
     appendLogFlowNote(body, log);
 
