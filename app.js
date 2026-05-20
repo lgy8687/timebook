@@ -94,12 +94,24 @@ function formatDuration(ms) {
     const h = Math.floor(total / 3600);
     const m = Math.floor((total % 3600) / 60);
     const s = total % 60;
+    const mm = String(m).padStart(2, '0');
     const ss = String(s).padStart(2, '0');
-    if (h > 0) {
-        const mm = String(m).padStart(2, '0');
-        return `${h}:${mm}:${ss}`;
-    }
-    return `${m}:${ss}`;
+    if (h > 0) return `${h}:${mm}:${ss}`;
+    return `${mm}:${ss}`;
+}
+
+/** 优先用 endTime-startTime 毫秒差，避免 duration(分钟) 丢秒 */
+function logDurationMs(log, liveEndMs) {
+    if (!log) return 0;
+    const end = liveEndMs != null ? liveEndMs : (log.endTime || (log.live ? Date.now() : null));
+    if (end != null && log.startTime != null) return Math.max(0, end - log.startTime);
+    if (log.duration != null) return Math.max(1000, Math.round(log.duration * 60000));
+    return 0;
+}
+
+function logFlowCardClass(live, parallel) {
+    if (live) return parallel ? 'swipe-card log-flow-card log-flow-card--parallel-live' : 'swipe-card log-flow-card log-flow-card--live';
+    return parallel ? 'swipe-card log-flow-card log-flow-card--parallel-done' : 'swipe-card log-flow-card log-flow-card--done';
 }
 
 function setText(id, value) {
@@ -967,7 +979,7 @@ function renderLogs() {
         const liveWrap = document.createElement('div');
         liveWrap.className = "swipe-wrap";
         const liveCard = document.createElement('div');
-        liveCard.className = "swipe-card";
+        liveCard.className = logFlowCardClass(true, false);
         const inner = document.createElement('div');
         inner.className = "log-flow-inner";
         const bar = buildLogFlowBar((cats.find(c => c.name === current.l1)?.color) || '#6366f1', false);
@@ -976,7 +988,7 @@ function renderLogs() {
         body.appendChild(buildLogFlowMainRow({
             timeText: formatBeijingClockSec(current.startTime),
             nameText: displayName(current),
-            durText: formatDuration(Date.now() - current.startTime),
+            durText: formatDuration(logDurationMs(current, Date.now())),
             live: true,
             durId: 'live-main-duration'
         }));
@@ -1005,7 +1017,7 @@ function renderLogs() {
         rightAct.appendChild(editBtn);
         wrap.appendChild(rightAct);
         const card = document.createElement('div');
-        card.className = "swipe-card";
+        card.className = logFlowCardClass(isActive, true);
         let sx=0,sy=0,swiping=false,dx=0;
         card.addEventListener('touchstart', e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY;swiping=false;dx=0;card.classList.add('swiping');},{passive:false});
         card.addEventListener('touchmove', e=>{const d=e.touches[0].clientX-sx;const dy=e.touches[0].clientY-sy;if(!swiping&&Math.abs(d)>Math.abs(dy)&&Math.abs(d)>10)swiping=true;if(swiping){e.preventDefault();dx=Math.max(-80,Math.min(80,d));card.style.transform=`translateX(${dx}px)`;}},{passive:false});
@@ -1013,11 +1025,10 @@ function renderLogs() {
         const inner = document.createElement('div');
         inner.className = "log-flow-inner";
         const barColor = (cats.find(c => c.name === parallel.l1)?.color) || (isActive ? '#a78bfa' : '#cbd5e1');
-        const bar = buildLogFlowBar(barColor, !isActive);
+        const bar = buildLogFlowBar(barColor, false);
         const body = document.createElement('div');
         body.className = 'log-flow-body';
-        const et = parallel.endTime || (parallel.startTime + (parallel.duration || 60) * 60000);
-        const durMs = isActive ? (Date.now() - parallel.startTime) : Math.max(0, et - parallel.startTime);
+        const durMs = logDurationMs(parallel, isActive ? Date.now() : null);
         body.appendChild(buildLogFlowMainRow({
             timeText: formatBeijingClockSec(parallel.startTime),
             nameText: displayName(parallel),
@@ -1050,7 +1061,7 @@ function renderLogs() {
         }
         list.appendChild(ph);
         const pWrap = document.createElement('div');
-        pWrap.className = "ml-5 pl-3 border-l-2 border-violet-200 space-y-2";
+        pWrap.className = "log-flow-nest";
         if (parallelCurrent) {
             createLiveParallelCard(pWrap, parallelCurrent, true, 0);
         }
@@ -1098,7 +1109,7 @@ function renderLogs() {
                 const childIdx = logs.indexOf(child);
                 const parent = logs.find(l => l.id === child.parentId);
                 const wrap = document.createElement('div');
-                wrap.className = "ml-5 pl-3 border-l-2 border-violet-200 mt-2 space-y-2 mb-2";
+                wrap.className = "log-flow-nest mt-1 mb-1";
                 const row = createLogRow(wrap, child, childIdx);
                 list.appendChild(wrap);
             });
@@ -1137,7 +1148,7 @@ function createLogRow(list, log, idx) {
     wrap.appendChild(rightActions);
 
     const card = document.createElement('div');
-    card.className = "swipe-card";
+    card.className = logFlowCardClass(false, !!log.parallel);
 
     let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
     let _wasLongPress = false, _lpTimer = null;
@@ -1206,11 +1217,10 @@ function createLogRow(list, log, idx) {
 
     const body = document.createElement('div');
     body.className = "log-flow-body";
-    const durMs = (log.duration || Math.max(1, Math.round(((log.endTime || Date.now()) - log.startTime) / 60000))) * 60000;
     body.appendChild(buildLogFlowMainRow({
         timeText: formatBeijingClockSec(log.startTime),
         nameText: displayName(log),
-        durText: formatDuration(durMs),
+        durText: formatDuration(logDurationMs(log)),
         live: false
     }));
     appendLogFlowNote(body, log);
@@ -1395,15 +1405,8 @@ function setupBackfillDrag(parentLog, parentEnd) {
 
     const setTimeFromPct = (pct, target) => {
         pct = Math.max(0, Math.min(1, pct));
+        const ms = parentLog.startTime + total * pct;
         const prefix = target === 'start' ? 'ps' : 'pe';
-        let ms;
-        if (target === 'end' && pct >= 0.997) {
-            ms = parentEnd; // 精确对齐，避免输入框精度丢失
-        } else if (target === 'start' && pct <= 0.003) {
-            ms = parentLog.startTime;
-        } else {
-            ms = parentLog.startTime + total * pct;
-        }
         setTimeInFields(prefix, new Date(ms));
         syncBackfillProgress(parentLog);
     };
@@ -1424,12 +1427,8 @@ function setupBackfillDrag(parentLog, parentEnd) {
         if (!dragTarget) return;
         e.preventDefault();
         const rect = newTrack.getBoundingClientRect();
-        const HANDLE_W = 10; // w-2.5 = 10px（半宽=5）
-        let x = clientXFromEvent(e);
-        if (dragTarget === 'end') {
-            x += HANDLE_W / 2; // 拖右棍：手指在棍子中心，补半宽偏移
-        }
-        const pct = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+        const handleHalfW = 5; // w-2.5 的一半
+        const pct = (clientXFromEvent(e) - rect.left + (dragTarget === 'end' ? handleHalfW : 0)) / rect.width;
         setTimeFromPct(pct, dragTarget);
     };
     const onEnd = () => {
