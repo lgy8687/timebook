@@ -64,9 +64,28 @@ let showShortcutIcons = true;
 const BJ_OFFSET = 8 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+const CLOCK_PREFS_DEFAULT = { layout: 'dual', singleAxis: '60m' };
+let clockPrefs = { ...CLOCK_PREFS_DEFAULT, ...safeJSON('v9_clock_prefs') };
+
+function getClockPrefs() {
+    return { ...CLOCK_PREFS_DEFAULT, ...clockPrefs };
+}
+
+function saveClockPrefs() {
+    localStorage.setItem('v9_clock_prefs', JSON.stringify(clockPrefs));
+}
+
+function setClockPref(key, value) {
+    clockPrefs[key] = value;
+    saveClockPrefs();
+    applyClockLayout();
+    renderFlow();
+    renderClockSettings();
+}
 
 window.onload = () => {
     try {
+        applyClockLayout();
         renderAll();
         tickLoop();
     } catch(e) {
@@ -172,36 +191,106 @@ function drawClockSegment(parent, r, startMs, endMs, rangeStart, rangeEnd, color
     parent.appendChild(arc);
 }
 
-function render24hMarks() {
-    const marks = document.getElementById('svg-24h-marks');
-    if (!marks || marks.dataset.ready) return;
-    marks.dataset.ready = "1";
-    marks.innerHTML = "";
-    for (let i = 0; i < 24; i++) {
-        const angle = ((i * 15) * Math.PI) / 180;
-        const isMajor = i % 3 === 0;
-        const r1 = 44, r2 = isMajor ? 48 : 46;
-        const x1 = 60 + Math.cos(angle) * r1;
-        const y1 = 60 + Math.sin(angle) * r1;
-        const x2 = 60 + Math.cos(angle) * r2;
-        const y2 = 60 + Math.sin(angle) * r2;
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("x1", x1); line.setAttribute("y1", y1);
-        line.setAttribute("x2", x2); line.setAttribute("y2", y2);
-        line.setAttribute("stroke", isMajor ? "#94a3b8" : "#cbd5e1");
-        line.setAttribute("stroke-width", isMajor ? "0.8" : "0.5");
-        marks.appendChild(line);
-        if (isMajor) {
-            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            text.setAttribute("x", 60 + Math.cos(angle) * 40);
-            text.setAttribute("y", 60 + Math.sin(angle) * 40);
-            text.setAttribute("text-anchor", "middle");
-            text.setAttribute("dominant-baseline", "middle");
-            text.setAttribute("style", "font-size:3.5px; font-weight:900; fill:#94a3b8; paint-order:stroke; stroke:#f8fafc; stroke-width:0.5px;");
-            text.textContent = i;
-            marks.appendChild(text);
-        }
+/** 环内刻度：每整点的 15 / 30 / 45 分（整点对齐窗口） */
+function renderClockMarks(marksG, rangeStart, rangeEnd) {
+    if (!marksG) return;
+    marksG.innerHTML = "";
+    const total = rangeEnd - rangeStart;
+    if (total <= 0) return;
+    let hourStart = beijingPeriodStart(rangeStart, HOUR_MS);
+    while (hourStart < rangeEnd) {
+        [15, 30, 45].forEach(min => {
+            const t = hourStart + min * 60000;
+            if (t <= rangeStart || t >= rangeEnd) return;
+            const angle = ((t - rangeStart) / total) * 360 * (Math.PI / 180);
+            const r1 = 44, r2 = 47;
+            const x1 = 60 + Math.cos(angle) * r1;
+            const y1 = 60 + Math.sin(angle) * r1;
+            const x2 = 60 + Math.cos(angle) * r2;
+            const y2 = 60 + Math.sin(angle) * r2;
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+            line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+            line.setAttribute("stroke", "#94a3b8");
+            line.setAttribute("stroke-width", "0.65");
+            marksG.appendChild(line);
+        });
+        hourStart += HOUR_MS;
     }
+}
+
+function logSegmentColor(log) {
+    return log.color || getCat(log.l1)?.color || '#cbd5e1';
+}
+
+function applyClockLayout() {
+    const p = getClockPrefs();
+    const stage = document.getElementById('clock-stage');
+    const panel60 = document.getElementById('clock-panel-60m');
+    const panel24 = document.getElementById('clock-panel-24h');
+    if (!stage || !panel60 || !panel24) return;
+    const dual = p.layout === 'dual';
+    stage.classList.toggle('clock-stage--dual', dual);
+    stage.classList.toggle('clock-stage--single', !dual);
+    if (dual) {
+        panel60.classList.remove('hidden');
+        panel24.classList.remove('hidden');
+    } else {
+        panel60.classList.toggle('hidden', p.singleAxis !== '60m');
+        panel24.classList.toggle('hidden', p.singleAxis !== '24h');
+    }
+}
+
+function renderClockSettings() {
+    const wrap = document.getElementById('clock-settings-ui');
+    if (!wrap) return;
+    const p = getClockPrefs();
+    wrap.innerHTML = '';
+
+    const row1 = document.createElement('div');
+    row1.className = 'clock-settings-row';
+    [['dual', '双时间轴（60M+24H）'], ['single', '单时间轴']].forEach(([val, lab]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'clock-settings-btn btn-active' + (p.layout === val ? ' active' : '');
+        btn.innerText = lab;
+        btn.addEventListener('click', () => setClockPref('layout', val));
+        row1.appendChild(btn);
+    });
+    wrap.appendChild(row1);
+
+    const row2 = document.createElement('div');
+    row2.className = 'clock-settings-row';
+    row2.id = 'clock-single-axis-row';
+    if (p.layout === 'single') {
+        [['60m', '仅 60 分钟'], ['24h', '仅 24 小时']].forEach(([val, lab]) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'clock-settings-btn btn-active' + (p.singleAxis === val ? ' active' : '');
+            btn.innerText = lab;
+            btn.addEventListener('click', () => setClockPref('singleAxis', val));
+            row2.appendChild(btn);
+        });
+        wrap.appendChild(row2);
+    }
+}
+
+function renderOneClockRing(opts) {
+    const { gSeg, gMarks, handEl, rangeStart, rangeEnd, logs, now } = opts;
+    gSeg.innerHTML = "";
+    renderClockMarks(gMarks, rangeStart, rangeEnd);
+    const innerBg = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    innerBg.setAttribute("cx", "60"); innerBg.setAttribute("cy", "60"); innerBg.setAttribute("r", "38");
+    innerBg.setAttribute("fill", "none"); innerBg.setAttribute("stroke", "#f1f5f9"); innerBg.setAttribute("stroke-width", "10");
+    gSeg.appendChild(innerBg);
+    const windowLogs = logs.filter(l => l.endTime > rangeStart && l.startTime < rangeEnd);
+    windowLogs.forEach(log => {
+        const color = logSegmentColor(log);
+        const thin = !!log.parallel;
+        drawClockSegment(gSeg, thin ? 38 : 50, log.startTime, log.endTime, rangeStart, rangeEnd, color, log, thin ? 10 : 14);
+    });
+    const angle = ((now - rangeStart) / (rangeEnd - rangeStart)) * 360;
+    if (handEl) handEl.style.transform = `translateX(-50%) rotate(${angle}deg)`;
 }
 
 let promptCallback = null;
@@ -752,6 +841,7 @@ function toggleShortcutIcons() {
 
 
 function renderConfig() {
+    renderClockSettings();
     const shortcutList = document.getElementById('shortcut-list');
     shortcutList.innerHTML = "";
     shortcuts.forEach((s, idx) => {
@@ -2179,32 +2269,40 @@ function tick() {
     const d = new Date(now + BJ_OFFSET);
     const secAngle = (d.getUTCSeconds() + d.getUTCMilliseconds() / 1000) * 6;
 
+    const p = getClockPrefs();
     const hourStart = beijingPeriodStart(now, HOUR_MS);
     const hourEnd = hourStart + HOUR_MS;
-    const angle60 = ((now - hourStart) / HOUR_MS) * 360;
-    const hand60 = document.getElementById('hand-60m');
-    if (hand60) hand60.style.transform = `rotate(${angle60}deg)`;
-    const sec60 = document.getElementById('second-60m');
-    if (sec60) sec60.style.transform = `rotate(${secAngle}deg)`;
-
     const dayStart = beijingPeriodStart(now, DAY_MS);
     const dayEnd = dayStart + DAY_MS;
-    const angle24 = ((now - dayStart) / DAY_MS) * 360;
-    const hand24 = document.getElementById('hand-24h');
-    if (hand24) hand24.style.transform = `rotate(${angle24}deg)`;
-    const sec24 = document.getElementById('second-24h');
-    if (sec24) sec24.style.transform = `rotate(${secAngle}deg)`;
+    const show60 = p.layout === 'dual' || p.singleAxis === '60m';
+    const show24 = p.layout === 'dual' || p.singleAxis === '24h';
+
+    if (show60) {
+        const hand60 = document.getElementById('hand-60m');
+        const angle60 = ((now - hourStart) / HOUR_MS) * 360;
+        if (hand60) hand60.style.transform = `translateX(-50%) rotate(${angle60}deg)`;
+        const sec60 = document.getElementById('second-60m');
+        if (sec60) sec60.style.transform = `rotate(${secAngle}deg)`;
+    }
+    if (show24) {
+        const hand24 = document.getElementById('hand-24h');
+        const angle24 = ((now - dayStart) / DAY_MS) * 360;
+        if (hand24) hand24.style.transform = `translateX(-50%) rotate(${angle24}deg)`;
+        const sec24 = document.getElementById('second-24h');
+        if (sec24) sec24.style.transform = `rotate(${secAngle}deg)`;
+    }
 
     const sec = Math.floor(now / 1000);
     if (sec !== lastSecondTs) {
         lastSecondTs = sec;
 
-        const hourRemain = Math.ceil((hourEnd - now) / 60000);
-        setText('label-60m-remain', hourRemain);
-        const dayRemainMs = Math.max(0, dayEnd - now);
-        const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
-        const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
-        setText('label-24h-remain', `${String(dayRemainH).padStart(2,'0')}:${String(dayRemainM).padStart(2,'0')}`);
+        if (show60) setText('label-60m-remain', Math.ceil((hourEnd - now) / 60000));
+        if (show24) {
+            const dayRemainMs = Math.max(0, dayEnd - now);
+            const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
+            const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
+            setText('label-24h-remain', `${String(dayRemainH).padStart(2, '0')}:${String(dayRemainM).padStart(2, '0')}`);
+        }
 
         if (current) {
             const diff = now - current.startTime;
@@ -2273,63 +2371,46 @@ function renderFlow() {
     const dayEnd = dayStart + DAY_MS;
     const hourStart = beijingPeriodStart(now, HOUR_MS);
     const hourEnd = hourStart + HOUR_MS;
-    const g60 = document.getElementById('svg-60m');
-    const g24 = document.getElementById('svg-24h');
-    const hand60 = document.getElementById('hand-60m');
-    const hand24 = document.getElementById('hand-24h');
-    if (!g60 || !g24) return;
-
-    g60.innerHTML = "";
-    g24.innerHTML = "";
-    const innerBg = (g) => {
-        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        c.setAttribute("cx","60"); c.setAttribute("cy","60"); c.setAttribute("r","38");
-        c.setAttribute("fill","none"); c.setAttribute("stroke","#f1f5f9"); c.setAttribute("stroke-width","10");
-        g.appendChild(c);
-    };
-    innerBg(g60);
-    innerBg(g24);
-    render24hMarks();
+    applyClockLayout();
+    const p = getClockPrefs();
+    const show60 = p.layout === 'dual' || p.singleAxis === '60m';
+    const show24 = p.layout === 'dual' || p.singleAxis === '24h';
 
     const currentLog = current ? { ...current, endTime: now, live: true } : null;
     const all = logs
         .map(l => ({ ...l, endTime: l.endTime || l.startTime }))
         .concat(currentLog ? [currentLog] : [])
         .concat(parallelCurrent ? [{ ...parallelCurrent, endTime: now, parallel: true, parentId: current?.id || null }] : [])
-        .concat(parallelHistory.filter(p => p.endTime > dayStart || (p.startTime && p.startTime < dayEnd)).map(p => ({ ...p, endTime: p.endTime || (p.startTime + (p.duration || 0) * 60000) })))
+        .concat(parallelHistory.filter(ph => ph.endTime > dayStart || (ph.startTime && ph.startTime < dayEnd)).map(ph => ({ ...ph, endTime: ph.endTime || (ph.startTime + (ph.duration || 0) * 60000) })))
         .filter(Boolean);
-    const dayLogs = all.filter(l => l.endTime > dayStart && l.startTime < dayEnd);
-    const hourLogs = dayLogs.filter(l => l.endTime > hourStart && l.startTime < hourEnd);
-    const totalMs = dayLogs.reduce((sum, l) => {
-        const start = Math.max(l.startTime, dayStart);
-        const end = Math.min(l.endTime, dayEnd);
-        return sum + Math.max(0, end - start);
-    }, 0);
 
-    hourLogs.forEach(log => {
-        const color = log.color || getCat(log.l1)?.color || (log.parallel ? '#8b5cf6' : '#cbd5e1');
-        if (log.parallel) {
-            drawClockSegment(g60, 38, log.startTime, log.endTime, hourStart, hourEnd, color, log, 10);
-        } else {
-            drawClockSegment(g60, 50, log.startTime, log.endTime, hourStart, hourEnd, color, log);
-        }
-    });
-
-    dayLogs.forEach(log => {
-        const color = log.color || getCat(log.l1)?.color || (log.parallel ? '#8b5cf6' : '#cbd5e1');
-        if (log.parallel) {
-            drawClockSegment(g24, 38, log.startTime, log.endTime, dayStart, dayEnd, color, log, 10);
-        } else {
-            drawClockSegment(g24, 50, log.startTime, log.endTime, dayStart, dayEnd, color, log);
-        }
-    });
-
-    const hourRemain = Math.ceil((hourEnd - now) / 60000);
-    setText('label-60m-remain', hourRemain);
-    const angle60 = ((now - hourStart) / HOUR_MS) * 360;
-    const angle24 = ((now - dayStart) / DAY_MS) * 360;
-    hand60.style.transform = `translateX(-50%) rotate(${angle60}deg)`;
-    hand24.style.transform = `translateX(-50%) rotate(${angle24}deg)`;
+    if (show60) {
+        renderOneClockRing({
+            gSeg: document.getElementById('svg-60m'),
+            gMarks: document.getElementById('svg-60m-marks'),
+            handEl: document.getElementById('hand-60m'),
+            rangeStart: hourStart,
+            rangeEnd: hourEnd,
+            logs: all,
+            now
+        });
+        setText('label-60m-remain', Math.ceil((hourEnd - now) / 60000));
+    }
+    if (show24) {
+        renderOneClockRing({
+            gSeg: document.getElementById('svg-24h'),
+            gMarks: document.getElementById('svg-24h-marks'),
+            handEl: document.getElementById('hand-24h'),
+            rangeStart: dayStart,
+            rangeEnd: dayEnd,
+            logs: all,
+            now
+        });
+        const dayRemainMs = Math.max(0, dayEnd - now);
+        const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
+        const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
+        setText('label-24h-remain', `${String(dayRemainH).padStart(2, '0')}:${String(dayRemainM).padStart(2, '0')}`);
+    }
 }
 function switchTab(t) {
     pickerMode = 'record';

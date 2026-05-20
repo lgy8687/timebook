@@ -123,6 +123,27 @@
 .flow-panel-label { font-size: 11px; font-weight: 900; color: #94a3b8; letter-spacing: .08em; text-transform: uppercase; }
 .flow-panel-value { font-size: 24px; line-height: 1.15; font-weight: 900; color: #0f172a; margin-top: 6px; }
 .clock-stage { display: grid; grid-template-columns: repeat(2, minmax(260px, 360px)); gap: 160px; justify-content: center; align-items: start; padding: 10px 0 6px; }
+.clock-stage--single { grid-template-columns: 1fr; max-width: 360px; margin: 0 auto; gap: 0; }
+.clock-stage--single .clock-panel.hidden { display: none !important; }
+.clock-panel-caption, .clock-label-sub { color: var(--tb-clock-muted-label, #94a3b8); }
+.clock-label-value { color: var(--tb-clock-60m-remain, #334155); }
+.clock-label-value--short { font-size: 2.25rem; line-height: 1.1; }
+.clock-label-value--long { font-size: 1.5rem; line-height: 1.2; }
+.clock-hand { background: var(--tb-clock-hand-60m, #334155) !important; }
+#clock-panel-24h .clock-hand { background: var(--tb-clock-hand-24h, #334155) !important; }
+.clock-settings-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.clock-settings-btn {
+    flex: 1;
+    min-width: calc(50% - 4px);
+    padding: 10px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 900;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #64748b;
+}
+.clock-settings-btn.active { background: #eef2ff; border-color: #818cf8; color: #4338ca; }
 .clock-face {
     position: relative; background: #ffffff; border-radius: 50%;
     box-shadow: 0 4px 24px rgba(0,0,0,0.06);
@@ -270,8 +291,7 @@
     background: var(--tb-log-parallel-bg);
     box-shadow: inset 0 0 0 1px var(--tb-log-parallel-border);
 }
-.swipe-card.log-flow-card--parallel-log .log-flow-time,
-.swipe-card.log-flow-card--parallel-log .log-flow-name { color: var(--tb-log-parallel-time); }
+.swipe-card.log-flow-card--parallel-log .log-flow-time { color: var(--tb-log-parallel-time); }
 .swipe-card.log-flow-card--parallel-log .log-flow-name { color: var(--tb-log-parallel-name); }
 .swipe-card.log-flow-card--parallel-log .log-flow-name { font-weight: 800; }
 .swipe-card.log-flow-card--parallel-log .log-flow-bar { opacity: 0.55; filter: saturate(0.6); }
@@ -383,6 +403,7 @@
 @media (max-width: 720px) {
     .flow-dashboard { grid-template-columns: 1fr; max-width: 420px; }
     .clock-stage { grid-template-columns: 1fr 1fr; max-width: 360px; margin: 0 auto; gap: 8px; padding: 6px 0; }
+    .clock-stage--single { grid-template-columns: 1fr; max-width: 280px; }
     .clock-stage .clock-face { width: 150px !important; height: 150px !important; }
     .clock-stage .clock-face .text-4xl { font-size: 1.25rem !important; }
     .clock-stage .clock-face .text-2xl { font-size: 1rem !important; }
