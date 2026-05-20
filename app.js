@@ -913,6 +913,50 @@ function renderConfig() {
     catList.appendChild(addL1Btn);
 }
 
+function buildLogFlowBar(color, muted) {
+    const bar = document.createElement('div');
+    bar.className = 'log-flow-bar' + (muted ? ' log-flow-bar--muted' : '');
+    bar.style.background = color || '#cbd5e1';
+    return bar;
+}
+
+function buildLogFlowMainRow(opts) {
+    const { timeText, nameText, durText, live, durId } = opts;
+    const top = document.createElement('div');
+    top.className = 'log-flow-main';
+    const time = document.createElement('span');
+    time.className = 'log-flow-time';
+    time.innerText = timeText;
+    const name = document.createElement('span');
+    name.className = 'log-flow-name';
+    name.innerText = nameText;
+    const dur = document.createElement('span');
+    dur.className = 'log-flow-dur ' + (live ? 'log-flow-dur--live' : 'log-flow-dur--done');
+    if (durId) dur.id = durId;
+    dur.innerText = durText;
+    top.append(time, name, dur);
+    return top;
+}
+
+function appendLogFlowNote(body, log) {
+    if (!log || (!log.note && !log.tag)) return;
+    const noteRow = document.createElement('div');
+    noteRow.className = 'log-flow-note';
+    if (log.tag) {
+        const tagEl = document.createElement('span');
+        tagEl.className = "text-[10px] font-bold text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0";
+        tagEl.innerText = '#' + log.tag;
+        noteRow.appendChild(tagEl);
+    }
+    if (log.note) {
+        const note = document.createElement('span');
+        note.className = 'log-flow-note-text';
+        note.innerText = log.note;
+        noteRow.appendChild(note);
+    }
+    body.appendChild(noteRow);
+}
+
 function renderLogs() {
     const list = document.getElementById('log-list');
     const moreWrap = document.getElementById('load-more-wrap');
@@ -925,26 +969,17 @@ function renderLogs() {
         const liveCard = document.createElement('div');
         liveCard.className = "swipe-card";
         const inner = document.createElement('div');
-        inner.className = "flex items-center";
-        const bar = document.createElement('div');
-        bar.className = "w-1.5 h-10 rounded-full mr-4 shrink-0";
-        bar.style.background = (cats.find(c => c.name === current.l1)?.color) || '#6366f1';
+        inner.className = "log-flow-inner";
+        const bar = buildLogFlowBar((cats.find(c => c.name === current.l1)?.color) || '#6366f1', false);
         const body = document.createElement('div');
-        body.className = "flex-1 min-w-0 flex flex-col gap-1";
-        const top = document.createElement('div');
-        top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
-        const time = document.createElement('span');
-        time.className = "font-mono shrink-0";
-        time.innerText = formatBeijingClockSec(current.startTime);
-        const name = document.createElement('span');
-        name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
-        name.innerText = displayName(current);
-        const dur = document.createElement('span');
-        dur.className = "text-emerald-500 font-black shrink-0 text-right w-auto";
-        dur.id = "live-main-duration";
-        dur.innerText = formatDuration(Date.now() - current.startTime);
-        top.append(time, name, dur);
-        body.appendChild(top);
+        body.className = 'log-flow-body';
+        body.appendChild(buildLogFlowMainRow({
+            timeText: formatBeijingClockSec(current.startTime),
+            nameText: displayName(current),
+            durText: formatDuration(Date.now() - current.startTime),
+            live: true,
+            durId: 'live-main-duration'
+        }));
         inner.append(bar, body);
         liveCard.appendChild(inner);
         liveWrap.appendChild(liveCard);
@@ -976,43 +1011,21 @@ function renderLogs() {
         card.addEventListener('touchmove', e=>{const d=e.touches[0].clientX-sx;const dy=e.touches[0].clientY-sy;if(!swiping&&Math.abs(d)>Math.abs(dy)&&Math.abs(d)>10)swiping=true;if(swiping){e.preventDefault();dx=Math.max(-80,Math.min(80,d));card.style.transform=`translateX(${dx}px)`;}},{passive:false});
         card.addEventListener('touchend',()=>{card.classList.remove('swiping');card.style.transform='';if(swiping){if(dx>55){if(isActive){showConfirm('关闭并行','关闭「'+displayName(parallel)+'」？不会记入日志。','关闭',ok=>{if(ok){parallelCurrent=null;localStorage.removeItem('v9_parallel');renderAll();}})}else{showConfirm('删除并行','删除已结束的「'+displayName(parallel)+'」？','删除',ok=>{if(ok){parallelHistory.splice(idx,1);localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}})}}else if(dx<-55){const cb=(l1,l2)=>{if(isActive){_parallelPending=true;toggleParallel(l1,l2||'',(getCat(l1)?.icon)||'📌');_parallelPending=false;}else{const p=parallelHistory[idx];if(p){p.l1=l1;p.l2=l2||'';const cat=getCat(l1);p.color=cat?.color||'#cbd5e1';localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}}};pickerMode='edit';document.getElementById('drawer-title').innerText=isActive?'切换并行':'修改并行';document.getElementById('drawer-footer').classList.add('hidden');_parallelCallback=cb;showDrawer();renderPicker();renderDrawerToggle();}swiping=false;dx=0;}},{passive:true});
         const inner = document.createElement('div');
-        inner.className = "flex items-center self-stretch";
-        const bar = document.createElement('div');
-        bar.className = "w-1.5 self-stretch rounded-full mr-4 shrink-0";
-        bar.style.background = (cats.find(c=>c.name===parallel.l1)?.color)||(isActive?'#a78bfa':'#cbd5e1');
+        inner.className = "log-flow-inner";
+        const barColor = (cats.find(c => c.name === parallel.l1)?.color) || (isActive ? '#a78bfa' : '#cbd5e1');
+        const bar = buildLogFlowBar(barColor, !isActive);
         const body = document.createElement('div');
-        body.className = "flex-1 min-w-0 flex flex-col justify-center gap-1";
-        const top = document.createElement('div');
-        top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
-        const tEl = document.createElement('span');
-        tEl.className = "font-mono shrink-0";
-        if (isActive) {
-            tEl.innerText = formatBeijingClockSec(parallel.startTime);
-        } else {
-            const et = parallel.endTime||(parallel.startTime+(parallel.duration||60)*60000);
-            tEl.innerText = formatBeijingClockSec(parallel.startTime)+'-'+formatBeijingClockSec(et);
-        }
-        const nEl = document.createElement('span');
-        nEl.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
-        nEl.innerText = displayName(parallel);
-        const dEl = document.createElement('span');
-        dEl.className = isActive ? "text-emerald-500 font-black shrink-0 text-right w-auto pr-3" : "text-slate-400 font-black shrink-0 text-right w-auto pr-3";
-        if (isActive) {
-            dEl.id = "live-parallel-duration";
-            dEl.innerText = formatDuration(Date.now()-parallel.startTime);
-        } else {
-            const et = parallel.endTime||(parallel.startTime+(parallel.duration||60)*60000);
-            dEl.innerText = formatDuration(Math.max(0,et-parallel.startTime));
-        }
-        top.append(tEl,nEl,dEl);
-        body.appendChild(top);
-        if (!isActive) {
-            const tag = document.createElement('div');
-            tag.className = "text-[10px] font-black text-slate-300 ml-1";
-            tag.innerText = "已结束";
-            body.appendChild(tag);
-        }
-        inner.append(bar,body);
+        body.className = 'log-flow-body';
+        const et = parallel.endTime || (parallel.startTime + (parallel.duration || 60) * 60000);
+        const durMs = isActive ? (Date.now() - parallel.startTime) : Math.max(0, et - parallel.startTime);
+        body.appendChild(buildLogFlowMainRow({
+            timeText: formatBeijingClockSec(parallel.startTime),
+            nameText: displayName(parallel),
+            durText: formatDuration(durMs),
+            live: isActive,
+            durId: isActive ? 'live-parallel-duration' : null
+        }));
+        inner.append(bar, body);
         card.appendChild(inner);
         wrap.appendChild(card);
         parent.appendChild(wrap);
@@ -1187,46 +1200,21 @@ function createLogRow(list, log, idx) {
     }
 
     const inner = document.createElement('div');
-    inner.className = "flex items-center self-stretch";
+    inner.className = "log-flow-inner";
 
-    const bar = document.createElement('div');
-    bar.className = "w-1.5 self-stretch rounded-full mr-4 shrink-0";
-    bar.style.background = (cats.find(c => c.name === log.l1)?.color) || '#cbd5e1';
+    const bar = buildLogFlowBar((cats.find(c => c.name === log.l1)?.color) || '#cbd5e1', false);
 
     const body = document.createElement('div');
-    body.className = "flex-1 min-w-0 flex flex-col gap-1";
-    const top = document.createElement('div');
-    top.className = "flex items-center text-xs text-slate-400 font-bold w-full";
-    const time = document.createElement('span');
-    time.className = "font-mono shrink-0";
-    const endTime = log.endTime || (log.startTime + (log.duration || 60) * 60000);
-    time.innerText = `${formatBeijingClockSec(log.startTime)}-${formatBeijingClockSec(endTime)}`;
-    const name = document.createElement('span');
-    name.className = "flex-1 font-black text-slate-700 truncate ml-2 min-w-0";
-    name.innerText = displayName(log);
-    const dur = document.createElement('span');
-    dur.className = "text-indigo-500 font-black shrink-0 text-right w-auto pr-3";
-    dur.innerText = formatDuration((log.duration || Math.max(1, Math.round(((log.endTime||Date.now())-log.startTime)/60000))) * 60000);
-    top.append(time, name, dur);
-    body.appendChild(top);
+    body.className = "log-flow-body";
+    const durMs = (log.duration || Math.max(1, Math.round(((log.endTime || Date.now()) - log.startTime) / 60000))) * 60000;
+    body.appendChild(buildLogFlowMainRow({
+        timeText: formatBeijingClockSec(log.startTime),
+        nameText: displayName(log),
+        durText: formatDuration(durMs),
+        live: false
+    }));
+    appendLogFlowNote(body, log);
 
-    const noteRow = document.createElement('div');
-    noteRow.className = "flex items-center gap-1";
-    const note = document.createElement('span');
-    note.className = "text-sm text-slate-400 italic truncate flex-1";
-    note.innerText = log.note || '';
-    if (log.tag) {
-        const tagEl = document.createElement('span');
-        tagEl.className = "text-[10px] font-bold text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0";
-        tagEl.innerText = '#' + log.tag;
-        noteRow.appendChild(tagEl);
-    }
-    noteRow.appendChild(note);
-
-    const hasNoteContent = log.note || log.tag;
-    if (hasNoteContent) {
-        body.appendChild(noteRow);
-    }
     inner.append(bar, body);
     card.appendChild(inner);
     wrap.appendChild(card);
