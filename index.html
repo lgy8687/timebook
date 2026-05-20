@@ -8,7 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.6.6">
+    <link rel="stylesheet" href="style.css?v=4.7">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
 
@@ -24,7 +24,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v4.6.6</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v4.7</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -41,7 +41,7 @@
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
                     <span onclick="switchTab('config')" class="text-xs text-indigo-500 font-bold">去设置</span>
                 </div>
-                <div id="home-shortcuts" class="flex gap-1.5 items-stretch min-h-[64px]"></div>
+                <div id="home-shortcuts"></div>
             </div>
 
             <!-- ↳ 并行快捷区 -->
@@ -51,7 +51,7 @@
                     <span class="text-[11px] font-black text-violet-500 uppercase tracking-widest">并行</span>
                     <span id="parallel-status" class="hidden text-[8px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">运行中</span>
                 </div>
-                <div id="parallel-shortcuts" class="flex gap-1.5 items-stretch min-h-[44px]"></div>
+                <div id="parallel-shortcuts"></div>
             </div>
             <div class="flex space-x-2">
                 <input type="text" id="free-input" placeholder="输入：#标签 内容" class="flex-1 bg-white border-none rounded-2xl px-4 py-4 shadow-sm text-base focus:ring-2 focus:ring-indigo-100">
@@ -126,7 +126,7 @@
                 <div class="text-right">
                     <div id="report-cur-l2" class="text-base font-black text-indigo-600">空闲</div>
                     <div id="report-cur-timer" class="text-sm font-mono font-black text-slate-400">00:00:00</div>
-                    <div id="page-version-badge" class="text-xs font-black text-red-500 mt-1">v4.6.6</div>
+                    <div id="page-version-badge" class="text-xs font-black text-red-500 mt-1">v4.7</div>
                 </div>
             </div>
 
@@ -359,6 +359,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=4.6.6"></script>
+    <script src="app.js?v=4.7"></script>
 </body>
 </html>

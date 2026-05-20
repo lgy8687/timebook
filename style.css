@@ -69,21 +69,6 @@
     40% { transform: translateY(-48%) scale(0.95, 1.08) rotate(2deg); }
     60% { transform: translateY(-53%) scale(1.06, 0.98) rotate(-2deg); }
     80% { transform: translateY(-47%) scale(1.02, 1.1) rotate(4deg); }
-}.keycap {
-    background: #ffffff;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04),
-                inset 0 1px 0 rgba(255,255,255,0.9);
-    transition: all 0.08s ease;
-    position: relative;
-}
-.keycap.pressed {
-    box-shadow: 0 0 2px rgba(0,0,0,0.04), inset 0 2px 4px rgba(0,0,0,0.12),
-                inset 0 3px 8px rgba(0,0,0,0.06);
-    transform: translateY(2px);
-    border-color: #9ca3af;
-    background: #f1f5f9;
 }
 /* 流水行：进行中 / 已结束 统一单行壳（手机优先，顶部 day-remain 不在此范围） */
 .log-flow-inner {
@@ -156,7 +141,8 @@
     line-height: 1.2;
 }
 .log-flow-dur--live { color: #10b981; }
-.log-flow-dur--done { color: #64748b; }
+.log-flow-dur--log { color: #334155; }
+.log-flow-dur--done { color: #475569; }
 .log-flow-note {
     display: flex;
     align-items: center;
@@ -183,38 +169,112 @@
 .swipe-action-btn.delete { background: #ef4444; border-radius: 1rem 0 0 1rem; padding: 0 14px; }
 .swipe-action-btn.edit { background: #3b82f6; border-radius: 0 1rem 1rem 0; padding: 0 14px; }
 .swipe-card { position: relative; z-index: 1; border-radius: 1rem; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1); will-change: transform; }
-/* 状态色必须在 .swipe-card 之后，否则白底盖住整卡变灰 */
-.swipe-card.log-flow-card--live { background: #fff; }
-.swipe-card.log-flow-card--done { background: #e2e8f0; box-shadow: inset 0 0 0 1px #cbd5e1; }
-.swipe-card.log-flow-card--done .log-flow-time,
-.swipe-card.log-flow-card--done .log-flow-name { color: #64748b; }
-.swipe-card.log-flow-card--done .log-flow-name { font-weight: 800; }
-.swipe-card.log-flow-card--done .log-flow-dur--done { color: #475569; }
-.swipe-card.log-flow-card--done .log-flow-bar { opacity: 0.5; filter: saturate(0.65); }
-.swipe-card.log-flow-card--parallel-live { background: #f5f3ff; box-shadow: inset 0 0 0 1px #e9d5ff; }
-.swipe-card.log-flow-card--parallel-done { background: #e2e8f0; box-shadow: inset 0 0 0 1px #cbd5e1; }
-.swipe-card.log-flow-card--parallel-done .log-flow-time,
-.swipe-card.log-flow-card--parallel-done .log-flow-name { color: #64748b; }
-.swipe-card.log-flow-card--parallel-done .log-flow-name { font-weight: 800; }
-.swipe-card.log-flow-card--parallel-done .log-flow-dur--done { color: #475569; }
-.swipe-card.log-flow-card--parallel-done .log-flow-bar { opacity: 0.5; filter: saturate(0.65); }
-/* 并行：略小于主线，层级次要但可点 */
+/* 流水卡片状态（须在 .swipe-card 之后） */
+.swipe-card.log-flow-card--main-live,
+.swipe-card.log-flow-card--main-log,
+.swipe-card.log-flow-card--parallel-live { background: #fff; }
+.swipe-card.log-flow-card--parallel-ended {
+    background: #e8edf4;
+    box-shadow: inset 0 0 0 1px #cbd5e1;
+}
+.swipe-card.log-flow-card--parallel-ended .log-flow-time,
+.swipe-card.log-flow-card--parallel-ended .log-flow-name { color: #64748b; }
+.swipe-card.log-flow-card--parallel-ended .log-flow-name { font-weight: 800; }
+.swipe-card.log-flow-card--parallel-ended .log-flow-bar { opacity: 0.55; filter: saturate(0.6); }
+/* 并行区流水行：略小于主线（进行中/已结束同尺寸） */
 .swipe-card.log-flow-card--parallel-live .log-flow-inner,
-.swipe-card.log-flow-card--parallel-done .log-flow-inner {
+.swipe-card.log-flow-card--parallel-ended .log-flow-inner {
     min-height: 44px;
     padding: 9px 10px 9px 8px;
 }
 .swipe-card.log-flow-card--parallel-live .log-flow-bar,
-.swipe-card.log-flow-card--parallel-done .log-flow-bar {
+.swipe-card.log-flow-card--parallel-ended .log-flow-bar {
     width: 5px;
     height: 26px;
     min-height: 26px;
     max-height: 26px;
 }
 .swipe-card.log-flow-card--parallel-live .log-flow-name,
-.swipe-card.log-flow-card--parallel-done .log-flow-name { font-size: 14px; }
+.swipe-card.log-flow-card--parallel-ended .log-flow-name { font-size: 14px; }
 .swipe-card.log-flow-card--parallel-live .log-flow-dur,
-.swipe-card.log-flow-card--parallel-done .log-flow-dur { font-size: 14px; min-width: 4rem; }
+.swipe-card.log-flow-card--parallel-ended .log-flow-dur { font-size: 14px; min-width: 4rem; }
+/* 快捷入口：键帽行（设计文档 §十三） */
+#home-shortcuts,
+#parallel-shortcuts {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 48px;
+}
+.shortcut-add-btn {
+    width: 44px;
+    min-width: 44px;
+    height: 48px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 1.125rem;
+    font-weight: 900;
+    border: 1px solid #e2e8f0;
+}
+.shortcut-add-btn--main {
+    background: #eef2ff;
+    color: #4f46e5;
+    border-color: #c7d2fe;
+}
+.shortcut-add-btn--parallel {
+    background: #f5f3ff;
+    color: #7c3aed;
+    border-color: #ddd6fe;
+}
+.shortcut-grid { flex: 1; min-width: 0; }
+.keycap {
+    min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 4px;
+    border-radius: 10px;
+}
+.keycap--main {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    color: #334155;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.06), 0 3px 6px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.keycap--main.pressed {
+    background: #f1f5f9;
+    border-color: #9ca3af;
+    box-shadow: 0 0 2px rgba(0,0,0,0.04), inset 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(2px);
+}
+.keycap--parallel {
+    background: #faf5ff;
+    border: 1px solid #ddd6fe;
+    color: #5b21b6;
+    box-shadow: 0 2px 4px rgba(124,58,237,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.keycap--parallel.pressed {
+    background: #ede9fe;
+    border-color: #a78bfa;
+    box-shadow: inset 0 2px 4px rgba(124,58,237,0.12);
+    transform: translateY(2px);
+}
+.keycap-icon { font-size: 1.125rem; line-height: 1; }
+.keycap-label {
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.15;
+    text-align: center;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .swipe-card.swiping { transition: none !important; }
 .swipe-card.reveal-left { transform: translateX(70px); }
 .swipe-card.reveal-right { transform: translateX(-70px); }
@@ -233,10 +293,12 @@
     .report-card { padding: 14px !important; }
     .log-flow-inner { min-height: 50px; padding: 11px 10px 11px 8px; }
     .swipe-card.log-flow-card--parallel-live .log-flow-inner,
-    .swipe-card.log-flow-card--parallel-done .log-flow-inner { min-height: 42px; padding: 8px 8px 8px 6px; }
+    .swipe-card.log-flow-card--parallel-ended .log-flow-inner { min-height: 42px; padding: 8px 8px 8px 6px; }
     .log-flow-bar { width: 6px; height: 30px; min-height: 30px; max-height: 30px; margin-right: 8px; }
     .swipe-card.log-flow-card--parallel-live .log-flow-bar,
-    .swipe-card.log-flow-card--parallel-done .log-flow-bar { width: 5px; height: 24px; min-height: 24px; max-height: 24px; }
+    .swipe-card.log-flow-card--parallel-ended .log-flow-bar { width: 5px; height: 24px; min-height: 24px; max-height: 24px; }
+    .shortcut-add-btn { width: 40px; min-width: 40px; height: 44px; }
+    .keycap { min-height: 44px; }
     .log-flow-time { font-size: 12px; width: 5.15rem; }
     .log-flow-dur { font-size: 14px; min-width: 4.1rem; }
     .log-flow-nest { margin-left: 8px; padding-left: 6px; }

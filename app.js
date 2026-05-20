@@ -109,9 +109,9 @@ function logDurationMs(log, liveEndMs) {
     return 0;
 }
 
-function logFlowCardClass(live, parallel) {
-    if (live) return parallel ? 'swipe-card log-flow-card log-flow-card--parallel-live' : 'swipe-card log-flow-card log-flow-card--live';
-    return parallel ? 'swipe-card log-flow-card log-flow-card--parallel-done' : 'swipe-card log-flow-card log-flow-card--done';
+/** main-live=主线进行中 | main-log=今日流水 | parallel-live=并行进行中 | parallel-ended=并行区已结束(仅此灰) */
+function logFlowCardClass(kind) {
+    return 'swipe-card log-flow-card log-flow-card--' + kind;
 }
 
 function setText(id, value) {
@@ -562,7 +562,7 @@ function renderShortcuts() {
     container.innerHTML = "";
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = "bg-indigo-50 rounded-xl w-6 flex items-center justify-center text-base font-black text-indigo-500 btn-active shrink-0 self-stretch min-h-[44px]";
+    addBtn.className = "shortcut-add-btn shortcut-add-btn--main btn-active";
     addBtn.innerText = "＋";
     addBtn.title = "记一笔活动";
     addBtn.addEventListener('click', () => { openDrawerForRecord(); });
@@ -573,12 +573,12 @@ function renderShortcuts() {
     else if (n === 3 || n === 4) cols = 2;
     else if (n >= 7 && n <= 8) cols = 4;
     const grid = document.createElement('div');
-    grid.className = `grid grid-cols-${cols} gap-1 flex-1`;
+    grid.className = `shortcut-grid grid grid-cols-${cols} gap-1.5 flex-1`;
     shortcuts.forEach((s, idx) => {
         const item = document.createElement('button');
         item.type = 'button';
         const isPressed = current && current.l1 === s.l1 && current.l2 === s.l2;
-        item.className = `keycap${isPressed ? ' pressed' : ''} py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-700 btn-active min-h-[44px]`;
+        item.className = `keycap keycap--main${isPressed ? ' pressed' : ''} btn-active`;
         let pressTimer = null;
         let longPressed = false;
         const clearPress = () => { if (pressTimer) clearTimeout(pressTimer); pressTimer = null; };
@@ -595,11 +595,11 @@ function renderShortcuts() {
             pickerMode = 'record';
             executeRecord(s.l1, s.l2, "", "");
         });
-        const icon = document.createElement('div');
-        icon.className = "text-base leading-none";
+        const icon = document.createElement('span');
+        icon.className = "keycap-icon";
         icon.innerText = s.icon;
-        const label = document.createElement('div');
-        label.className = "text-[8px] font-bold leading-tight mt-0.5";
+        const label = document.createElement('span');
+        label.className = "keycap-label";
         label.innerText = s.l2 || s.l1;
         item.append(icon, label);
         grid.appendChild(item);
@@ -611,7 +611,7 @@ function renderParallelShortcuts() {
     container.innerHTML = "";
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = "bg-violet-50 rounded-xl w-6 flex items-center justify-center text-base font-black text-violet-500 btn-active shrink-0 self-stretch min-h-[44px]";
+    addBtn.className = "shortcut-add-btn shortcut-add-btn--parallel btn-active";
     addBtn.innerText = "＋";
     addBtn.title = "记一笔并行活动";
     addBtn.addEventListener('click', () => {
@@ -625,17 +625,17 @@ function renderParallelShortcuts() {
     else if (n === 3 || n === 4) cols = 2;
     else if (n >= 7 && n <= 8) cols = 4;
     const grid = document.createElement('div');
-    grid.className = `grid grid-cols-${cols} gap-1 flex-1`;
+    grid.className = `shortcut-grid grid grid-cols-${cols} gap-1.5 flex-1`;
     parallelShortcuts.forEach((s, idx) => {
         const item = document.createElement('button');
         item.type = 'button';
         const isActive = parallelCurrent && parallelCurrent.l1 === s.l1 && parallelCurrent.l2 === s.l2;
-        item.className = `keycap${isActive ? ' pressed' : ''} py-2 flex flex-col items-center justify-center text-[10px] font-bold text-slate-600 btn-active min-h-[44px]`;
-        const icon = document.createElement('div');
-        icon.className = "text-base leading-none";
+        item.className = `keycap keycap--parallel${isActive ? ' pressed' : ''} btn-active`;
+        const icon = document.createElement('span');
+        icon.className = "keycap-icon";
         icon.innerText = s.icon;
-        const label = document.createElement('div');
-        label.className = "text-[9px] font-bold leading-tight mt-0.5";
+        const label = document.createElement('span');
+        label.className = "keycap-label";
         label.innerText = s.l2 || s.l1;
         item.append(icon, label);
         item.addEventListener('click', () => { toggleParallel(s.l1, s.l2, s.icon); });
@@ -933,7 +933,7 @@ function buildLogFlowBar(color, muted) {
 }
 
 function buildLogFlowMainRow(opts) {
-    const { timeText, nameText, durText, live, durId } = opts;
+    const { timeText, nameText, durText, live, durId, endedParallel } = opts;
     const top = document.createElement('div');
     top.className = 'log-flow-main';
     const time = document.createElement('span');
@@ -943,7 +943,8 @@ function buildLogFlowMainRow(opts) {
     name.className = 'log-flow-name';
     name.innerText = nameText;
     const dur = document.createElement('span');
-    dur.className = 'log-flow-dur ' + (live ? 'log-flow-dur--live' : 'log-flow-dur--done');
+    const durCls = live ? 'log-flow-dur--live' : (endedParallel ? 'log-flow-dur--done' : 'log-flow-dur--log');
+    dur.className = 'log-flow-dur ' + durCls;
     if (durId) dur.id = durId;
     dur.innerText = durText;
     top.append(time, name, dur);
@@ -979,7 +980,7 @@ function renderLogs() {
         const liveWrap = document.createElement('div');
         liveWrap.className = "swipe-wrap";
         const liveCard = document.createElement('div');
-        liveCard.className = logFlowCardClass(true, false);
+        liveCard.className = logFlowCardClass('main-live');
         const inner = document.createElement('div');
         inner.className = "log-flow-inner";
         const bar = buildLogFlowBar((cats.find(c => c.name === current.l1)?.color) || '#6366f1', false);
@@ -1017,7 +1018,7 @@ function renderLogs() {
         rightAct.appendChild(editBtn);
         wrap.appendChild(rightAct);
         const card = document.createElement('div');
-        card.className = logFlowCardClass(isActive, true);
+        card.className = logFlowCardClass(isActive ? 'parallel-live' : 'parallel-ended');
         let sx=0,sy=0,swiping=false,dx=0;
         card.addEventListener('touchstart', e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY;swiping=false;dx=0;card.classList.add('swiping');},{passive:false});
         card.addEventListener('touchmove', e=>{const d=e.touches[0].clientX-sx;const dy=e.touches[0].clientY-sy;if(!swiping&&Math.abs(d)>Math.abs(dy)&&Math.abs(d)>10)swiping=true;if(swiping){e.preventDefault();dx=Math.max(-80,Math.min(80,d));card.style.transform=`translateX(${dx}px)`;}},{passive:false});
@@ -1034,7 +1035,8 @@ function renderLogs() {
             nameText: displayName(parallel),
             durText: formatDuration(durMs),
             live: isActive,
-            durId: isActive ? 'live-parallel-duration' : null
+            durId: isActive ? 'live-parallel-duration' : null,
+            endedParallel: !isActive
         }));
         inner.append(bar, body);
         card.appendChild(inner);
@@ -1148,7 +1150,7 @@ function createLogRow(list, log, idx) {
     wrap.appendChild(rightActions);
 
     const card = document.createElement('div');
-    card.className = logFlowCardClass(false, !!log.parallel);
+    card.className = logFlowCardClass('main-log');
 
     let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
     let _wasLongPress = false, _lpTimer = null;
