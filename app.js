@@ -109,23 +109,13 @@ function logDurationMs(log, liveEndMs) {
     return 0;
 }
 
-/** main-live | main-log | parallel-live | parallel-stash=并行区已结束(白) | parallel-log=主线下并行(灰) */
+/** main-live | main-log | parallel-live=并行进行中 | parallel-log=主线下并行(灰) */
 function logFlowCardClass(kind) {
     return 'swipe-card log-flow-card log-flow-card--' + kind;
 }
 
-/** 并行快捷 9 色（含克莱因蓝、绿），按槽位 idx 配色便于挑选 */
-const PARALLEL_KEYCAP_PALETTE = [
-    { name: '克莱因蓝', bg: '#e8f1fc', border: '#002FA7', text: '#002FA7' },
-    { name: '翠绿', bg: '#ecfdf5', border: '#10b981', text: '#047857' },
-    { name: '珊瑚', bg: '#fff1f2', border: '#f43f5e', text: '#be123c' },
-    { name: '琥珀', bg: '#fffbeb', border: '#f59e0b', text: '#b45309' },
-    { name: '青碧', bg: '#ecfeff', border: '#06b6d4', text: '#0e7490' },
-    { name: '靛青', bg: '#eef2ff', border: '#4f46e5', text: '#3730a3' },
-    { name: '橙柿', bg: '#fff7ed', border: '#ea580c', text: '#c2410c' },
-    { name: '莓紫', bg: '#fdf4ff', border: '#c026d3', text: '#a21caf' },
-    { name: '岩灰', bg: '#f8fafc', border: '#64748b', text: '#475569' }
-];
+/** 并行键帽外框：克莱因蓝 / 绿，白底无填色 */
+const PARALLEL_KEYCAP_BORDER = ['#002FA7', '#10b981'];
 
 function setText(id, value) {
     const el = document.getElementById(id);
@@ -643,12 +633,10 @@ function renderParallelShortcuts() {
         const item = document.createElement('button');
         item.type = 'button';
         const isActive = parallelCurrent && parallelCurrent.l1 === s.l1 && parallelCurrent.l2 === s.l2;
-        const pal = PARALLEL_KEYCAP_PALETTE[idx % PARALLEL_KEYCAP_PALETTE.length];
+        const borderColor = PARALLEL_KEYCAP_BORDER[idx % PARALLEL_KEYCAP_BORDER.length];
         item.className = `keycap keycap--parallel-slot${isActive ? ' pressed' : ''} btn-active`;
-        item.style.background = pal.bg;
-        item.style.borderColor = pal.border;
-        item.style.color = pal.text;
-        item.title = `${pal.name} · ${s.l2 || s.l1}`;
+        item.style.borderColor = borderColor;
+        item.title = s.l2 || s.l1;
         const icon = document.createElement('span');
         icon.className = "keycap-icon";
         icon.innerText = s.icon;
@@ -1036,14 +1024,14 @@ function renderLogs() {
         rightAct.appendChild(editBtn);
         wrap.appendChild(rightAct);
         const card = document.createElement('div');
-        card.className = logFlowCardClass(isActive ? 'parallel-live' : 'parallel-stash');
+        card.className = logFlowCardClass(isActive ? 'parallel-live' : 'parallel-log');
         let sx=0,sy=0,swiping=false,dx=0;
         card.addEventListener('touchstart', e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY;swiping=false;dx=0;card.classList.add('swiping');},{passive:false});
         card.addEventListener('touchmove', e=>{const d=e.touches[0].clientX-sx;const dy=e.touches[0].clientY-sy;if(!swiping&&Math.abs(d)>Math.abs(dy)&&Math.abs(d)>10)swiping=true;if(swiping){e.preventDefault();dx=Math.max(-80,Math.min(80,d));card.style.transform=`translateX(${dx}px)`;}},{passive:false});
         card.addEventListener('touchend',()=>{card.classList.remove('swiping');card.style.transform='';if(swiping){if(dx>55){if(isActive){showConfirm('关闭并行','关闭「'+displayName(parallel)+'」？不会记入日志。','关闭',ok=>{if(ok){parallelCurrent=null;localStorage.removeItem('v9_parallel');renderAll();}})}else{showConfirm('删除并行','删除已结束的「'+displayName(parallel)+'」？','删除',ok=>{if(ok){parallelHistory.splice(idx,1);localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}})}}else if(dx<-55){const cb=(l1,l2)=>{if(isActive){_parallelPending=true;toggleParallel(l1,l2||'',(getCat(l1)?.icon)||'📌');_parallelPending=false;}else{const p=parallelHistory[idx];if(p){p.l1=l1;p.l2=l2||'';const cat=getCat(l1);p.color=cat?.color||'#cbd5e1';localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}}};pickerMode='edit';document.getElementById('drawer-title').innerText=isActive?'切换并行':'修改并行';document.getElementById('drawer-footer').classList.add('hidden');_parallelCallback=cb;showDrawer();renderPicker();renderDrawerToggle();}swiping=false;dx=0;}},{passive:true});
         const inner = document.createElement('div');
         inner.className = "log-flow-inner";
-        const barColor = (cats.find(c => c.name === parallel.l1)?.color) || (isActive ? '#a78bfa' : '#cbd5e1');
+        const barColor = (cats.find(c => c.name === parallel.l1)?.color) || '#cbd5e1';
         const bar = buildLogFlowBar(barColor, false);
         const body = document.createElement('div');
         body.className = 'log-flow-body';
@@ -1054,7 +1042,7 @@ function renderLogs() {
             durText: formatDuration(durMs),
             live: isActive,
             durId: isActive ? 'live-parallel-duration' : null,
-            endedParallel: false
+            endedParallel: !isActive
         }));
         inner.append(bar, body);
         card.appendChild(inner);
@@ -1062,15 +1050,15 @@ function renderLogs() {
         parent.appendChild(wrap);
     }
 
-    // ── 并行使卡片（实时 + 已结束，与主线同款样式） ──
+    // ── 主线下并行窗口（实时 + 已结束） ──
     if (parallelCurrent || parallelHistory.length > 0) {
         const ph = document.createElement('div');
         ph.className = "flex items-center gap-2 px-1 pt-4 pb-1";
         const icon = document.createElement('span');
-        icon.className = "text-[14px] text-violet-400";
+        icon.className = "text-[14px] text-slate-400";
         icon.innerText = "↳";
         const label = document.createElement('span');
-        label.className = "text-[11px] font-black text-violet-500 uppercase tracking-widest";
+        label.className = "text-[11px] font-black text-slate-500 uppercase tracking-widest";
         label.innerText = "并行";
         ph.append(icon, label);
         if (parallelCurrent) {
