@@ -8,8 +8,8 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.13">
-    <link rel="stylesheet" href="dev-theme.css?v=4.13">
+    <link rel="stylesheet" href="style.css?v=4.13.1">
+    <link rel="stylesheet" href="dev-theme.css?v=4.13.1">
     <link rel="stylesheet" href="report.css?v=1.6">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -26,7 +26,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v4.13</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v4.13.1</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -197,39 +197,39 @@
                 <h2 class="text-base font-black text-slate-800">设置中心</h2>
             </div>
 
+            <div class="config-grid-card">
             <div class="config-grid">
                 <button type="button" class="config-tile" data-config-section="clock" onclick="openConfigSection('clock')">
                     <span class="config-tile-icon">🕐</span>
-                    <span class="config-tile-label">时钟</span>
+                    <span class="config-tile-label">时钟面板</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="shortcut" onclick="openConfigSection('shortcut')">
                     <span class="config-tile-icon">⚡</span>
-                    <span class="config-tile-label">快捷</span>
+                    <span class="config-tile-label">快捷入口</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="parallel" onclick="openConfigSection('parallel')">
                     <span class="config-tile-icon">↳</span>
-                    <span class="config-tile-label">并行</span>
+                    <span class="config-tile-label">并行入口</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="report" onclick="openConfigSection('report')">
                     <span class="config-tile-icon">📊</span>
-                    <span class="config-tile-label">报表</span>
+                    <span class="config-tile-label">报表摘要</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="cats" onclick="openConfigSection('cats')">
                     <span class="config-tile-icon">📂</span>
-                    <span class="config-tile-label">分类</span>
+                    <span class="config-tile-label">分类管理</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="more" onclick="openConfigSection('more')">
                     <span class="config-tile-icon">⋯</span>
-                    <span class="config-tile-label">更多</span>
+                    <span class="config-tile-label">更多设置</span>
                 </button>
-                <div class="config-tile config-tile--placeholder" aria-hidden="true"></div>
-                <div class="config-tile config-tile--placeholder" aria-hidden="true"></div>
+            </div>
             </div>
 
             <div id="config-expand" class="config-expand hidden">
                 <div id="config-panel-clock" class="config-panel hidden">
                     <h3 class="config-panel-title">时钟面板</h3>
-                    <p class="config-panel-hint">双时间轴可同时显示；跨度以<strong>小时</strong>为单位，以当前时刻为右端向前回看。</p>
+                    <p class="config-panel-hint">内盘 1 小时 = <strong>当前整点这一小时内</strong>（整点自动跳转）；外盘 24 小时 = 当日 0–24 点。更大跨度为连续多格/多日汇总。</p>
                     <div id="clock-settings-ui" class="space-y-3"></div>
                 </div>
                 <div id="config-panel-shortcut" class="config-panel hidden">
@@ -431,8 +431,8 @@
     <script src="report-metrics.js?v=1.6"></script>
     <script src="report-sample.js?v=1.6"></script>
     <script src="report.js?v=1.6"></script>
-    <script src="ui-theme.js?v=4.13"></script>
-    <script src="app.js?v=4.13"></script>
+    <script src="ui-theme.js?v=4.13.1"></script>
+    <script src="app.js?v=4.13.1"></script>
     <script src="dev-appearance.js?v=4.13"></script>
 </body>
 </html>

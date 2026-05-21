@@ -84,7 +84,19 @@ function getClockWindow(which) {
     const p = getClockPrefs();
     const now = Date.now();
     const hours = which === 'b' ? p.spanHoursB : p.spanHoursA;
-    return { rangeStart: now - hours * HOUR_MS, rangeEnd: now };
+
+    if (which === 'b') {
+        const dayStart = beijingPeriodStart(now, DAY_MS);
+        const dayEnd = dayStart + DAY_MS;
+        if (hours >= 24) {
+            return { rangeStart: dayStart, rangeEnd: dayEnd };
+        }
+        return { rangeStart: Math.max(dayStart, now - hours * HOUR_MS), rangeEnd: now };
+    }
+
+    const hourEnd = beijingPeriodStart(now, HOUR_MS) + HOUR_MS;
+    const rangeStart = hourEnd - hours * HOUR_MS;
+    return { rangeStart, rangeEnd: hourEnd };
 }
 
 function formatClockRemain(ms) {
@@ -2345,15 +2357,19 @@ function tick() {
     const show24 = p.layout === 'dual' || p.singleAxis === '24h';
 
     if (show60) {
+        const wA = getClockWindow('a');
+        const spanA = wA.rangeEnd - wA.rangeStart;
         const hand60 = document.getElementById('hand-60m');
-        const angle60 = ((now - hourStart) / HOUR_MS) * 360;
+        const angle60 = spanA > 0 ? ((now - wA.rangeStart) / spanA) * 360 : 0;
         if (hand60) hand60.style.transform = `translateX(-50%) rotate(${angle60}deg)`;
         const sec60 = document.getElementById('second-60m');
         if (sec60) sec60.style.transform = `rotate(${secAngle}deg)`;
     }
     if (show24) {
+        const wB = getClockWindow('b');
+        const spanB = wB.rangeEnd - wB.rangeStart;
         const hand24 = document.getElementById('hand-24h');
-        const angle24 = ((now - dayStart) / DAY_MS) * 360;
+        const angle24 = spanB > 0 ? ((now - wB.rangeStart) / spanB) * 360 : 0;
         if (hand24) hand24.style.transform = `translateX(-50%) rotate(${angle24}deg)`;
         const sec24 = document.getElementById('second-24h');
         if (sec24) sec24.style.transform = `rotate(${secAngle}deg)`;
@@ -2363,12 +2379,20 @@ function tick() {
     if (sec !== lastSecondTs) {
         lastSecondTs = sec;
 
-        if (show60) setText('label-60m-remain', Math.ceil((hourEnd - now) / 60000));
+        if (show60) {
+            const wA = getClockWindow('a');
+            setText('label-60m-remain', Math.ceil(Math.max(0, wA.rangeEnd - now) / 60000));
+        }
         if (show24) {
-            const dayRemainMs = Math.max(0, dayEnd - now);
-            const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
-            const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
-            setText('label-24h-remain', `${String(dayRemainH).padStart(2, '0')}:${String(dayRemainM).padStart(2, '0')}`);
+            const wB = getClockWindow('b');
+            if (getClockPrefs().spanHoursB >= 24) {
+                const dayRemainMs = Math.max(0, wB.rangeEnd - now);
+                const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
+                const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
+                setText('label-24h-remain', `${String(dayRemainH).padStart(2, '0')}:${String(dayRemainM).padStart(2, '0')}`);
+            } else {
+                setText('label-24h-remain', formatClockRemain(Math.max(0, wB.rangeEnd - now)));
+            }
         }
 
         if (current) {
@@ -2458,7 +2482,7 @@ function renderFlow() {
             logs: all,
             now
         });
-        setText('label-60m-remain', formatClockRemain(wA.rangeEnd - now));
+        setText('label-60m-remain', Math.ceil(Math.max(0, wA.rangeEnd - now) / 60000));
     }
     if (show24) {
         const wB = getClockWindow('b');
@@ -2471,7 +2495,14 @@ function renderFlow() {
             logs: all,
             now
         });
-        setText('label-24h-remain', formatClockRemain(wB.rangeEnd - now));
+        if (getClockPrefs().spanHoursB >= 24) {
+            const dayRemainMs = Math.max(0, wB.rangeEnd - now);
+            const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
+            const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
+            setText('label-24h-remain', `${String(dayRemainH).padStart(2, '0')}:${String(dayRemainM).padStart(2, '0')}`);
+        } else {
+            setText('label-24h-remain', formatClockRemain(Math.max(0, wB.rangeEnd - now)));
+        }
     }
 }
 function switchTab(t) {
