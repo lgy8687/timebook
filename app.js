@@ -80,18 +80,15 @@ function getClockPrefs() {
     return raw;
 }
 
+/** 两环同一规则：最近 N 个整点小时，右端对齐下一整点；N≥24 为当日 0–24 点 */
 function getClockWindow(which) {
     const p = getClockPrefs();
     const now = Date.now();
     const hours = which === 'b' ? p.spanHoursB : p.spanHoursA;
 
-    if (which === 'b') {
+    if (hours >= 24) {
         const dayStart = beijingPeriodStart(now, DAY_MS);
-        const dayEnd = dayStart + DAY_MS;
-        if (hours >= 24) {
-            return { rangeStart: dayStart, rangeEnd: dayEnd };
-        }
-        return { rangeStart: Math.max(dayStart, now - hours * HOUR_MS), rangeEnd: now };
+        return { rangeStart: dayStart, rangeEnd: dayStart + DAY_MS };
     }
 
     const hourEnd = beijingPeriodStart(now, HOUR_MS) + HOUR_MS;
@@ -112,9 +109,14 @@ function saveClockPrefs() {
 }
 
 function setClockPref(key, value) {
-    clockPrefs[key] = value;
+    if (key === 'spanHoursA' || key === 'spanHoursB') {
+        clockPrefs[key] = clampClockSpanHours(value);
+    } else {
+        clockPrefs[key] = value;
+    }
     saveClockPrefs();
     applyClockLayout();
+    lastSecondTs = 0;
     renderFlow();
     renderClockSettings();
 }
