@@ -2687,43 +2687,124 @@ function renderFlow() {
 }
 
 
+const CALENDAR_YM_WHEEL_H = 36;
+const CALENDAR_YM_WHEEL_PAD = 2;
+let calendarYmWheelTimer = null;
+
+function highlightCalendarYmWheelItem(listEl, index) {
+    listEl.querySelectorAll('.calendar-ym-wheel-item:not(.calendar-ym-wheel-pad)').forEach((el, i) => {
+        el.classList.toggle('is-active', i === index);
+    });
+}
+
+function scrollCalendarYmWheelToIndex(viewport, listEl, index) {
+    const items = listEl.querySelectorAll('.calendar-ym-wheel-item:not(.calendar-ym-wheel-pad)');
+    if (!items.length) return 0;
+    const clamped = Math.max(0, Math.min(items.length - 1, index));
+    viewport.scrollTop = (clamped + CALENDAR_YM_WHEEL_PAD) * CALENDAR_YM_WHEEL_H;
+    highlightCalendarYmWheelItem(listEl, clamped);
+    return clamped;
+}
+
+function getCalendarYmWheelValue(viewport, listEl) {
+    const items = listEl.querySelectorAll('.calendar-ym-wheel-item:not(.calendar-ym-wheel-pad)');
+    if (!items.length) return null;
+    const idx = Math.round(viewport.scrollTop / CALENDAR_YM_WHEEL_H) - CALENDAR_YM_WHEEL_PAD;
+    const clamped = Math.max(0, Math.min(items.length - 1, idx));
+    return items[clamped].dataset.value;
+}
+
+function populateCalendarYmWheel(listEl, items, activeValue) {
+    listEl.innerHTML = '';
+    for (let i = 0; i < CALENDAR_YM_WHEEL_PAD; i++) {
+        const pad = document.createElement('li');
+        pad.className = 'calendar-ym-wheel-item calendar-ym-wheel-pad';
+        pad.setAttribute('aria-hidden', 'true');
+        listEl.appendChild(pad);
+    }
+    items.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'calendar-ym-wheel-item';
+        li.dataset.value = String(item.value);
+        li.textContent = item.label;
+        listEl.appendChild(li);
+    });
+    for (let i = 0; i < CALENDAR_YM_WHEEL_PAD; i++) {
+        const pad = document.createElement('li');
+        pad.className = 'calendar-ym-wheel-item calendar-ym-wheel-pad';
+        pad.setAttribute('aria-hidden', 'true');
+        listEl.appendChild(pad);
+    }
+    const startIdx = Math.max(0, items.findIndex((it) => String(it.value) === String(activeValue)));
+    return startIdx;
+}
+
+function bindCalendarYmWheel(viewport, listEl) {
+    viewport.onscroll = () => {
+        clearTimeout(calendarYmWheelTimer);
+        calendarYmWheelTimer = setTimeout(() => {
+            const idx = Math.round(viewport.scrollTop / CALENDAR_YM_WHEEL_H) - CALENDAR_YM_WHEEL_PAD;
+            scrollCalendarYmWheelToIndex(viewport, listEl, idx);
+        }, 90);
+    };
+}
+
 function openCalendarYearMonthPicker() {
     const modal = document.getElementById('calendar-ym-modal');
-    const yearSel = document.getElementById('calendar-ym-year');
-    const monthSel = document.getElementById('calendar-ym-month');
-    if (!modal || !yearSel || !monthSel) return;
+    const yearVp = document.getElementById('calendar-ym-year-viewport');
+    const yearList = document.getElementById('calendar-ym-year-list');
+    const monthVp = document.getElementById('calendar-ym-month-viewport');
+    const monthList = document.getElementById('calendar-ym-month-list');
+    if (!modal || !yearVp || !yearList || !monthVp || !monthList) return;
+
     const now = new Date(Date.now() + BJ_OFFSET);
     const curYear = now.getUTCFullYear();
-    yearSel.innerHTML = '';
+    const yearItems = [];
     for (let y = curYear - 10; y <= curYear + 1; y++) {
-        const opt = document.createElement('option');
-        opt.value = String(y);
-        opt.textContent = y + '年';
-        if (y === calendarViewYear) opt.selected = true;
-        yearSel.appendChild(opt);
+        yearItems.push({ value: y, label: String(y) });
     }
-    monthSel.innerHTML = '';
+    const monthItems = [];
     for (let m = 0; m < 12; m++) {
-        const opt = document.createElement('option');
-        opt.value = String(m);
-        opt.textContent = (m + 1) + '月';
-        if (m === calendarViewMonth) opt.selected = true;
-        monthSel.appendChild(opt);
+        monthItems.push({ value: m, label: String(m + 1) });
     }
+
+    const yIdx = populateCalendarYmWheel(yearList, yearItems, calendarViewYear);
+    const mIdx = populateCalendarYmWheel(monthList, monthItems, calendarViewMonth);
+    bindCalendarYmWheel(yearVp, yearList);
+    bindCalendarYmWheel(monthVp, monthList);
+
     modal.classList.remove('hidden');
+    document.body.classList.add('calendar-ym-open');
+    requestAnimationFrame(() => {
+        scrollCalendarYmWheelToIndex(yearVp, yearList, yIdx);
+        scrollCalendarYmWheelToIndex(monthVp, monthList, mIdx);
+    });
 }
 
 function closeCalendarYearMonthPicker() {
     const modal = document.getElementById('calendar-ym-modal');
     if (modal) modal.classList.add('hidden');
+    document.body.classList.remove('calendar-ym-open');
 }
 
 function confirmCalendarYearMonthPicker() {
-    const yearSel = document.getElementById('calendar-ym-year');
-    const monthSel = document.getElementById('calendar-ym-month');
-    if (yearSel) calendarViewYear = parseInt(yearSel.value, 10);
-    if (monthSel) calendarViewMonth = parseInt(monthSel.value, 10);
+    const yearVp = document.getElementById('calendar-ym-year-viewport');
+    const yearList = document.getElementById('calendar-ym-year-list');
+    const monthVp = document.getElementById('calendar-ym-month-viewport');
+    const monthList = document.getElementById('calendar-ym-month-list');
+    const y = yearVp && yearList ? getCalendarYmWheelValue(yearVp, yearList) : null;
+    const m = monthVp && monthList ? getCalendarYmWheelValue(monthVp, monthList) : null;
+    if (y != null) calendarViewYear = parseInt(y, 10);
+    if (m != null) calendarViewMonth = parseInt(m, 10);
     closeCalendarYearMonthPicker();
+    renderCalendarPage();
+}
+
+function jumpCalendarToday() {
+    viewDate = getTodayDateStr();
+    const d = new Date(Date.now() + BJ_OFFSET);
+    calendarViewYear = d.getUTCFullYear();
+    calendarViewMonth = d.getUTCMonth();
     renderCalendarPage();
 }
 
@@ -2741,6 +2822,11 @@ function renderFlowCalendar() {
     const todayStr = formatBeijingDate(Date.now());
     const head = document.createElement('div');
     head.className = 'flow-calendar-head';
+    const headTop = document.createElement('div');
+    headTop.className = 'flow-calendar-head-top';
+
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'flow-calendar-title-wrap';
     const prev = document.createElement('button');
     prev.type = 'button';
     prev.className = 'flow-calendar-nav btn-active';
@@ -2756,7 +2842,16 @@ function renderFlowCalendar() {
     next.className = 'flow-calendar-nav btn-active';
     next.innerText = '›';
     next.addEventListener('click', () => shiftCalendarMonth(1));
-    head.append(prev, title, next);
+    titleWrap.append(prev, title, next);
+
+    const todayBtn = document.createElement('button');
+    todayBtn.type = 'button';
+    todayBtn.className = 'flow-calendar-today-btn btn-active';
+    todayBtn.innerText = '今';
+    todayBtn.addEventListener('click', jumpCalendarToday);
+
+    headTop.append(titleWrap, todayBtn);
+    head.appendChild(headTop);
     host.appendChild(head);
 
     const weekdays = document.createElement('div');
@@ -2789,7 +2884,13 @@ function renderFlowCalendar() {
         if (dateStr === viewDate) btn.classList.add('is-selected');
         if (dateStr > todayStr) btn.classList.add('is-future');
         if (logDays.has(dateStr)) btn.classList.add('has-logs');
-        btn.innerText = String(d);
+        const numEl = document.createElement('span');
+        numEl.className = 'flow-calendar-day-num';
+        numEl.innerText = String(d);
+        const todayLabel = document.createElement('span');
+        todayLabel.className = 'flow-calendar-day-today-label';
+        todayLabel.innerText = '今';
+        btn.append(numEl, todayLabel);
         if (dateStr <= todayStr) btn.addEventListener('click', () => setViewDate(dateStr));
         else btn.disabled = true;
         grid.appendChild(btn);

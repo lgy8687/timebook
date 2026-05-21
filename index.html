@@ -26,7 +26,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v4.21</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v4.22</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -310,20 +310,25 @@
         </button>
     </nav>
 
-    <div id="calendar-ym-modal" class="calendar-ym-modal hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm" onclick="if(event.target===this)closeCalendarYearMonthPicker()">
-        <div class="bg-white rounded-2xl p-5 w-[88%] max-w-xs shadow-xl" onclick="event.stopPropagation()">
-            <h3 class="text-sm font-black text-slate-800 mb-4 text-center">选择年月</h3>
-            <div class="flex gap-3 mb-4">
-                <label class="flex-1 text-[10px] font-bold text-slate-400">年份</label>
-                <select id="calendar-ym-year" class="flex-1 text-sm font-bold bg-slate-50 border border-slate-100 rounded-xl px-2 py-2"></select>
+    <div id="calendar-ym-modal" class="calendar-ym-modal hidden fixed inset-0 z-[60] flex flex-col justify-end bg-slate-900/40 backdrop-blur-sm" onclick="if(event.target===this)closeCalendarYearMonthPicker()">
+        <div class="calendar-ym-sheet" onclick="event.stopPropagation()">
+            <div class="calendar-ym-wheels">
+                <div class="calendar-ym-col">
+                    <div id="calendar-ym-year-viewport" class="calendar-ym-viewport">
+                        <ul id="calendar-ym-year-list" class="calendar-ym-list"></ul>
+                    </div>
+                    <span class="calendar-ym-unit">年</span>
+                </div>
+                <div class="calendar-ym-col">
+                    <div id="calendar-ym-month-viewport" class="calendar-ym-viewport">
+                        <ul id="calendar-ym-month-list" class="calendar-ym-list"></ul>
+                    </div>
+                    <span class="calendar-ym-unit">月</span>
+                </div>
             </div>
-            <div class="flex gap-3 mb-4">
-                <label class="flex-1 text-[10px] font-bold text-slate-400">月份</label>
-                <select id="calendar-ym-month" class="flex-1 text-sm font-bold bg-slate-50 border border-slate-100 rounded-xl px-2 py-2"></select>
-            </div>
-            <div class="flex gap-2">
-                <button type="button" onclick="closeCalendarYearMonthPicker()" class="flex-1 py-2.5 text-sm font-bold text-slate-400 bg-slate-50 rounded-xl">取消</button>
-                <button type="button" onclick="confirmCalendarYearMonthPicker()" class="flex-1 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-xl">确定</button>
+            <div class="calendar-ym-actions">
+                <button type="button" onclick="closeCalendarYearMonthPicker()" class="calendar-ym-btn calendar-ym-btn--cancel">取消</button>
+                <button type="button" onclick="confirmCalendarYearMonthPicker()" class="calendar-ym-btn calendar-ym-btn--ok">确定</button>
             </div>
         </div>
     </div>
