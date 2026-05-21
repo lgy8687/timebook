@@ -1,10 +1,13 @@
 /**
- * 报表沙盘 v1.5 — indigo 摘要、全周期时间轴、设置中心选配、洞察常显
+ * 报表 v1.6 — 主页嵌入 + 沙盘；日报可走真实日志
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
+    const REPORT_VERSION = 'v1.6';
 
-    let state = { period: 'month', chartView: 'main', legendMode: 'l1' };
+    let state = { period: 'day', chartView: 'main', legendMode: 'l1' };
+    let getPeriodData = null;
+    let eventsBound = false;
 
     function polar(cx, cy, r, deg) {
         const rad = ((deg - 90) * Math.PI) / 180;
@@ -54,15 +57,18 @@
             .replace(/"/g, '&quot;');
     }
 
-    function getBundle(view) {
-        const p = REPORT_DATA[state.period];
-        return p ? p[view || state.chartView] : null;
+    function resolvePeriodData() {
+        if (getPeriodData) {
+            const live = getPeriodData(state.period);
+            if (live) return live;
+        }
+        return REPORT_DATA[state.period] || null;
     }
 
-    function renderSummaryRow(elId, view) {
-        const periodData = REPORT_DATA[state.period];
+    function renderSummaryRow(elId, view, periodData) {
         const slots = getReportSummarySlots(view);
         const box = document.getElementById(elId);
+        if (!box) return;
         box.innerHTML = slots.map((id) => {
             const m = resolveReportMetric(id, periodData, view);
             return `<div class="stat-indigo">
@@ -78,6 +84,7 @@
         const hintEl = document.getElementById('timeline-hint');
         const body = document.getElementById('timeline-body');
         const scaleEl = document.getElementById('timeline-scale');
+        if (!card || !body) return;
 
         if (!tl) {
             card.classList.add('hidden');
@@ -115,19 +122,31 @@
     }
 
     function render() {
-        const periodData = REPORT_DATA[state.period];
+        const root = document.getElementById('summary-main');
+        if (!root) return;
+
+        const periodData = resolvePeriodData();
         if (!periodData) return;
 
         const mainBundle = periodData.main;
         const parallelBundle = periodData.parallel;
         const chartBundle = state.chartView === 'main' ? mainBundle : parallelBundle;
         const periodName = PERIOD_LABELS[state.period];
+        const isLive = !!periodData._live;
+        const badge = isLive
+            ? '<span class="badge-live">当日记录</span>'
+            : '<span class="badge-sample">沙盘样本</span>';
 
-        document.getElementById('bill-subtitle').innerHTML =
-            `TimeBook · ${mainBundle.meta.title} · ${periodName} <span class="badge-sample">沙盘样本</span>`;
+        const verEl = document.getElementById('report-version');
+        if (verEl) verEl.textContent = REPORT_VERSION;
 
-        renderSummaryRow('summary-main', 'main');
-        renderSummaryRow('summary-parallel', 'parallel');
+        const sub = document.getElementById('bill-subtitle');
+        if (sub) {
+            sub.innerHTML = `TimeBook · ${esc(mainBundle.meta.title)} · ${periodName} ${badge}`;
+        }
+
+        renderSummaryRow('summary-main', 'main', periodData);
+        renderSummaryRow('summary-parallel', 'parallel', periodData);
         renderTimeline(periodData.timeline);
 
         const total = chartBundle.l1.reduce((s, x) => s + x.hours, 0);
@@ -135,25 +154,29 @@
 
         document.getElementById('structure-title').textContent = '时间结构';
         document.getElementById('chart-legend-hint').textContent = isMain
-            ? '内环 = 分类 · 外环 = 活动'
+            ? '内环 = 活动分类 · 外环 = 活动'
             : '内环 = 并行活动 · 外环 = 叠加明细';
 
         renderSunburst(chartBundle.l1, chartBundle.l2, total);
         renderLegend(chartBundle.l1, chartBundle.l2, total, isMain);
 
-        document.getElementById('insight-block').style.display = 'block';
+        const insight = document.getElementById('insight-block');
+        if (insight) insight.style.display = 'block';
 
-        document.getElementById('footer-note').textContent =
-            chartBundle.meta.footnote + ' · 周一起算 · v1.5';
+        const foot = document.getElementById('footer-note');
+        if (foot) {
+            foot.textContent = chartBundle.meta.footnote + ' · 周一起算 · ' + REPORT_VERSION;
+        }
 
         syncToolbar();
     }
 
     function renderSunburst(l1, l2, total) {
         const svg = document.getElementById('sunburst-svg');
+        if (!svg) return;
         const cx = 100, cy = 100;
-        const inner = buildRingSegments(l1, cx, cy, 28, 50, total, 'name');
-        const outer = buildRingSegments(l2, cx, cy, 54, 80, total, 'l1');
+        const inner = buildRingSegments(l1, cx, cy, 28, 50, total || 1, 'name');
+        const outer = buildRingSegments(l2, cx, cy, 54, 80, total || 1, 'l1');
 
         let html = '';
         inner.forEach((s) => {
@@ -191,7 +214,7 @@
         l2Box.style.display = state.legendMode === 'l2' ? 'block' : 'none';
         document.getElementById('btn-l1').classList.toggle('active', state.legendMode === 'l1');
         document.getElementById('btn-l2').classList.toggle('active', state.legendMode === 'l2');
-        document.getElementById('btn-l1').textContent = isMain ? '分类' : '并行活动';
+        document.getElementById('btn-l1').textContent = isMain ? '活动分类' : '并行活动';
         document.getElementById('btn-l2').textContent = isMain ? '活动明细' : '叠加明细';
 
         document.querySelectorAll('.sunburst-legend .legend-item').forEach((el) => {
@@ -211,10 +234,10 @@
     }
 
     function syncToolbar() {
-        document.querySelectorAll('[data-period]').forEach((btn) => {
+        document.querySelectorAll('#page-report [data-period], #report-standalone [data-period]').forEach((btn) => {
             btn.classList.toggle('active', btn.dataset.period === state.period);
         });
-        document.querySelectorAll('[data-chart]').forEach((btn) => {
+        document.querySelectorAll('#page-report [data-chart], #report-standalone [data-chart]').forEach((btn) => {
             const on = btn.dataset.chart === state.chartView;
             btn.classList.toggle('active', on);
             btn.classList.toggle('chart-main', btn.dataset.chart === 'main');
@@ -222,8 +245,20 @@
         });
     }
 
+    function bindEvents() {
+        if (eventsBound) return;
+        eventsBound = true;
+        document.querySelectorAll('[data-period]').forEach((btn) => {
+            btn.addEventListener('click', () => setPeriod(btn.dataset.period));
+        });
+        document.querySelectorAll('[data-chart]').forEach((btn) => {
+            btn.addEventListener('click', () => setChartView(btn.dataset.chart));
+        });
+    }
+
     window.showTip = function (e, title, val1, val2) {
         const tip = document.getElementById('tip');
+        if (!tip) return;
         tip.innerHTML = `<div class="tip-title">${title}</div><div class="tip-row"><span>${val1}</span><span>${val2}</span></div>`;
         tip.className = 'show';
         positionTip(e);
@@ -231,6 +266,7 @@
 
     window.showTipOuter = function (e, sub, cat, val1, val2) {
         const tip = document.getElementById('tip');
+        if (!tip) return;
         tip.innerHTML = `<div class="tip-title">${sub}</div><div class="tip-sub">${cat}</div><div class="tip-row"><span>${val1}</span><span>${val2}</span></div>`;
         tip.className = 'show';
         positionTip(e);
@@ -244,7 +280,8 @@
     }
 
     window.hideTip = function () {
-        document.getElementById('tip').className = '';
+        const tip = document.getElementById('tip');
+        if (tip) tip.className = '';
     };
 
     window.highlightCat = function (cat) {
@@ -274,13 +311,24 @@
         render();
     };
 
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('[data-period]').forEach((btn) => {
-            btn.addEventListener('click', () => setPeriod(btn.dataset.period));
-        });
-        document.querySelectorAll('[data-chart]').forEach((btn) => {
-            btn.addEventListener('click', () => setChartView(btn.dataset.chart));
-        });
+    window.initReportBillboard = function (opts) {
+        opts = opts || {};
+        if (opts.defaultPeriod) state.period = opts.defaultPeriod;
+        if (opts.getPeriodData) getPeriodData = opts.getPeriodData;
+        bindEvents();
         render();
+    };
+
+    window.renderReportBillboard = function () {
+        render();
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!document.getElementById('summary-main')) return;
+        if (document.body.id === 'report-standalone') {
+            state.period = 'month';
+            bindEvents();
+            render();
+        }
     });
 })();

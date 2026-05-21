@@ -58,7 +58,6 @@ let logLimit = 10;
 let editIndex = null;
 let editingShortcutIndex = null;
 let configEditMode = false;
-let reportMode = 'l1';
 let drawerViewMode = 'columns';
 let showShortcutIcons = true;
 const BJ_OFFSET = 8 * 60 * 60 * 1000;
@@ -875,6 +874,7 @@ function renderReportSummarySettings() {
                 next[idx] = sel.value;
                 saveReportSummarySlots(view, next);
                 renderReportSummarySettings();
+                if (typeof renderReportBillboard === "function") renderReportBillboard();
             });
             row.append(lab, sel);
             wrap.appendChild(row);
@@ -1829,208 +1829,155 @@ function getTodaySegments() {
         .sort((a, b) => a.clippedStart - b.clippedStart);
 }
 
-function renderReport() {
-    const dateEl = document.getElementById('report-date');
-    if (!dateEl) return;
-    const now = Date.now();
-    const dayStart = beijingPeriodStart(now, DAY_MS);
-    const segments = getTodaySegments();
-    const totalMs = segments.reduce((sum, l) => sum + (l.clippedEnd - l.clippedStart), 0);
-    const activities = new Set(segments.map(displayName));
-    dateEl.innerText = `北京时间 ${formatBeijingDate(now)}`;
+let reportBillboardReady = false;
 
-    const stats = [
-        { label: "已记录", value: formatHours(totalMs) },
-        { label: "活动数", value: activities.size },
-        { label: "记录条数", value: segments.length }
-    ];
-    const statsBox = document.getElementById('report-stats');
-    statsBox.innerHTML = "";
-    stats.forEach(s => {
-        const card = document.createElement('div');
-        card.className = "rounded-3xl p-4 bg-indigo-600 text-white shadow-sm";
-        const value = document.createElement('div');
-        value.className = "text-2xl font-black";
-        value.innerText = s.value;
-        const label = document.createElement('div');
-        label.className = "text-xs font-bold opacity-80 mt-1";
-        label.innerText = s.label;
-        card.append(value, label);
-        statsBox.appendChild(card);
-    });
-
-    renderReportTimeline(segments, dayStart);
-    const l1Rows = aggregateBy(segments, l => l.l1 || "未分类");
-    const l2Rows = aggregateBy(segments, displayName);
-    renderDonut(reportMode === 'l1' ? l1Rows : l2Rows, totalMs);
-    renderDistribution('report-l1-dist', l1Rows, totalMs);
-    renderDistribution('report-l2-dist', l2Rows, totalMs);
-    renderReportDetails(segments);
-}
-function setReportMode(mode) {
-    reportMode = mode;
-    renderReport();
+function msToReportHours(ms) {
+    return Math.round((ms / 3600000) * 10) / 10;
 }
 
-
-function aggregateBy(segments, keyFn) {
+function aggregateReportSegments(segments, keyFn) {
     const map = new Map();
-    segments.forEach(l => {
+    segments.forEach((l) => {
         const key = keyFn(l);
-        const old = map.get(key) || { name: key, ms: 0, color: getCat(l.l1)?.color || "#94a3b8" };
-        old.ms += l.clippedEnd - l.clippedStart;
+        const ms = l.clippedEnd - l.clippedStart;
+        const old = map.get(key) || {
+            name: key,
+            ms: 0,
+            l1: l.l1 || '未分类',
+            color: getCat(l.l1)?.color || '#94a3b8',
+        };
+        old.ms += ms;
         map.set(key, old);
     });
     return [...map.values()].sort((a, b) => b.ms - a.ms);
 }
 
-function renderReportTimeline(segments, dayStart) {
-    const track = document.getElementById('report-timeline');
-    track.innerHTML = "";
-    segments.forEach(l => {
+function parallelHostL1(paraLog) {
+    if (!paraLog.parentId) return '未分类';
+    const parent = logs.find((l) => l.id === paraLog.parentId);
+    return parent?.l1 || '未分类';
+}
+
+function buildLiveReportDay() {
+    const now = Date.now();
+    const dayStart = beijingPeriodStart(now, DAY_MS);
+    const all = getTodaySegments();
+    const mainSegs = all.filter((l) => !l.parallel);
+    const paraSegs = all.filter((l) => l.parallel);
+    const mainMs = mainSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
+    const paraMs = paraSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
+
+    const l1Agg = aggregateReportSegments(mainSegs, (l) => l.l1 || '未分类');
+    const l2Agg = aggregateReportSegments(mainSegs, displayName);
+    const l1 = l1Agg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
+    const l2 = l2Agg.map((r) => ({
+        l1: r.l1,
+        name: r.name,
+        hours: msToReportHours(r.ms),
+        color: r.color,
+    }));
+
+    const topL1 = l1[0];
+    const mainHours = msToReportHours(mainMs);
+    const focusPct = topL1 && mainHours
+        ? (Math.round((topL1.hours / mainHours) * 1000) / 10) + '%'
+        : '0%';
+
+    const paraL1Agg = aggregateReportSegments(paraSegs, displayName);
+    const paraL1 = paraL1Agg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
+    const topPara = paraL1[0];
+    const paraRatio = mainHours
+        ? (Math.round((msToReportHours(paraMs) / mainHours) * 1000) / 10) + '%'
+        : '0%';
+
+    const overlayMap = new Map();
+    paraSegs.forEach((l) => {
+        const act = displayName(l);
+        const host = parallelHostL1(l);
+        const key = act + '|' + host;
+        const ms = l.clippedEnd - l.clippedStart;
+        const old = overlayMap.get(key) || {
+            l1: act,
+            name: '叠在' + host,
+            ms: 0,
+            color: getCat(l.l1)?.color || '#a78bfa',
+        };
+        old.ms += ms;
+        overlayMap.set(key, old);
+    });
+    const paraL2 = [...overlayMap.values()]
+        .map((r) => ({ l1: r.l1, name: r.name, hours: msToReportHours(r.ms), color: r.color }))
+        .sort((a, b) => b.hours - a.hours);
+
+    const timelineSegs = mainSegs.map((l) => {
         const left = ((l.clippedStart - dayStart) / DAY_MS) * 100;
         const width = ((l.clippedEnd - l.clippedStart) / DAY_MS) * 100;
-        const block = document.createElement('button');
-        block.type = 'button';
-        block.className = "timeline-block";
-        block.style.left = `${left}%`;
-        block.style.width = `${Math.max(width, 0.25)}%`;
-        block.style.background = getCat(l.l1)?.color || "#94a3b8";
-        block.innerText = width > 7 ? displayName(l) : "";
-        block.title = `${displayName(l)} ${formatBeijingClockSec(l.clippedStart)}-${formatBeijingClockSec(l.clippedEnd)}`;
-        track.appendChild(block);
+        return {
+            left,
+            width,
+            color: getCat(l.l1)?.color || '#94a3b8',
+            label: displayName(l),
+            title: `${displayName(l)} ${formatBeijingClockSec(l.clippedStart)}-${formatBeijingClockSec(l.clippedEnd)}`,
+        };
     });
-    const nowLeft = ((Date.now() - dayStart) / DAY_MS) * 100;
-    const nowLine = document.createElement('div');
-    nowLine.className = "timeline-now";
-    nowLine.style.left = `${Math.min(100, Math.max(0, nowLeft))}%`;
-    track.appendChild(nowLine);
+
+    return {
+        _live: true,
+        timeline: {
+            title: '24 小时时间轴',
+            hint: '仅主线 · 当日真实记录',
+            kind: 'day',
+            scale: ['00:00', '06:00', '12:00', '18:00', '24:00'],
+            segments: timelineSegs,
+            nowPct: Math.min(100, Math.max(0, ((now - dayStart) / DAY_MS) * 100)),
+        },
+        main: {
+            meta: {
+                title: formatBeijingDate(now),
+                range: '当日主线',
+                footnote: '日报数据来自本地记录；周/月/年仍为样本占位。',
+            },
+            summary: [
+                { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
+                { icon: '🔀', label: '活动切换', value: String(Math.max(0, mainSegs.length - 1)), sub: '次' },
+                { icon: '📋', label: '流水条数', value: String(mainSegs.length), sub: '条' },
+            ],
+            l1,
+            l2,
+        },
+        parallel: {
+            meta: {
+                title: formatBeijingDate(now),
+                range: '并行活动',
+                footnote: '并行时段可重叠累计。',
+            },
+            summary: [
+                { icon: '⏳', label: '并行总时长', value: String(msToReportHours(paraMs)), sub: '小时' },
+                { icon: '📐', label: '叠在主线比', value: paraRatio, sub: '并行/主线' },
+                { icon: '🔝', label: '最常并行', value: topPara?.name || '—', sub: topPara ? topPara.hours + 'h' : '' },
+            ],
+            l1: paraL1,
+            l2: paraL2,
+        },
+    };
 }
 
-function renderDistribution(id, rows, totalMs) {
-    const box = document.getElementById(id);
-    box.innerHTML = "";
-    if (!rows.length) {
-        const empty = document.createElement('div');
-        empty.className = "text-sm font-bold text-slate-300";
-        empty.innerText = "暂无记录";
-        box.appendChild(empty);
-        return;
+function getReportPeriodData(period) {
+    if (period === 'day') return buildLiveReportDay();
+    return REPORT_DATA[period] || null;
+}
+
+function ensureReportBillboard() {
+    if (!document.getElementById('summary-main')) return;
+    if (!reportBillboardReady && typeof initReportBillboard === 'function') {
+        initReportBillboard({ defaultPeriod: 'day', getPeriodData: getReportPeriodData });
+        reportBillboardReady = true;
     }
-    rows.forEach(r => {
-        const row = document.createElement('div');
-        row.className = "dist-row";
-        const name = document.createElement('div');
-        name.className = "text-sm font-black text-slate-700 truncate";
-        name.innerText = r.name;
-        const bar = document.createElement('div');
-        bar.className = "dist-bar";
-        const fill = document.createElement('div');
-        fill.className = "dist-fill";
-        fill.style.width = `${totalMs ? (r.ms / totalMs) * 100 : 0}%`;
-        fill.style.background = r.color;
-        bar.appendChild(fill);
-        const value = document.createElement('div');
-        value.className = "text-sm font-mono font-black text-slate-400 text-right";
-        value.innerText = formatHours(r.ms);
-        row.append(name, bar, value);
-        box.appendChild(row);
-    });
 }
 
-function renderDonut(rows, totalMs) {
-    const segBox = document.getElementById('report-donut-segments');
-    const labelBox = document.getElementById('report-donut-labels');
-    const center = document.getElementById('report-donut-center');
-    const l1Btn = document.getElementById('report-mode-l1');
-    const l2Btn = document.getElementById('report-mode-l2');
-    if (!segBox || !labelBox) return;
-    segBox.innerHTML = "";
-    labelBox.innerHTML = "";
-    center.innerText = reportMode === 'l1' ? '切换到活动' : '切换到分类';
-    l1Btn.className = `px-4 py-2 ${reportMode === 'l1' ? 'bg-emerald-600 text-white' : 'text-emerald-700'}`;
-    l2Btn.className = `px-4 py-2 ${reportMode === 'l2' ? 'bg-emerald-600 text-white' : 'text-emerald-700'}`;
-    if (!rows.length || !totalMs) return;
-    const circ = Math.PI * 2 * 42;
-    let offsetMs = 0;
-    rows.forEach(row => {
-        const dash = (row.ms / totalMs) * circ;
-        const offset = -(offsetMs / totalMs) * circ;
-        const arc = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        arc.setAttribute("cx", "60");
-        arc.setAttribute("cy", "60");
-        arc.setAttribute("r", "42");
-        arc.setAttribute("class", "donut-segment");
-        arc.setAttribute("stroke", row.color);
-        arc.setAttribute("stroke-dasharray", `${Math.max(1, dash - 1)} ${circ}`);
-        arc.setAttribute("stroke-dashoffset", offset);
-        segBox.appendChild(arc);
-
-        const mid = (offsetMs + row.ms / 2) / totalMs;
-        const pct = Math.round((row.ms / totalMs) * 100);
-        drawDonutLabel(labelBox, mid * 360, row.color, `${row.name} ${pct}%`);
-        offsetMs += row.ms;
-    });
-}
-
-function drawDonutLabel(parent, deg, color, label) {
-    const angle = (deg * Math.PI) / 180;
-    const r1 = 53, r2 = 62, rt = 72;
-    const x1 = 60 + Math.cos(angle) * r1;
-    const y1 = 60 + Math.sin(angle) * r1;
-    const x2 = 60 + Math.cos(angle) * r2;
-    const y2 = 60 + Math.sin(angle) * r2;
-    const tx = 60 + Math.cos(angle) * rt;
-    const ty = 60 + Math.sin(angle) * rt;
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-    const side = Math.cos(angle) >= 0 ? 1 : -1;
-    line.setAttribute("points", `${x1},${y1} ${x2},${y2} ${tx + side * 10},${ty}`);
-    line.setAttribute("fill", "none");
-    line.setAttribute("stroke", "#b8b8b8");
-    line.setAttribute("stroke-width", "0.7");
-    parent.appendChild(line);
-    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    text.setAttribute("x", tx + side * 12);
-    text.setAttribute("y", ty);
-    text.setAttribute("text-anchor", side > 0 ? "start" : "end");
-    text.setAttribute("dominant-baseline", "middle");
-    text.setAttribute("class", "radial-label");
-    text.setAttribute("transform", `rotate(90 ${tx + side * 12} ${ty})`);
-    text.textContent = label.slice(0, 12);
-    parent.appendChild(text);
-}
-
-function renderReportDetails(segments) {
-    const box = document.getElementById('report-detail-list');
-    box.innerHTML = "";
-    if (!segments.length) {
-        const empty = document.createElement('div');
-        empty.className = "text-sm font-bold text-slate-300";
-        empty.innerText = "暂无记录";
-        box.appendChild(empty);
-        return;
-    }
-    segments.forEach(l => {
-        const row = document.createElement('div');
-        row.className = "grid grid-cols-[86px_1fr_56px] gap-3 items-center text-sm";
-        const time = document.createElement('div');
-        time.className = "font-mono font-black text-slate-400";
-        time.innerText = `${formatBeijingClockSec(l.clippedStart)}-${formatBeijingClockSec(l.clippedEnd)}`;
-        const main = document.createElement('div');
-        main.className = "min-w-0";
-        const title = document.createElement('div');
-        title.className = "font-black text-slate-700 truncate";
-        title.innerText = displayName(l);
-        const note = document.createElement('div');
-        note.className = "text-xs font-bold text-slate-300 truncate";
-        note.innerText = l.note || l.l1 || "";
-        main.append(title, note);
-        const dur = document.createElement('div');
-        dur.className = "font-mono font-black text-indigo-500 text-right";
-        dur.innerText = formatHours(l.clippedEnd - l.clippedStart);
-        row.append(time, main, dur);
-        box.appendChild(row);
-    });
+function renderReport() {
+    ensureReportBillboard();
+    if (typeof renderReportBillboard === 'function') renderReportBillboard();
 }
 
 function showDrawer() {
@@ -2374,13 +2321,9 @@ function tick() {
             document.getElementById('status-light').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
             setText('header-l2', displayName(current));
             setText('header-memo', current.note || "");
-            setText('report-cur-l2', displayName(current));
-            setText('report-cur-timer', formatDuration(now - current.startTime));
         } else {
             setText('header-l2', "等待开启...");
             setText('header-memo', "");
-            setText('report-cur-l2', "空闲");
-            setText('report-cur-timer', "00:00:00");
         }
         updateUI();
     }

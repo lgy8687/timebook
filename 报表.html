@@ -6,10 +6,10 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>TimeBook · 报表沙盘 v1.5</title>
-    <link rel="stylesheet" href="report.css?v=1.5">
+    <title>TimeBook · 报表沙盘 v1.6</title>
+    <link rel="stylesheet" href="report.css?v=1.6">
 </head>
-<body>
+<body id="report-standalone">
 
 <div class="container">
 
@@ -25,7 +25,7 @@
     </div>
 
     <div class="header">
-        <h1 id="bill-title">🧾 时间消费账单 <span class="report-version" id="report-version">v1.5</span></h1>
+        <h1 id="bill-title">🧾 时间消费账单 <span class="report-version" id="report-version">v1.6</span></h1>
         <div class="period" id="bill-subtitle"></div>
     </div>
 
@@ -63,7 +63,7 @@
             <div class="sunburst-legend">
                 <div class="legend-hint" id="chart-legend-hint"></div>
                 <div class="legend-toggle">
-                    <button type="button" class="active" id="btn-l1" onclick="setLegendMode('l1')">分类</button>
+                    <button type="button" class="active" id="btn-l1" onclick="setLegendMode('l1')">活动分类</button>
                     <button type="button" id="btn-l2" onclick="setLegendMode('l2')">活动明细</button>
                 </div>
                 <div class="legend-list" id="legend-l1"></div>
@@ -83,8 +83,8 @@
 
 <div id="tip"></div>
 
-<script src="report-metrics.js?v=1.5"></script>
-<script src="report-sample.js?v=1.5"></script>
-<script src="report.js?v=1.5"></script>
+<script src="report-metrics.js?v=1.6"></script>
+<script src="report-sample.js?v=1.6"></script>
+<script src="report.js?v=1.6"></script>
 </body>
 </html>
