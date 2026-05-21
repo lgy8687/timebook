@@ -254,3 +254,14 @@ body {
     .sunburst-legend { width: 100%; }
     .seg-btn { padding: 8px 10px; font-size: 11px; }
 }
+
+.report-version {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 900;
+    color: #ef4444;
+    margin-left: 8px;
+    vertical-align: middle;
+    letter-spacing: 0.02em;
+}
+.header h1 { flex-wrap: wrap; align-items: center; }
