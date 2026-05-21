@@ -88,8 +88,8 @@ body#report-standalone {
 }
 
 /* ── 总览卡（3 项摘要）── */
-.cards-summary { grid-template-columns: repeat(3, 1fr); }
-.cards { display: grid; gap: 10px; margin-bottom: 16px; }
+.cards-summary { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.cards { display: grid; gap: 6px; margin-bottom: 12px; }
 .card-summary::before { background: linear-gradient(90deg, #6366f1, #10b981); }
 .card-summary .summary-value { font-size: 22px; }
 .card {
@@ -164,7 +164,7 @@ body#report-standalone {
     gap: 20px;
 }
 
-.summary-block { margin-bottom: 14px; }
+.summary-block { margin-bottom: 10px; }
 .summary-block-title {
     font-size: 11px;
     font-weight: 900;
@@ -351,23 +351,25 @@ body#report-standalone {
 .stat-indigo {
     background: #4f46e5;
     color: #fff;
-    border-radius: 24px;
-    padding: 16px;
-    box-shadow: var(--rp-shadow);
+    border-radius: 12px;
+    padding: 8px 6px;
+    box-shadow: 0 1px 4px rgba(79, 70, 229, 0.2);
     text-align: center;
+    min-height: 0;
 }
 .stat-indigo-value {
-    font-size: 22px;
+    font-size: 15px;
     font-weight: 900;
-    line-height: 1.2;
+    line-height: 1.25;
 }
 .stat-indigo-label {
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 700;
-    opacity: 0.85;
-    margin-top: 6px;
+    opacity: 0.9;
+    margin-top: 3px;
+    line-height: 1.2;
 }
-.summary-block .cards-summary { grid-template-columns: repeat(3, 1fr); }
+.summary-block .cards-summary { grid-template-columns: repeat(3, 1fr); gap: 6px; }
 
 .report-card-block {
     background: var(--rp-card);

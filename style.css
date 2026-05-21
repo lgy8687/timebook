@@ -638,10 +638,10 @@ body.compact-wheel-open { overflow: hidden; }
 .log-day-header {
     font-size: 15px;
     font-weight: 900;
-    color: #1e293b;
-    padding: 14px 4px 10px;
+    color: #0f172a;
+    padding: 12px 4px 8px;
     margin-top: 8px;
-    border-bottom: 2px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
 }
 .flow-calendar-panel {
     margin-top: 0;

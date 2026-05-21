@@ -1523,9 +1523,7 @@ function renderLogs(listId, dateStr) {
 
     const header = document.createElement('div');
     header.className = 'log-day-header';
-    header.innerText = isDateToday(dateStr)
-        ? `今日 · ${formatDateHeaderLabel(dateStr)}`
-        : formatDateHeaderLabel(dateStr);
+    header.innerText = formatDateHeaderLabel(dateStr);
     list.appendChild(header);
 
     const dayLogs = logs.filter((l) => formatBeijingDate(l.startTime) === dateStr);
