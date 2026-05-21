@@ -119,6 +119,119 @@ function setClockPref(key, value) {
     renderClockSettings();
 }
 
+const COMPACT_WHEEL_ITEM_H = 28;
+const COMPACT_WHEEL_PAD = 2;
+
+let compactWheelScrollTimer = null;
+let compactWheelOnSelect = null;
+
+function closeCompactWheel(applySelection) {
+    const overlay = document.getElementById('compact-wheel-overlay');
+    const listEl = document.getElementById('compact-wheel-list');
+    if (applySelection && compactWheelOnSelect && listEl) {
+        const active = listEl.querySelector('.compact-wheel-item.is-active');
+        if (active?.dataset?.value !== undefined) compactWheelOnSelect(active.dataset.value);
+    }
+    if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('compact-wheel-open');
+    const viewport = document.getElementById('compact-wheel-viewport');
+    if (viewport) viewport.onscroll = null;
+    compactWheelOnSelect = null;
+}
+
+function highlightCompactWheelItem(listEl, index) {
+    listEl.querySelectorAll('.compact-wheel-item:not(.compact-wheel-pad)').forEach((el, i) => {
+        el.classList.toggle('is-active', i === index);
+    });
+}
+
+function scrollCompactWheelToIndex(viewport, listEl, index) {
+    const items = listEl.querySelectorAll('.compact-wheel-item:not(.compact-wheel-pad)');
+    if (!items.length) return;
+    const clamped = Math.max(0, Math.min(items.length - 1, index));
+    viewport.scrollTop = (clamped + COMPACT_WHEEL_PAD) * COMPACT_WHEEL_ITEM_H;
+    highlightCompactWheelItem(listEl, clamped);
+    return clamped;
+}
+
+function openCompactWheel({ title, items, value, onSelect }) {
+    const overlay = document.getElementById('compact-wheel-overlay');
+    const titleEl = document.getElementById('compact-wheel-title');
+    const viewport = document.getElementById('compact-wheel-viewport');
+    const listEl = document.getElementById('compact-wheel-list');
+    if (!overlay || !viewport || !listEl) return;
+
+    closeCompactWheel();
+    compactWheelOnSelect = onSelect;
+    if (titleEl) titleEl.textContent = title || '';
+
+    listEl.innerHTML = '';
+    for (let i = 0; i < COMPACT_WHEEL_PAD; i++) {
+        const pad = document.createElement('li');
+        pad.className = 'compact-wheel-item compact-wheel-pad';
+        pad.setAttribute('aria-hidden', 'true');
+        listEl.appendChild(pad);
+    }
+    items.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'compact-wheel-item';
+        li.dataset.value = String(item.value);
+        li.textContent = item.label;
+        li.addEventListener('click', () => {
+            if (compactWheelOnSelect) compactWheelOnSelect(item.value);
+            closeCompactWheel(false);
+        });
+        listEl.appendChild(li);
+    });
+    for (let i = 0; i < COMPACT_WHEEL_PAD; i++) {
+        const pad = document.createElement('li');
+        pad.className = 'compact-wheel-item compact-wheel-pad';
+        pad.setAttribute('aria-hidden', 'true');
+        listEl.appendChild(pad);
+    }
+
+    const startIdx = Math.max(0, items.findIndex((it) => it.value === value));
+    overlay.classList.remove('hidden');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('compact-wheel-open');
+
+    requestAnimationFrame(() => {
+        scrollCompactWheelToIndex(viewport, listEl, startIdx);
+    });
+
+    viewport.onscroll = () => {
+        clearTimeout(compactWheelScrollTimer);
+        compactWheelScrollTimer = setTimeout(() => {
+            const idx = Math.round(viewport.scrollTop / COMPACT_WHEEL_ITEM_H) - COMPACT_WHEEL_PAD;
+            scrollCompactWheelToIndex(viewport, listEl, idx);
+        }, 90);
+    };
+}
+
+function createPickerTrigger(displayText, onOpen) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'picker-trigger btn-active';
+    const text = document.createElement('span');
+    text.className = 'picker-trigger-text';
+    text.textContent = displayText;
+    const chev = document.createElement('span');
+    chev.className = 'picker-trigger-chevron';
+    chev.textContent = '▾';
+    btn.append(text, chev);
+    btn.addEventListener('click', onOpen);
+    return btn;
+}
+
+(function initCompactWheelOverlay() {
+    const overlay = document.getElementById('compact-wheel-overlay');
+    if (!overlay) return;
+    overlay.querySelector('[data-wheel-dismiss]')?.addEventListener('click', () => closeCompactWheel(true));
+})();
+
 window.onload = () => {
     try {
         applyClockLayout();
@@ -314,16 +427,17 @@ function renderClockSettings() {
         row.className = 'clock-span-row';
         const lab = document.createElement('label');
         lab.innerText = label;
-        const sel = document.createElement('select');
-        for (let h = 1; h <= 24; h++) {
-            const opt = document.createElement('option');
-            opt.value = String(h);
-            opt.innerText = h + ' 小时';
-            if (h === value) opt.selected = true;
-            sel.appendChild(opt);
-        }
-        sel.addEventListener('change', () => setClockPref(key, parseInt(sel.value, 10)));
-        row.append(lab, sel);
+        const items = [];
+        for (let h = 1; h <= 24; h++) items.push({ value: h, label: h + ' 小时' });
+        const trigger = createPickerTrigger(value + ' 小时', () => {
+            openCompactWheel({
+                title: label,
+                items,
+                value,
+                onSelect: (v) => setClockPref(key, parseInt(v, 10)),
+            });
+        });
+        row.append(lab, trigger);
         wrap.appendChild(row);
     };
 
@@ -930,7 +1044,7 @@ function renderReportSummarySettings() {
     ['main', 'parallel'].forEach((view) => {
         const title = view === 'main' ? '主线摘要（3 格）' : '并行摘要（3 格）';
         const wrap = document.createElement('div');
-        wrap.className = 'space-y-2 border-b border-slate-50 pb-3 last:border-0';
+        wrap.className = 'summary-settings-group border-b border-slate-50 pb-2 last:border-0';
         const h = document.createElement('div');
         h.className = 'text-[11px] font-black text-slate-600';
         h.innerText = title;
@@ -939,27 +1053,27 @@ function renderReportSummarySettings() {
         const used = new Set();
         slots.forEach((slotId, idx) => {
             const row = document.createElement('div');
-            row.className = 'flex items-center gap-2';
+            row.className = 'summary-slot-row';
             const lab = document.createElement('span');
             lab.className = 'text-[10px] font-bold text-slate-400 w-8 shrink-0';
             lab.innerText = `格${idx + 1}`;
-            const sel = document.createElement('select');
-            sel.className = 'flex-1 text-[11px] font-bold bg-slate-50 border border-slate-100 rounded-xl px-2 py-2';
-            REPORT_METRIC_POOL[view].forEach((m) => {
-                const opt = document.createElement('option');
-                opt.value = m.id;
-                opt.innerText = m.label;
-                if (m.id === slotId) opt.selected = true;
-                sel.appendChild(opt);
+            const current = REPORT_METRIC_POOL[view].find((m) => m.id === slotId);
+            const items = REPORT_METRIC_POOL[view].map((m) => ({ value: m.id, label: m.label }));
+            const trigger = createPickerTrigger(current?.label || '—', () => {
+                openCompactWheel({
+                    title: (view === 'main' ? '主线' : '并行') + ` · 格${idx + 1}`,
+                    items,
+                    value: slotId,
+                    onSelect: (id) => {
+                        const next = getReportSummarySlots(view);
+                        next[idx] = id;
+                        saveReportSummarySlots(view, next);
+                        renderReportSummarySettings();
+                        if (typeof renderReportBillboard === "function") renderReportBillboard();
+                    },
+                });
             });
-            sel.addEventListener('change', () => {
-                const next = getReportSummarySlots(view);
-                next[idx] = sel.value;
-                saveReportSummarySlots(view, next);
-                renderReportSummarySettings();
-                if (typeof renderReportBillboard === "function") renderReportBillboard();
-            });
-            row.append(lab, sel);
+            row.append(lab, trigger);
             wrap.appendChild(row);
         });
         box.appendChild(wrap);
