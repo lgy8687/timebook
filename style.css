@@ -656,3 +656,13 @@ body.compact-wheel-open { overflow: hidden; }
     width: 4px; height: 4px; border-radius: 50%; background: #6366f1;
 }
 .flow-calendar-day.is-future { opacity: 0.35; }
+
+.flow-calendar-title-btn {
+    border: none;
+    background: transparent;
+    padding: 2px 6px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.flow-calendar-title-btn:active { background: #f1f5f9; }
+.calendar-ym-modal label { flex: 0 0 auto; min-width: 2.5rem; align-self: center; }

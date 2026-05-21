@@ -88,10 +88,19 @@ function getClockPrefs() {
 }
 
 /** 查看日 N 小时：不跨查看日 0 点；N≥24=查看日全天；历史日按结转闭合 */
-function getClockWindow(which) {
+function getTodayDateStr() {
+    return formatBeijingDate(Date.now());
+}
+
+function isDateToday(dateStr) {
+    return dateStr === getTodayDateStr();
+}
+
+function getClockWindow(which, dateStr) {
+    const d = dateStr || getTodayDateStr();
     const p = getClockPrefs();
-    const anchor = getViewAnchorMs();
-    const dayStart = beijingDateStrToDayStart(viewDate);
+    const anchor = getViewAnchorMs(d);
+    const dayStart = beijingDateStrToDayStart(d);
     const dayEnd = dayStart + DAY_MS;
     const hours = which === 'b' ? p.spanHoursB : p.spanHoursA;
 
@@ -99,7 +108,7 @@ function getClockWindow(which) {
         return { rangeStart: dayStart, rangeEnd: dayEnd };
     }
 
-    if (!isViewToday()) {
+    if (!isDateToday(d)) {
         const rangeEnd = dayEnd;
         const rangeStart = Math.max(dayStart, dayEnd - hours * HOUR_MS);
         return { rangeStart, rangeEnd };
@@ -131,11 +140,11 @@ function updateClockCenterLabels(anchorMs) {
     const show60 = p.layout === 'dual' || p.singleAxis === '60m';
     const show24 = p.layout === 'dual' || p.singleAxis === '24h';
     if (show60) {
-        const wA = getClockWindow('a');
+        const wA = getClockWindow('a', getTodayDateStr());
         setText('label-60m-remain', formatClockCenterRemain(wA.rangeEnd - now, p.spanHoursA));
     }
     if (show24) {
-        const wB = getClockWindow('b');
+        const wB = getClockWindow('b', getTodayDateStr());
         if (p.spanHoursB >= 24) {
             const dayRemainMs = Math.max(0, wB.rangeEnd - now);
             const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
@@ -298,8 +307,8 @@ function tickLoop() {
 function renderAll() {
     renderShortcuts();
     renderParallelShortcuts();
-    renderLogs();
-    renderFlowCalendar();
+    renderLogs('log-list', getTodayDateStr());
+    renderLogs('calendar-log-list', viewDate);
     renderConfig();
     renderReport();
     updateUI();
@@ -365,12 +374,13 @@ function beijingDateStrToDayEnd(dateStr) {
 }
 
 function isViewToday() {
-    return viewDate === formatBeijingDate(Date.now());
+    return isDateToday(viewDate);
 }
 
-function getViewAnchorMs() {
-    if (isViewToday()) return Date.now();
-    return beijingDateStrToDayEnd(viewDate) - 1;
+function getViewAnchorMs(dateStr) {
+    const d = dateStr || viewDate;
+    if (isDateToday(d)) return Date.now();
+    return beijingDateStrToDayEnd(d) - 1;
 }
 
 function formatDateHeaderLabel(dateStr) {
@@ -382,15 +392,19 @@ function formatDateHeaderLabel(dateStr) {
 
 function setViewDate(dateStr) {
     viewDate = dateStr;
-    renderRecordPage();
+    renderCalendarPage();
 }
 
 function renderRecordPage() {
     applyClockLayout();
     renderFlow();
-    renderLogs();
-    renderFlowCalendar();
+    renderLogs('log-list', getTodayDateStr());
     renderDayRemain();
+}
+
+function renderCalendarPage() {
+    renderFlowCalendar();
+    renderLogs('calendar-log-list', viewDate);
 }
 
 function initViewDateState() {
@@ -487,7 +501,7 @@ function applyClockLayout() {
     const cap24 = panel24.querySelector('.clock-panel-caption');
     if (cap60) cap60.textContent = p.spanHoursA + 'H';
     if (cap24) cap24.textContent = p.spanHoursB + 'H';
-    updateClockCenterLabels(getViewAnchorMs());
+    updateClockCenterLabels(getViewAnchorMs(getTodayDateStr()));
 }
 
 function renderClockSettings() {
@@ -1033,7 +1047,6 @@ function toggleParallel(l1, l2, icon) {
         localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
     }
     renderParallelShortcuts();
-    renderLogs();
     renderAll();
 }
 function updateParallelStatus() {
@@ -1404,13 +1417,14 @@ function appendLogFlowNote(body, log) {
     body.appendChild(noteRow);
 }
 
-function renderLogs() {
-    const list = document.getElementById('log-list');
-    const moreWrap = document.getElementById('load-more-wrap');
+function renderLogs(listId, dateStr) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    const moreWrap = listId === 'log-list' ? document.getElementById('load-more-wrap') : null;
     list.innerHTML = "";
 
     // ── 实时卡片（仅查看今天） ──
-    if (isViewToday() && current) {
+    if (isDateToday(dateStr) && current) {
         const liveWrap = document.createElement('div');
         liveWrap.className = "swipe-wrap";
         const liveCard = document.createElement('div');
@@ -1479,7 +1493,7 @@ function renderLogs() {
     }
 
     // ── 主线下并行窗口（实时 + 已结束） ──
-    if (isViewToday() && (parallelCurrent || parallelHistory.length > 0)) {
+    if (isDateToday(dateStr) && (parallelCurrent || parallelHistory.length > 0)) {
         const ph = document.createElement('div');
         ph.className = "flex items-center gap-2 px-1 pt-4 pb-1";
         const icon = document.createElement('span');
@@ -1509,12 +1523,12 @@ function renderLogs() {
 
     const header = document.createElement('div');
     header.className = 'log-day-header';
-    header.innerText = isViewToday()
-        ? `今日 · ${formatDateHeaderLabel(viewDate)}`
-        : formatDateHeaderLabel(viewDate);
+    header.innerText = isDateToday(dateStr)
+        ? `今日 · ${formatDateHeaderLabel(dateStr)}`
+        : formatDateHeaderLabel(dateStr);
     list.appendChild(header);
 
-    const dayLogs = logs.filter((l) => formatBeijingDate(l.startTime) === viewDate);
+    const dayLogs = logs.filter((l) => formatBeijingDate(l.startTime) === dateStr);
     const normalLogs = dayLogs.filter((l) => !l.parallel).sort((a, b) => b.startTime - a.startTime);
     const parallelLogs = dayLogs.filter((l) => l.parallel);
 
@@ -1530,7 +1544,7 @@ function renderLogs() {
         });
     });
 
-    if (dayLogs.length === 0 && !(isViewToday() && (current || parallelCurrent))) {
+    if (dayLogs.length === 0 && !(isDateToday(dateStr) && (current || parallelCurrent))) {
         const empty = document.createElement('div');
         empty.className = 'text-center text-[11px] text-slate-400 py-6';
         empty.innerText = '该日暂无流水';
@@ -2531,7 +2545,7 @@ function renderPicker() {
 let lastSecondTs = 0;
 function tick() {
     const now = Date.now();
-    const clockNow = getViewAnchorMs();
+    const clockNow = getViewAnchorMs(getTodayDateStr());
     const d = new Date(now + BJ_OFFSET);
     const secAngle = (d.getUTCSeconds() + d.getUTCMilliseconds() / 1000) * 6;
 
@@ -2544,7 +2558,7 @@ function tick() {
     const show24 = p.layout === 'dual' || p.singleAxis === '24h';
 
     if (show60) {
-        const wA = getClockWindow('a');
+        const wA = getClockWindow('a', getTodayDateStr());
         const spanA = wA.rangeEnd - wA.rangeStart;
         const hand60 = document.getElementById('hand-60m');
         const angle60 = spanA > 0 ? ((clockNow - wA.rangeStart) / spanA) * 360 : 0;
@@ -2553,7 +2567,7 @@ function tick() {
         if (sec60) sec60.style.transform = `rotate(${secAngle}deg)`;
     }
     if (show24) {
-        const wB = getClockWindow('b');
+        const wB = getClockWindow('b', getTodayDateStr());
         const spanB = wB.rangeEnd - wB.rangeStart;
         const hand24 = document.getElementById('hand-24h');
         const angle24 = spanB > 0 ? ((clockNow - wB.rangeStart) / spanB) * 360 : 0;
@@ -2606,14 +2620,8 @@ function renderDayRemain() {
     const fill = document.getElementById('day-remain-fill');
     const flame = document.getElementById('match-flame');
     if (!fill) return;
-    if (!isViewToday()) {
-        fill.style.width = '100%';
-        if (flame) flame.style.opacity = '0';
-        setText('day-remain-label', '已结转 · ' + formatDateHeaderLabel(viewDate));
-        return;
-    }
     const now = Date.now();
-    const dayStart = beijingDateStrToDayStart(viewDate);
+    const dayStart = beijingDateStrToDayStart(getTodayDateStr());
     const elapsed = Math.min(DAY_MS, Math.max(0, now - dayStart));
     const remain = Math.max(0, DAY_MS - elapsed);
     const remainPct = (remain / DAY_MS) * 100;
@@ -2632,7 +2640,8 @@ function updateUI() {
 window.addEventListener('load', () => {});
 
 function renderFlow() {
-    const now = getViewAnchorMs();
+    const todayStr = getTodayDateStr();
+    const now = getViewAnchorMs(todayStr);
     const dayStart = beijingPeriodStart(now, DAY_MS);
     const dayEnd = dayStart + DAY_MS;
     const hourStart = beijingPeriodStart(now, HOUR_MS);
@@ -2651,7 +2660,7 @@ function renderFlow() {
         .filter(Boolean);
 
     if (show60) {
-        const wA = getClockWindow('a');
+        const wA = getClockWindow('a', todayStr);
         renderOneClockRing({
             gSeg: document.getElementById('svg-60m'),
             gMarks: document.getElementById('svg-60m-marks'),
@@ -2663,7 +2672,7 @@ function renderFlow() {
         });
     }
     if (show24) {
-        const wB = getClockWindow('b');
+        const wB = getClockWindow('b', todayStr);
         renderOneClockRing({
             gSeg: document.getElementById('svg-24h'),
             gMarks: document.getElementById('svg-24h-marks'),
@@ -2696,9 +2705,11 @@ function renderFlowCalendar() {
     prev.className = 'flow-calendar-nav btn-active';
     prev.innerText = '‹';
     prev.addEventListener('click', () => shiftCalendarMonth(-1));
-    const title = document.createElement('span');
-    title.className = 'flow-calendar-title';
+    const title = document.createElement('button');
+    title.type = 'button';
+    title.className = 'flow-calendar-title flow-calendar-title-btn btn-active';
     title.innerText = `${calendarViewYear}年${calendarViewMonth + 1}月`;
+    title.addEventListener('click', openCalendarYearMonthPicker);
     const next = document.createElement('button');
     next.type = 'button';
     next.className = 'flow-calendar-nav btn-active';
@@ -2751,7 +2762,7 @@ function switchTab(t) {
     const page = document.getElementById('page-' + t);
     if (page) page.classList.add('active');
     if (t === 'dev' && typeof renderDevAppearancePanel === 'function') renderDevAppearancePanel();
-    ['record', 'report', 'mine'].forEach(name => {
+    ['record', 'calendar', 'report', 'mine'].forEach(name => {
         const nav = document.getElementById('nav-' + name);
         if (nav) {
             nav.classList.remove('text-indigo-600');
@@ -2765,6 +2776,7 @@ function switchTab(t) {
         renderShortcuts();
         renderParallelShortcuts();
     }
+    if (t === 'calendar') renderCalendarPage();
     if (t === 'mine') syncConfigSectionUI();
 }
 function handleFreeInput() {

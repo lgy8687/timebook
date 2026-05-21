@@ -8,8 +8,8 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.18">
-    <link rel="stylesheet" href="dev-theme.css?v=4.18">
+    <link rel="stylesheet" href="style.css?v=4.20">
+    <link rel="stylesheet" href="dev-theme.css?v=4.20">
     <link rel="stylesheet" href="report.css?v=1.6">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -26,7 +26,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v4.19</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v4.20</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -117,9 +117,13 @@
             </div>
             <div id="log-list" class="space-y-3"></div>
             <div id="load-more-wrap" class="hidden"></div>
-            <div id="flow-calendar-panel" class="flow-calendar-panel">
+        </section>
+
+        <section id="page-calendar" class="tab-content space-y-4 pb-8">
+            <div class="flow-calendar-panel">
                 <div id="flow-calendar" class="flow-calendar"></div>
             </div>
+            <div id="calendar-log-list" class="space-y-3"></div>
         </section>
 
         <section id="page-report" class="tab-content report-scope">
@@ -291,17 +295,38 @@
         </section>
     </main>
 
-    <nav class="app-bottom-nav bg-white border-t border-slate-100 fixed bottom-0 w-full h-16 grid grid-cols-3 items-center px-4 z-40 shadow-sm">
+    <nav class="app-bottom-nav bg-white border-t border-slate-100 fixed bottom-0 w-full h-16 grid grid-cols-4 items-center px-2 z-40 shadow-sm">
         <button onclick="switchTab('record')" class="flex flex-col items-center text-indigo-600" id="nav-record">
             <span class="text-lg">📋</span><span class="text-[9px] mt-0.5 font-bold">流水</span>
         </button>
+        <button onclick="switchTab('calendar')" class="flex flex-col items-center text-slate-400" id="nav-calendar">
+            <span class="text-lg">📅</span><span class="text-[9px] mt-0.5 font-bold">日历</span>
+        </button>
         <button onclick="switchTab('report')" class="flex flex-col items-center text-slate-400" id="nav-report">
-            <span class="text-lg">📊</span><span class="text-[9px] mt-0.5 font-bold">报表</span>
+            <span class="text-lg">📊</span><span class="text-[9px] mt-0.5 font-bold">统计</span>
         </button>
         <button onclick="switchTab('mine')" class="flex flex-col items-center text-slate-400" id="nav-mine">
             <span class="text-lg">👤</span><span class="text-[9px] mt-0.5 font-bold">我的</span>
         </button>
     </nav>
+
+    <div id="calendar-ym-modal" class="calendar-ym-modal hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm" onclick="if(event.target===this)closeCalendarYearMonthPicker()">
+        <div class="bg-white rounded-2xl p-5 w-[88%] max-w-xs shadow-xl" onclick="event.stopPropagation()">
+            <h3 class="text-sm font-black text-slate-800 mb-4 text-center">选择年月</h3>
+            <div class="flex gap-3 mb-4">
+                <label class="flex-1 text-[10px] font-bold text-slate-400">年份</label>
+                <select id="calendar-ym-year" class="flex-1 text-sm font-bold bg-slate-50 border border-slate-100 rounded-xl px-2 py-2"></select>
+            </div>
+            <div class="flex gap-3 mb-4">
+                <label class="flex-1 text-[10px] font-bold text-slate-400">月份</label>
+                <select id="calendar-ym-month" class="flex-1 text-sm font-bold bg-slate-50 border border-slate-100 rounded-xl px-2 py-2"></select>
+            </div>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeCalendarYearMonthPicker()" class="flex-1 py-2.5 text-sm font-bold text-slate-400 bg-slate-50 rounded-xl">取消</button>
+                <button type="button" onclick="confirmCalendarYearMonthPicker()" class="flex-1 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-xl">确定</button>
+            </div>
+        </div>
+    </div>
 
     <div id="drawer" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex flex-col justify-end backdrop-blur-sm" onclick="if(event.target===this)closeDrawer()">
         <div class="bg-white w-full rounded-t-[40px] h-3/4 drawer-up flex flex-col">
@@ -446,8 +471,8 @@
     <script src="report-metrics.js?v=1.6"></script>
     <script src="report-sample.js?v=1.6"></script>
     <script src="report.js?v=1.6"></script>
-    <script src="ui-theme.js?v=4.18"></script>
-    <script src="app.js?v=4.18"></script>
-    <script src="dev-appearance.js?v=4.18"></script>
+    <script src="ui-theme.js?v=4.20"></script>
+    <script src="app.js?v=4.20"></script>
+    <script src="dev-appearance.js?v=4.20"></script>
 </body>
 </html>
