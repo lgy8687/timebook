@@ -6,8 +6,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>TimeBook · 报表沙盘 v1.3</title>
-    <link rel="stylesheet" href="report.css?v=1.3">
+    <title>TimeBook · 报表沙盘 v1.4</title>
+    <link rel="stylesheet" href="report.css?v=1.4">
 </head>
 <body>
 
@@ -25,7 +25,7 @@
     </div>
 
     <div class="header">
-        <h1 id="bill-title">🧾 时间消费账单 <span class="report-version" id="report-version">v1.3</span></h1>
+        <h1 id="bill-title">🧾 时间消费账单 <span class="report-version" id="report-version">v1.4</span></h1>
         <div class="period" id="bill-subtitle"></div>
     </div>
 
@@ -42,20 +42,20 @@
     <div class="structure-card">
         <div class="structure-head">
             <div class="structure-title" id="structure-title">时间结构</div>
+            <div class="chart-mode-toggle" id="chart-mode-toggle">
+                <button type="button" class="chart-toggle-btn chart-main active" data-chart="main">主线</button>
+                <button type="button" class="chart-toggle-btn chart-parallel" data-chart="parallel">并行</button>
+            </div>
         </div>
         <div class="sunburst-layout">
             <div class="sunburst-chart-wrap">
-                <div class="chart-corner-toggle" id="chart-corner-toggle">
-                    <button type="button" class="chart-toggle-btn chart-main active" data-chart="main">主线</button>
-                    <button type="button" class="chart-toggle-btn chart-parallel" data-chart="parallel">并行</button>
-                </div>
                 <svg id="sunburst-svg" class="sunburst-svg" viewBox="0 0 200 200" width="240" height="240"></svg>
             </div>
             <div class="sunburst-legend">
                 <div class="legend-hint" id="chart-legend-hint"></div>
                 <div class="legend-toggle">
-                    <button type="button" class="active" id="btn-l1" onclick="setLegendMode('l1')">一级目录</button>
-                    <button type="button" id="btn-l2" onclick="setLegendMode('l2')">二级目录</button>
+                    <button type="button" class="active" id="btn-l1" onclick="setLegendMode('l1')">分类</button>
+                    <button type="button" id="btn-l2" onclick="setLegendMode('l2')">活动明细</button>
                 </div>
                 <div class="legend-list" id="legend-l1"></div>
                 <div class="legend-list" id="legend-l2" style="display:none"></div>
@@ -74,7 +74,7 @@
 
 <div id="tip"></div>
 
-<script src="report-sample.js?v=1.3"></script>
-<script src="report.js?v=1.3"></script>
+<script src="report-sample.js?v=1.4"></script>
+<script src="report.js?v=1.4"></script>
 </body>
 </html>

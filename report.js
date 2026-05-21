@@ -1,5 +1,5 @@
 /**
- * 报表沙盘 v1.3 — 双摘要同屏；环图左上角切换主线/并行
+ * 报表沙盘 v1.4 — 双摘要同屏；环图左上角切换主线/并行
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
@@ -91,8 +91,8 @@
 
         document.getElementById('structure-title').textContent = '时间结构';
         document.getElementById('chart-legend-hint').textContent = isMain
-            ? '内环 = 一级目录 · 外环 = 二级目录'
-            : '内环 = 并行活动 · 外环 = 叠在何处（样本）';
+            ? '内环 = 分类 · 外环 = 活动'
+            : '内环 = 并行活动 · 外环 = 叠加明细';
 
         renderSunburst(chartBundle.l1, chartBundle.l2, total);
         renderLegend(chartBundle.l1, chartBundle.l2, total, isMain);
@@ -101,7 +101,7 @@
             (state.period === 'month' || state.period === 'year') ? 'block' : 'none';
 
         document.getElementById('footer-note').textContent =
-            chartBundle.meta.footnote + ' · 周一起算 · v1.3';
+            chartBundle.meta.footnote + ' · 周一起算 · v1.4';
 
         syncToolbar();
     }
@@ -148,8 +148,8 @@
         l2Box.style.display = state.legendMode === 'l2' ? 'block' : 'none';
         document.getElementById('btn-l1').classList.toggle('active', state.legendMode === 'l1');
         document.getElementById('btn-l2').classList.toggle('active', state.legendMode === 'l2');
-        document.getElementById('btn-l1').textContent = isMain ? '一级目录' : '并行活动';
-        document.getElementById('btn-l2').textContent = isMain ? '二级目录' : '叠加场景';
+        document.getElementById('btn-l1').textContent = isMain ? '分类' : '并行活动';
+        document.getElementById('btn-l2').textContent = isMain ? '活动明细' : '叠加明细';
 
         document.querySelectorAll('.sunburst-legend .legend-item').forEach((el) => {
             el.addEventListener('mouseenter', () => highlightCat(el.dataset.cat));
