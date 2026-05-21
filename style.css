@@ -361,10 +361,13 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.06), 0 3px 6px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9);
 }
 .keycap--main.pressed {
-    background: var(--tb-main-keycap-pressed-bg);
-    border-color: #9ca3af;
-    box-shadow: 0 0 2px rgba(0,0,0,0.04), inset 0 2px 4px rgba(0,0,0,0.1);
+    background: #ecfdf5;
+    border-color: #059669;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2), inset 0 2px 4px rgba(0,0,0,0.06);
     transform: translateY(2px);
+}
+.keycap--main:active {
+    border-color: #10b981;
 }
 .keycap--parallel-slot {
     background: var(--tb-parallel-keycap-bg);

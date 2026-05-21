@@ -8,8 +8,8 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.12">
-    <link rel="stylesheet" href="dev-theme.css?v=4.12">
+    <link rel="stylesheet" href="style.css?v=4.13">
+    <link rel="stylesheet" href="dev-theme.css?v=4.13">
     <link rel="stylesheet" href="report.css?v=1.6">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -26,7 +26,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v4.12</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v4.13</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -191,58 +191,85 @@
             </div>
         </section>
 
-        <section id="page-config" class="tab-content space-y-6">
+        <section id="page-config" class="tab-content space-y-4 pb-8">
             <div class="sticky top-0 z-10 bg-slate-50 py-3 flex items-center space-x-3 border-b border-slate-100 mb-2">
                 <button onclick="switchTab('record')" class="bg-white w-9 h-9 rounded-xl shadow-sm flex items-center justify-center text-base shrink-0">⬅️</button>
                 <h2 class="text-base font-black text-slate-800">设置中心</h2>
-                <div class="flex-1"></div>
-                <button id="config-edit-btn" onclick="toggleConfigEdit()" class="text-[11px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-black shrink-0">编辑</button>
-            </div>
-            <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider">时钟面板</h3>
-                </div>
-                <p class="text-[10px] text-slate-400 leading-relaxed">双时间轴 = 60 分钟 + 24 小时（整点对齐）。单时间轴时二选一。</p>
-                <div id="clock-settings-ui" class="space-y-3"></div>
             </div>
 
-            <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider">报表摘要</h3>
-                </div>
-                <p class="text-[10px] text-slate-400 leading-relaxed">选择报表页顶部<strong>主线 / 并行</strong>各显示的三个指标（报表沙盘与日后并入的报表页共用）。</p>
-                <div id="report-summary-settings-ui" class="space-y-4"></div>
+            <div class="config-grid">
+                <button type="button" class="config-tile" data-config-section="clock" onclick="openConfigSection('clock')">
+                    <span class="config-tile-icon">🕐</span>
+                    <span class="config-tile-label">时钟</span>
+                </button>
+                <button type="button" class="config-tile" data-config-section="shortcut" onclick="openConfigSection('shortcut')">
+                    <span class="config-tile-icon">⚡</span>
+                    <span class="config-tile-label">快捷</span>
+                </button>
+                <button type="button" class="config-tile" data-config-section="parallel" onclick="openConfigSection('parallel')">
+                    <span class="config-tile-icon">↳</span>
+                    <span class="config-tile-label">并行</span>
+                </button>
+                <button type="button" class="config-tile" data-config-section="report" onclick="openConfigSection('report')">
+                    <span class="config-tile-icon">📊</span>
+                    <span class="config-tile-label">报表</span>
+                </button>
+                <button type="button" class="config-tile" data-config-section="cats" onclick="openConfigSection('cats')">
+                    <span class="config-tile-icon">📂</span>
+                    <span class="config-tile-label">分类</span>
+                </button>
+                <button type="button" class="config-tile" data-config-section="more" onclick="openConfigSection('more')">
+                    <span class="config-tile-icon">⋯</span>
+                    <span class="config-tile-label">更多</span>
+                </button>
+                <div class="config-tile config-tile--placeholder" aria-hidden="true"></div>
+                <div class="config-tile config-tile--placeholder" aria-hidden="true"></div>
             </div>
-            <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider">首页大图标设置</h3>
-                    <div class="flex items-center gap-2">
-                        <label class="flex items-center gap-1 text-[11px] text-slate-400 font-bold cursor-pointer" onclick="event.stopPropagation(); toggleShortcutIcons()">
-                            <span id="shortcut-icon-toggle-text">图标</span>
-                            <div id="shortcut-icon-toggle" class="w-8 h-4 rounded-full flex items-center px-0.5 cursor-pointer transition-colors" style="background:#6366f1">
-                                <div class="w-3 h-3 rounded-full bg-white transition-transform" style="transform:translateX(14px)"></div>
-                            </div>
-                        </label>
-                        <button onclick="openShortcutPicker()" class="text-[11px] bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-black">+ 选取</button>
+
+            <div id="config-expand" class="config-expand hidden">
+                <div id="config-panel-clock" class="config-panel hidden">
+                    <h3 class="config-panel-title">时钟面板</h3>
+                    <p class="config-panel-hint">双时间轴可同时显示；跨度以<strong>小时</strong>为单位，以当前时刻为右端向前回看。</p>
+                    <div id="clock-settings-ui" class="space-y-3"></div>
+                </div>
+                <div id="config-panel-shortcut" class="config-panel hidden">
+                    <div class="config-panel-head">
+                        <h3 class="config-panel-title">首页快捷</h3>
+                        <div class="flex items-center gap-2">
+                            <label class="flex items-center gap-1 text-[11px] text-slate-400 font-bold cursor-pointer" onclick="event.stopPropagation(); toggleShortcutIcons()">
+                                <span id="shortcut-icon-toggle-text">图标</span>
+                                <div id="shortcut-icon-toggle" class="w-8 h-4 rounded-full flex items-center px-0.5 cursor-pointer transition-colors" style="background:#6366f1">
+                                    <div class="w-3 h-3 rounded-full bg-white transition-transform" style="transform:translateX(14px)"></div>
+                                </div>
+                            </label>
+                            <button type="button" onclick="openShortcutPicker()" class="text-[11px] bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full font-black">+ 选取</button>
+                        </div>
                     </div>
+                    <div id="shortcut-list" class="grid grid-cols-3 gap-2 mt-3"></div>
                 </div>
-                <div id="shortcut-list" class="grid grid-cols-3 gap-2"></div>
-            </div>
-            <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider">并行快捷设置</h3>
-                    <button onclick="openParallelShortcutPicker()" class="text-[11px] bg-violet-50 text-violet-600 px-3 py-1 rounded-full font-black">+ 选取</button>
+                <div id="config-panel-parallel" class="config-panel hidden">
+                    <div class="config-panel-head">
+                        <h3 class="config-panel-title">并行快捷</h3>
+                        <button type="button" onclick="openParallelShortcutPicker()" class="text-[11px] bg-violet-50 text-violet-600 px-3 py-1.5 rounded-full font-black">+ 选取</button>
+                    </div>
+                    <div id="parallel-shortcut-list" class="grid grid-cols-3 gap-2 mt-3"></div>
                 </div>
-                <div id="parallel-shortcut-list" class="grid grid-cols-3 gap-2"></div>
-            </div>
-            <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider">全量目录管理</h3>
+                <div id="config-panel-report" class="config-panel hidden">
+                    <h3 class="config-panel-title">报表摘要</h3>
+                    <p class="config-panel-hint">报表页顶部主线 / 并行各显示三个指标。</p>
+                    <div id="report-summary-settings-ui" class="space-y-4"></div>
                 </div>
-                <div id="full-cat-list" class="space-y-4"></div>
+                <div id="config-panel-cats" class="config-panel hidden">
+                    <h3 class="config-panel-title">分类管理</h3>
+                    <p class="config-panel-hint">点颜色圆点改色；点活动名编辑；✕ 删除。下方可添加分类与活动。</p>
+                    <div id="full-cat-list" class="space-y-4 mt-3"></div>
+                </div>
+                <div id="config-panel-more" class="config-panel hidden space-y-3">
+                    <h3 class="config-panel-title">更多</h3>
+                    <button type="button" onclick="openDevAppearance()" class="w-full py-3.5 text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl">🛠 开发者外观</button>
+                    <button type="button" onclick="if(confirm('清空全部本地数据？')){localStorage.clear();location.reload();}" class="w-full py-3 text-[10px] text-slate-300 font-bold uppercase tracking-widest">Factory Reset</button>
+                </div>
             </div>
-            <button type="button" id="dev-appearance-entry" onclick="openDevAppearance()" class="w-full py-3.5 text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl">🛠 开发者外观</button>
-            <button onclick="if(confirm('清空？')){localStorage.clear();location.reload();}" class="w-full py-4 text-[10px] text-slate-300 font-bold uppercase tracking-widest">Factory Reset</button>
         </section>
 
         <section id="page-dev" class="tab-content space-y-4 pb-8">
@@ -263,8 +290,8 @@
         <button onclick="switchTab('record')" class="flex flex-col items-center text-indigo-600" id="nav-record">
             <span class="text-lg">📋</span><span class="text-[9px] mt-0.5 font-bold">流水</span>
         </button>
-        <div class="flex justify-center">
-            <button onclick="openDrawer()" class="w-14 h-14 bg-indigo-600 rounded-full shadow-xl flex items-center justify-center text-xl text-white border-4 border-white btn-active -mt-4">＋</button>
+        <div class="flex justify-center" id="nav-fab-slot" title="预留">
+            <div class="nav-fab-placeholder w-14 h-14 rounded-full border-2 border-dashed border-slate-200 bg-slate-50/90 -mt-4" aria-hidden="true"></div>
         </div>
         <button onclick="switchTab('report')" class="flex flex-col items-center text-slate-400" id="nav-report">
             <span class="text-lg">📊</span><span class="text-[9px] mt-0.5 font-bold">报表</span>
@@ -404,8 +431,8 @@
     <script src="report-metrics.js?v=1.6"></script>
     <script src="report-sample.js?v=1.6"></script>
     <script src="report.js?v=1.6"></script>
-    <script src="ui-theme.js?v=4.12"></script>
-    <script src="app.js?v=4.12"></script>
-    <script src="dev-appearance.js?v=4.12"></script>
+    <script src="ui-theme.js?v=4.13"></script>
+    <script src="app.js?v=4.13"></script>
+    <script src="dev-appearance.js?v=4.13"></script>
 </body>
 </html>

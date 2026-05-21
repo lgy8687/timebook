@@ -58,16 +58,41 @@ let logLimit = 10;
 let editIndex = null;
 let editingShortcutIndex = null;
 let configEditMode = false;
+let configSectionOpen = null;
 let drawerViewMode = 'columns';
 let showShortcutIcons = true;
 const BJ_OFFSET = 8 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-const CLOCK_PREFS_DEFAULT = { layout: 'dual', singleAxis: '60m' };
+const CLOCK_PREFS_DEFAULT = { layout: 'dual', singleAxis: '60m', spanHoursA: 1, spanHoursB: 24 };
 let clockPrefs = { ...CLOCK_PREFS_DEFAULT, ...safeJSON('v9_clock_prefs') };
 
+function clampClockSpanHours(n) {
+    const v = parseInt(n, 10);
+    if (!Number.isFinite(v)) return 1;
+    return Math.min(24, Math.max(1, v));
+}
+
 function getClockPrefs() {
-    return { ...CLOCK_PREFS_DEFAULT, ...clockPrefs };
+    const raw = { ...CLOCK_PREFS_DEFAULT, ...clockPrefs };
+    raw.spanHoursA = clampClockSpanHours(raw.spanHoursA);
+    raw.spanHoursB = clampClockSpanHours(raw.spanHoursB);
+    return raw;
+}
+
+function getClockWindow(which) {
+    const p = getClockPrefs();
+    const now = Date.now();
+    const hours = which === 'b' ? p.spanHoursB : p.spanHoursA;
+    return { rangeStart: now - hours * HOUR_MS, rangeEnd: now };
+}
+
+function formatClockRemain(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    if (h > 0) return `${h}h${m > 0 ? m + 'm' : ''}`;
+    return String(Math.max(1, Math.ceil(ms / 60000)));
 }
 
 function saveClockPrefs() {
@@ -238,6 +263,10 @@ function applyClockLayout() {
         panel60.classList.toggle('hidden', p.singleAxis !== '60m');
         panel24.classList.toggle('hidden', p.singleAxis !== '24h');
     }
+    const capA = panel60.querySelector('.clock-panel-caption');
+    const capB = panel24.querySelector('.clock-panel-caption');
+    if (capA) capA.textContent = p.spanHoursA + 'H';
+    if (capB) capB.textContent = p.spanHoursB + 'H';
 }
 
 function renderClockSettings() {
@@ -248,7 +277,7 @@ function renderClockSettings() {
 
     const row1 = document.createElement('div');
     row1.className = 'clock-settings-row';
-    [['dual', '双时间轴（60M+24H）'], ['single', '单时间轴']].forEach(([val, lab]) => {
+    [['dual', '双时间轴'], ['single', '单时间轴']].forEach(([val, lab]) => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'clock-settings-btn btn-active' + (p.layout === val ? ' active' : '');
@@ -258,11 +287,10 @@ function renderClockSettings() {
     });
     wrap.appendChild(row1);
 
-    const row2 = document.createElement('div');
-    row2.className = 'clock-settings-row';
-    row2.id = 'clock-single-axis-row';
     if (p.layout === 'single') {
-        [['60m', '仅 60 分钟'], ['24h', '仅 24 小时']].forEach(([val, lab]) => {
+        const row2 = document.createElement('div');
+        row2.className = 'clock-settings-row';
+        [['60m', '内盘'], ['24h', '外盘']].forEach(([val, lab]) => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'clock-settings-btn btn-active' + (p.singleAxis === val ? ' active' : '');
@@ -271,6 +299,33 @@ function renderClockSettings() {
             row2.appendChild(btn);
         });
         wrap.appendChild(row2);
+    }
+
+    const addSpanRow = (label, key, value) => {
+        const row = document.createElement('div');
+        row.className = 'clock-span-row';
+        const lab = document.createElement('label');
+        lab.innerText = label;
+        const sel = document.createElement('select');
+        for (let h = 1; h <= 24; h++) {
+            const opt = document.createElement('option');
+            opt.value = String(h);
+            opt.innerText = h + ' 小时';
+            if (h === value) opt.selected = true;
+            sel.appendChild(opt);
+        }
+        sel.addEventListener('change', () => setClockPref(key, parseInt(sel.value, 10)));
+        row.append(lab, sel);
+        wrap.appendChild(row);
+    };
+
+    if (p.layout === 'dual') {
+        addSpanRow('内盘跨度', 'spanHoursA', p.spanHoursA);
+        addSpanRow('外盘跨度', 'spanHoursB', p.spanHoursB);
+    } else {
+        const key = p.singleAxis === '24h' ? 'spanHoursB' : 'spanHoursA';
+        const val = p.singleAxis === '24h' ? p.spanHoursB : p.spanHoursA;
+        addSpanRow('显示跨度', key, val);
     }
 }
 
@@ -811,6 +866,26 @@ function editShortcut(idx) {
         }
     });
 }
+
+function syncConfigSectionUI() {
+    document.querySelectorAll('.config-tile[data-config-section]').forEach((el) => {
+        el.classList.toggle('active', el.dataset.configSection === configSectionOpen);
+    });
+    const expand = document.getElementById('config-expand');
+    if (expand) expand.classList.toggle('hidden', !configSectionOpen);
+    ['clock', 'shortcut', 'parallel', 'report', 'cats', 'more'].forEach((id) => {
+        const panel = document.getElementById('config-panel-' + id);
+        if (panel) panel.classList.toggle('hidden', configSectionOpen !== id);
+    });
+}
+
+function openConfigSection(id) {
+    configSectionOpen = configSectionOpen === id ? null : id;
+    syncConfigSectionUI();
+    renderConfig();
+}
+window.openConfigSection = openConfigSection;
+
 function toggleConfigEdit() {
     configEditMode = !configEditMode;
     const btn = document.getElementById('config-edit-btn');
@@ -884,6 +959,7 @@ function renderReportSummarySettings() {
 }
 
 function renderConfig() {
+    syncConfigSectionUI();
     renderClockSettings();
     renderReportSummarySettings();
     const shortcutList = document.getElementById('shortcut-list');
@@ -904,7 +980,7 @@ function renderConfig() {
         label.className = "text-xs font-bold leading-tight";
         label.innerText = s.l2 || s.l1;
         card.appendChild(label);
-        if (configEditMode) {
+        {
             const del = document.createElement('button');
             del.type = 'button';
             del.className = "absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-400 text-white rounded-full text-[10px] flex items-center justify-center shadow-sm";
@@ -933,7 +1009,7 @@ function renderConfig() {
             label.className = "text-xs font-bold leading-tight";
             label.innerText = s.l2 || s.l1;
             card.appendChild(label);
-            if (configEditMode) {
+            {
                 const del = document.createElement('button');
                 del.type = 'button';
                 del.className = "absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-400 text-white rounded-full text-[10px] flex items-center justify-center shadow-sm";
@@ -1001,17 +1077,17 @@ function renderConfig() {
         title.innerText = `${c.icon} ${c.name}`;
         titleGroup.append(colorDot, title);
         head.appendChild(titleGroup);
-        if (configEditMode) {
+        {
             const actions = document.createElement('div');
             actions.className = "flex space-x-2";
             const edit = document.createElement('button');
             edit.type = 'button';
-            edit.className = "text-slate-400";
+            edit.className = "text-slate-400 text-[11px] font-black";
             edit.innerText = "编辑";
             edit.addEventListener('click', () => editL1(c.id));
             const del = document.createElement('button');
             del.type = 'button';
-            del.className = "text-slate-300";
+            del.className = "text-red-400 text-[11px] font-black";
             del.innerText = "✕";
             del.addEventListener('click', () => delL1(c.id));
             actions.append(edit, del);
@@ -1033,7 +1109,7 @@ function renderConfig() {
             nameEl.innerText = name;
             card.appendChild(nameEl);
             card.addEventListener('click', () => editS(c.id, name));
-            if (configEditMode) {
+            {
                 const del = document.createElement('button');
                 del.type = 'button';
                 del.className = "absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-400 text-white rounded-full text-[8px] flex items-center justify-center shadow-sm";
@@ -2372,31 +2448,30 @@ function renderFlow() {
         .filter(Boolean);
 
     if (show60) {
+        const wA = getClockWindow('a');
         renderOneClockRing({
             gSeg: document.getElementById('svg-60m'),
             gMarks: document.getElementById('svg-60m-marks'),
             handEl: document.getElementById('hand-60m'),
-            rangeStart: hourStart,
-            rangeEnd: hourEnd,
+            rangeStart: wA.rangeStart,
+            rangeEnd: wA.rangeEnd,
             logs: all,
             now
         });
-        setText('label-60m-remain', Math.ceil((hourEnd - now) / 60000));
+        setText('label-60m-remain', formatClockRemain(wA.rangeEnd - now));
     }
     if (show24) {
+        const wB = getClockWindow('b');
         renderOneClockRing({
             gSeg: document.getElementById('svg-24h'),
             gMarks: document.getElementById('svg-24h-marks'),
             handEl: document.getElementById('hand-24h'),
-            rangeStart: dayStart,
-            rangeEnd: dayEnd,
+            rangeStart: wB.rangeStart,
+            rangeEnd: wB.rangeEnd,
             logs: all,
             now
         });
-        const dayRemainMs = Math.max(0, dayEnd - now);
-        const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
-        const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
-        setText('label-24h-remain', `${String(dayRemainH).padStart(2, '0')}:${String(dayRemainM).padStart(2, '0')}`);
+        setText('label-24h-remain', formatClockRemain(wB.rangeEnd - now));
     }
 }
 function switchTab(t) {
@@ -2414,6 +2489,7 @@ function switchTab(t) {
     });
     const btn = document.getElementById('nav-'+t); if(btn) btn.classList.replace('text-slate-400','text-indigo-600');
     if (t === 'report') renderReport();
+    if (t === 'config') syncConfigSectionUI();
 }
 function handleFreeInput() {
     const el = document.getElementById('free-input'); const val = el.value.trim(); if(!val) return;
