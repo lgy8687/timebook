@@ -453,9 +453,10 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.06), 0 3px 6px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9);
 }
 .keycap--main.pressed {
-    background: var(--tb-main-keycap-pressed-bg);
-    border-color: #9ca3af;
-    box-shadow: 0 0 2px rgba(0,0,0,0.04), inset 0 2px 4px rgba(0,0,0,0.1);
+    background: #ecfdf5;
+    border: 2px solid #059669;
+    color: #065f46;
+    box-shadow: 0 2px 0 rgba(15, 23, 42, 0.14), 0 0 0 3px rgba(5, 150, 105, 0.28), inset 0 3px 7px rgba(5, 150, 105, 0.14);
     transform: translateY(2px);
 }
 .keycap--parallel-slot {
@@ -474,9 +475,12 @@
 .log-flow-note .text-indigo-400 { color: var(--tb-log-tag-color) !important; }
 .log-flow-note .bg-indigo-50 { background: var(--tb-log-tag-bg) !important; }
 .keycap--parallel-slot.pressed {
-    box-shadow: inset 0 2px 5px rgba(15,23,42,0.12);
+    border-color: #059669 !important;
+    background: #ecfdf5;
+    color: #065f46;
+    box-shadow: 0 2px 0 rgba(15, 23, 42, 0.14), 0 0 0 3px rgba(5, 150, 105, 0.28), inset 0 3px 7px rgba(5, 150, 105, 0.14);
     transform: translateY(2px);
-    filter: brightness(0.96);
+    filter: none;
 }
 .keycap-icon { font-size: 1.125rem; line-height: 1; }
 .keycap-label {

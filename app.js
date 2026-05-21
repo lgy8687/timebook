@@ -104,6 +104,33 @@ function formatClockRemain(ms) {
     return String(Math.max(1, Math.ceil(ms / 60000)));
 }
 
+function formatClockCenterRemain(remainMs, spanHours) {
+    const ms = Math.max(0, remainMs);
+    if (spanHours <= 1) return String(Math.max(1, Math.ceil(ms / 60000)));
+    return formatClockRemain(ms);
+}
+
+function updateClockCenterLabels(now) {
+    const p = getClockPrefs();
+    const show60 = p.layout === 'dual' || p.singleAxis === '60m';
+    const show24 = p.layout === 'dual' || p.singleAxis === '24h';
+    if (show60) {
+        const wA = getClockWindow('a');
+        setText('label-60m-remain', formatClockCenterRemain(wA.rangeEnd - now, p.spanHoursA));
+    }
+    if (show24) {
+        const wB = getClockWindow('b');
+        if (p.spanHoursB >= 24) {
+            const dayRemainMs = Math.max(0, wB.rangeEnd - now);
+            const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
+            const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
+            setText('label-24h-remain', `${String(dayRemainH).padStart(2, '0')}:${String(dayRemainM).padStart(2, '0')}`);
+        } else {
+            setText('label-24h-remain', formatClockCenterRemain(wB.rangeEnd - now, p.spanHoursB));
+        }
+    }
+}
+
 function saveClockPrefs() {
     localStorage.setItem('v9_clock_prefs', JSON.stringify(clockPrefs));
 }
@@ -390,6 +417,11 @@ function applyClockLayout() {
         panel60.classList.toggle('hidden', p.singleAxis !== '60m');
         panel24.classList.toggle('hidden', p.singleAxis !== '24h');
     }
+    const cap60 = panel60.querySelector('.clock-panel-caption');
+    const cap24 = panel24.querySelector('.clock-panel-caption');
+    if (cap60) cap60.textContent = p.spanHoursA + 'H';
+    if (cap24) cap24.textContent = p.spanHoursB + 'H';
+    updateClockCenterLabels(Date.now());
 }
 
 function renderClockSettings() {
@@ -2491,21 +2523,7 @@ function tick() {
     if (sec !== lastSecondTs) {
         lastSecondTs = sec;
 
-        if (show60) {
-            const wA = getClockWindow('a');
-            setText('label-60m-remain', Math.ceil(Math.max(0, wA.rangeEnd - now) / 60000));
-        }
-        if (show24) {
-            const wB = getClockWindow('b');
-            if (getClockPrefs().spanHoursB >= 24) {
-                const dayRemainMs = Math.max(0, wB.rangeEnd - now);
-                const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
-                const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
-                setText('label-24h-remain', `${String(dayRemainH).padStart(2, '0')}:${String(dayRemainM).padStart(2, '0')}`);
-            } else {
-                setText('label-24h-remain', formatClockRemain(Math.max(0, wB.rangeEnd - now)));
-            }
-        }
+        updateClockCenterLabels(now);
 
         if (current) {
             const diff = now - current.startTime;
@@ -2594,7 +2612,6 @@ function renderFlow() {
             logs: all,
             now
         });
-        setText('label-60m-remain', Math.ceil(Math.max(0, wA.rangeEnd - now) / 60000));
     }
     if (show24) {
         const wB = getClockWindow('b');
@@ -2607,15 +2624,8 @@ function renderFlow() {
             logs: all,
             now
         });
-        if (getClockPrefs().spanHoursB >= 24) {
-            const dayRemainMs = Math.max(0, wB.rangeEnd - now);
-            const dayRemainH = Math.floor(dayRemainMs / HOUR_MS);
-            const dayRemainM = Math.floor((dayRemainMs % HOUR_MS) / 60000);
-            setText('label-24h-remain', `${String(dayRemainH).padStart(2, '0')}:${String(dayRemainM).padStart(2, '0')}`);
-        } else {
-            setText('label-24h-remain', formatClockRemain(Math.max(0, wB.rangeEnd - now)));
-        }
     }
+    updateClockCenterLabels(now);
 }
 function switchTab(t) {
     pickerMode = 'record';
@@ -2632,6 +2642,12 @@ function switchTab(t) {
     });
     const btn = document.getElementById('nav-'+t); if(btn) btn.classList.replace('text-slate-400','text-indigo-600');
     if (t === 'report') renderReport();
+    if (t === 'record') {
+        applyClockLayout();
+        renderFlow();
+        renderShortcuts();
+        renderParallelShortcuts();
+    }
     if (t === 'config') syncConfigSectionUI();
 }
 function handleFreeInput() {
