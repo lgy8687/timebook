@@ -644,38 +644,55 @@ body.compact-wheel-open { overflow: hidden; }
     border-bottom: 2px solid #e2e8f0;
 }
 .flow-calendar-panel {
-    margin-top: 12px;
-    padding: 12px 10px 8px;
+    margin-top: 0;
+    padding: 14px 10px 10px;
     background: #fff;
     border-radius: 20px;
     border: 1px solid #f1f5f9;
+    overflow: visible;
+}
+#page-calendar.tab-content.active {
+    padding-top: 2px;
 }
 .flow-calendar-head {
-    display: flex;
+    display: grid;
+    grid-template-columns: 36px 1fr 36px;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    column-gap: 4px;
     margin-bottom: 10px;
+    min-height: 36px;
+    overflow: visible;
 }
 .flow-calendar-title {
-    flex: 1;
-    text-align: center;
+    grid-column: 2;
+    justify-self: center;
     font-size: 18px;
     font-weight: 900;
     color: #0f172a;
     letter-spacing: -0.02em;
     white-space: nowrap;
+    line-height: 1.35;
+    padding: 4px 8px;
+    max-width: 100%;
 }
 .flow-calendar-nav {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border-radius: 8px;
     background: #f1f5f9;
     font-size: 16px;
     font-weight: 900;
     color: #64748b;
-    flex-shrink: 0;
     border: none;
+    flex-shrink: 0;
+}
+.flow-calendar-head .flow-calendar-nav:first-of-type {
+    grid-column: 1;
+    justify-self: start;
+}
+.flow-calendar-head .flow-calendar-nav:last-of-type {
+    grid-column: 3;
+    justify-self: end;
 }
 .flow-calendar-weekdays {
     display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
@@ -726,10 +743,10 @@ body.compact-wheel-open { overflow: hidden; }
 .flow-calendar-title-btn {
     border: none;
     background: transparent;
-    padding: 2px 4px;
+    padding: 4px 8px;
     border-radius: 8px;
     cursor: pointer;
-    text-align: left;
+    text-align: center;
 }
 .flow-calendar-title-btn:active { background: #f1f5f9; }
 .calendar-ym-modal.hidden { display: none !important; }

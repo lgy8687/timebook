@@ -2881,6 +2881,8 @@ function switchTab(t) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     const page = document.getElementById('page-' + t);
     if (page) page.classList.add('active');
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTop = 0;
     if (t === 'dev' && typeof renderDevAppearancePanel === 'function') renderDevAppearancePanel();
     ['record', 'calendar', 'report', 'mine'].forEach(name => {
         const nav = document.getElementById('nav-' + name);
