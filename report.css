@@ -138,10 +138,50 @@ body {
     align-items: flex-start;
     gap: 20px;
 }
-.sunburst-chart {
+
+.summary-block { margin-bottom: 14px; }
+.summary-block-title {
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    padding-left: 2px;
+}
+.summary-block-title--main { color: var(--rp-indigo); }
+.summary-block-title--parallel { color: var(--rp-violet); }
+
+.sunburst-chart-wrap {
+    position: relative;
     flex: 0 0 auto;
     width: min(240px, 42vw);
 }
+.chart-corner-toggle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    display: inline-flex;
+    background: rgba(255,255,255,.95);
+    border: 1px solid var(--rp-border);
+    border-radius: 12px;
+    padding: 2px;
+    box-shadow: var(--rp-shadow);
+}
+.chart-toggle-btn {
+    border: none;
+    background: transparent;
+    color: var(--rp-muted);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 5px 10px;
+    border-radius: 9px;
+    cursor: pointer;
+}
+.chart-toggle-btn.active.chart-main { background: var(--rp-indigo); color: #fff; }
+.chart-toggle-btn.active.chart-parallel { background: var(--rp-violet); color: #fff; }
+
+
 .sunburst-svg { width: 100%; height: auto; display: block; }
 .sunburst-legend { flex: 1; min-width: 0; }
 

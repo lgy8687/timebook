@@ -1,11 +1,10 @@
 /**
- * 报表沙盘 v1.2 — 主线/并行同层切换；并行=叠在主线（方案 B）
+ * 报表沙盘 v1.3 — 双摘要同屏；环图左上角切换主线/并行
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const VIEW_LABELS = { main: '主线', parallel: '并行' };
 
-    let state = { period: 'month', view: 'main', legendMode: 'l1' };
+    let state = { period: 'month', chartView: 'main', legendMode: 'l1' };
 
     function polar(cx, cy, r, deg) {
         const rad = ((deg - 90) * Math.PI) / 180;
@@ -55,46 +54,13 @@
             .replace(/"/g, '&quot;');
     }
 
-    function getBundle() {
+    function getBundle(view) {
         const p = REPORT_DATA[state.period];
-        return p ? p[state.view] : null;
+        return p ? p[view || state.chartView] : null;
     }
 
-    function render() {
-        const bundle = getBundle();
-        if (!bundle) return;
-
-        const viewName = VIEW_LABELS[state.view];
-        const periodName = PERIOD_LABELS[state.period];
-
-        document.getElementById('bill-subtitle').innerHTML =
-            `TimeBook · ${bundle.meta.title} · <strong>${viewName}</strong> · ${periodName} <span class="badge-sample">沙盘样本</span>`;
-
-        renderSummary(bundle.summary);
-        toggleStructurePanels();
-
-        if (state.view === 'main') {
-            const total = bundle.l1.reduce((s, x) => s + x.hours, 0);
-            document.getElementById('structure-title').textContent = '主线结构（内外环）';
-            renderSunburst(bundle.l1, bundle.l2, total);
-            renderMainLegend(bundle.l1, bundle.l2, total);
-        } else {
-            document.getElementById('structure-title').textContent = '并行叠在主线（方案 B）';
-            renderOverlay(bundle.overlay);
-            renderParallelLegend(bundle.activityLegend, bundle.overlay);
-        }
-
-        const insight = document.getElementById('insight-block');
-        insight.style.display = (state.period === 'month' || state.period === 'year') ? 'block' : 'none';
-
-        document.getElementById('footer-note').textContent =
-            bundle.meta.footnote + ' · 周一起算 · v1.2';
-
-        syncToolbar();
-    }
-
-    function renderSummary(cards) {
-        const box = document.getElementById('summary-cards');
+    function renderSummaryCards(elId, cards) {
+        const box = document.getElementById(elId);
         box.innerHTML = (cards || []).map((c) => `
             <div class="card card-summary">
                 <div class="icon">${c.icon}</div>
@@ -105,10 +71,39 @@
         `).join('');
     }
 
-    function toggleStructurePanels() {
-        const isMain = state.view === 'main';
-        document.getElementById('panel-main').classList.toggle('hidden', !isMain);
-        document.getElementById('panel-parallel').classList.toggle('hidden', isMain);
+    function render() {
+        const periodData = REPORT_DATA[state.period];
+        if (!periodData) return;
+
+        const mainBundle = periodData.main;
+        const parallelBundle = periodData.parallel;
+        const chartBundle = state.chartView === 'main' ? mainBundle : parallelBundle;
+        const periodName = PERIOD_LABELS[state.period];
+
+        document.getElementById('bill-subtitle').innerHTML =
+            `TimeBook · ${mainBundle.meta.title} · ${periodName} <span class="badge-sample">沙盘样本</span>`;
+
+        renderSummaryCards('summary-main', mainBundle.summary);
+        renderSummaryCards('summary-parallel', parallelBundle.summary);
+
+        const total = chartBundle.l1.reduce((s, x) => s + x.hours, 0);
+        const isMain = state.chartView === 'main';
+
+        document.getElementById('structure-title').textContent = '时间结构';
+        document.getElementById('chart-legend-hint').textContent = isMain
+            ? '内环 = 一级目录 · 外环 = 二级目录'
+            : '内环 = 并行活动 · 外环 = 叠在何处（样本）';
+
+        renderSunburst(chartBundle.l1, chartBundle.l2, total);
+        renderLegend(chartBundle.l1, chartBundle.l2, total, isMain);
+
+        document.getElementById('insight-block').style.display =
+            (state.period === 'month' || state.period === 'year') ? 'block' : 'none';
+
+        document.getElementById('footer-note').textContent =
+            chartBundle.meta.footnote + ' · 周一起算 · v1.3';
+
+        syncToolbar();
     }
 
     function renderSunburst(l1, l2, total) {
@@ -144,7 +139,7 @@
         el.addEventListener('mouseleave', hideTip);
     }
 
-    function renderMainLegend(l1, l2, total) {
+    function renderLegend(l1, l2, total, isMain) {
         const l1Box = document.getElementById('legend-l1');
         const l2Box = document.getElementById('legend-l2');
         l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.hours, row.color, total, row.name)).join('');
@@ -153,7 +148,13 @@
         l2Box.style.display = state.legendMode === 'l2' ? 'block' : 'none';
         document.getElementById('btn-l1').classList.toggle('active', state.legendMode === 'l1');
         document.getElementById('btn-l2').classList.toggle('active', state.legendMode === 'l2');
-        bindLegendHighlight();
+        document.getElementById('btn-l1').textContent = isMain ? '一级目录' : '并行活动';
+        document.getElementById('btn-l2').textContent = isMain ? '二级目录' : '叠加场景';
+
+        document.querySelectorAll('.sunburst-legend .legend-item').forEach((el) => {
+            el.addEventListener('mouseenter', () => highlightCat(el.dataset.cat));
+            el.addEventListener('mouseleave', unhighlightCat);
+        });
     }
 
     function legendRow(name, l1, hours, color, total, cat) {
@@ -166,73 +167,15 @@
         </div>`;
     }
 
-    function bindLegendHighlight() {
-        document.querySelectorAll('#panel-main .legend-item').forEach((el) => {
-            el.addEventListener('mouseenter', () => highlightCat(el.dataset.cat));
-            el.addEventListener('mouseleave', unhighlightCat);
-        });
-    }
-
-    function renderOverlay(rows) {
-        const box = document.getElementById('overlay-chart');
-        const maxMain = Math.max(...rows.map((r) => r.mainHours), 1);
-        box.innerHTML = rows.map((row) => {
-            const mainW = Math.round((row.mainHours / maxMain) * 100);
-            const paraPctOfMain = row.mainHours ? (row.parallelHours / row.mainHours) * 100 : 0;
-            const paraW = Math.min(Math.round(paraPctOfMain), 100);
-            let stackHtml = '';
-            let left = 0;
-            row.stacks.forEach((st) => {
-                const w = row.parallelHours ? (st.hours / row.parallelHours) * paraW : 0;
-                stackHtml += `<span class="overlay-stack-seg" style="left:${left}%;width:${w}%;background:${st.color}" title="${esc(st.name)} ${fmtHours(st.hours)}"></span>`;
-                left += w;
-            });
-            const penet = row.mainHours ? Math.round((row.parallelHours / row.mainHours) * 100) : 0;
-            return `<div class="overlay-row">
-                <div class="overlay-label">
-                    <span class="overlay-dot" style="background:${row.color}"></span>
-                    <span class="overlay-name">${esc(row.mainL1)}</span>
-                    <span class="overlay-meta">主线 ${fmtHours(row.mainHours)} · 叠 +${fmtHours(row.parallelHours)} (${penet}%)</span>
-                </div>
-                <div class="overlay-track">
-                    <div class="overlay-main-bar" style="width:${mainW}%;background:${row.color}22;border-color:${row.color}55"></div>
-                    <div class="overlay-para-layer" style="width:${mainW}%">
-                        ${stackHtml}
-                    </div>
-                </div>
-            </div>`;
-        }).join('');
-    }
-
-    function renderParallelLegend(activities, overlay) {
-        const box = document.getElementById('legend-parallel');
-        const totalPara = activities.reduce((s, a) => s + a.hours, 0);
-        document.getElementById('parallel-legend-hint').textContent =
-            '并行活动（样本）· 色块叠在对应主线时段上';
-        box.innerHTML = activities.map((a) => `
-            <div class="legend-item">
-                <span class="legend-dot" style="background:${a.color}"></span>
-                <span class="legend-name">${esc(a.name)}</span>
-                <span class="legend-val">${fmtHours(a.hours)}</span>
-                <span class="legend-pct">${pct(a.hours, totalPara)}</span>
-            </div>
-        `).join('');
-
-        const topHost = overlay.reduce((best, r) => (r.parallelHours > (best?.parallelHours || 0) ? r : best), null);
-        document.getElementById('overlay-top-host').textContent = topHost
-            ? `并行最多叠在：${topHost.mainL1}（+${fmtHours(topHost.parallelHours)}）`
-            : '';
-    }
-
     function syncToolbar() {
         document.querySelectorAll('[data-period]').forEach((btn) => {
             btn.classList.toggle('active', btn.dataset.period === state.period);
         });
-        document.querySelectorAll('[data-view]').forEach((btn) => {
-            const on = btn.dataset.view === state.view;
+        document.querySelectorAll('[data-chart]').forEach((btn) => {
+            const on = btn.dataset.chart === state.chartView;
             btn.classList.toggle('active', on);
-            btn.classList.toggle('view-main', btn.dataset.view === 'main');
-            btn.classList.toggle('view-parallel', btn.dataset.view === 'parallel');
+            btn.classList.toggle('chart-main', btn.dataset.chart === 'main');
+            btn.classList.toggle('chart-parallel', btn.dataset.chart === 'parallel');
         });
     }
 
@@ -283,8 +226,8 @@
         render();
     };
 
-    window.setView = function (view) {
-        state.view = view;
+    window.setChartView = function (view) {
+        state.chartView = view;
         render();
     };
 
@@ -292,8 +235,8 @@
         document.querySelectorAll('[data-period]').forEach((btn) => {
             btn.addEventListener('click', () => setPeriod(btn.dataset.period));
         });
-        document.querySelectorAll('[data-view]').forEach((btn) => {
-            btn.addEventListener('click', () => setView(btn.dataset.view));
+        document.querySelectorAll('[data-chart]').forEach((btn) => {
+            btn.addEventListener('click', () => setChartView(btn.dataset.chart));
         });
         render();
     });
