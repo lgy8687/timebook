@@ -1,6 +1,18 @@
 /** 报表沙盘样本 — 并入主页后由 aggregate(logs, period) 替换 */
 const REPORT_DATA = {
     month: {
+        timeline: {
+            title: '一月时间分布',
+            hint: '按周汇总 · 样本占位',
+            kind: 'bars',
+            bars: [
+                { label: 'W1', hours: 162, color: '#3b82f6' },
+                { label: 'W2', hours: 168, color: '#3b82f6' },
+                { label: 'W3', hours: 165, color: '#f59e0b' },
+                { label: 'W4', hours: 170, color: '#3b82f6' },
+                { label: 'W5', hours: 56, color: '#94a3b8' }
+            ]
+        },
         main: {
             meta: {
                 title: '2026年4月',
@@ -63,6 +75,20 @@ const REPORT_DATA = {
         }
     },
     day: {
+        timeline: {
+            title: '24 小时时间轴',
+            hint: '仅主线 · 样本',
+            kind: 'day',
+            scale: ['00:00', '06:00', '12:00', '18:00', '24:00'],
+            segments: [
+                { left: 0, width: 31, color: '#fcd34d', label: '睡眠', title: '睡眠 00:00–07:26' },
+                { left: 31, width: 44, color: '#3b82f6', label: '工作', title: '工作 07:26–17:50' },
+                { left: 75, width: 8, color: '#06b6d4', label: '餐', title: '餐饮' },
+                { left: 83, width: 10, color: '#10b981', label: '学', title: '阅读' },
+                { left: 93, width: 7, color: '#f59e0b', label: '休', title: '休息' }
+            ],
+            nowPct: 58
+        },
         main: {
             meta: { title: '2026年5月20日', range: '当日主线 · 样本', footnote: '日报 24h 轴下一步加入。' },
             summary: [
@@ -107,6 +133,20 @@ const REPORT_DATA = {
         }
     },
     week: {
+        timeline: {
+            title: '一周时间分布',
+            hint: '周一起算 · 主线样本',
+            kind: 'bars',
+            bars: [
+                { label: '一', hours: 23.2, color: '#3b82f6' },
+                { label: '二', hours: 22.8, color: '#3b82f6' },
+                { label: '三', hours: 23.5, color: '#3b82f6' },
+                { label: '四', hours: 24.1, color: '#3b82f6' },
+                { label: '五', hours: 22.0, color: '#3b82f6' },
+                { label: '六', hours: 20.5, color: '#f59e0b' },
+                { label: '日', hours: 21.1, color: '#f59e0b' }
+            ]
+        },
         main: {
             meta: { title: '2026年第21周', range: '5/19（周一）→ 5/25（周日）', footnote: '周一起算 · 样本。' },
             summary: [
@@ -152,6 +192,25 @@ const REPORT_DATA = {
         }
     },
     year: {
+        timeline: {
+            title: '一年时间分布',
+            hint: '样本期 1–4 月 · 占位',
+            kind: 'bars',
+            bars: [
+                { label: '1月', hours: 720, color: '#94a3b8' },
+                { label: '2月', hours: 720, color: '#94a3b8' },
+                { label: '3月', hours: 720, color: '#94a3b8' },
+                { label: '4月', hours: 721, color: '#3b82f6' },
+                { label: '5月', hours: 0, color: '#e2e8f0' },
+                { label: '6月', hours: 0, color: '#e2e8f0' },
+                { label: '7月', hours: 0, color: '#e2e8f0' },
+                { label: '8月', hours: 0, color: '#e2e8f0' },
+                { label: '9月', hours: 0, color: '#e2e8f0' },
+                { label: '10月', hours: 0, color: '#e2e8f0' },
+                { label: '11月', hours: 0, color: '#e2e8f0' },
+                { label: '12月', hours: 0, color: '#e2e8f0' }
+            ]
+        },
         main: {
             meta: { title: '2026年', range: '样本期 1–4 月', footnote: '年报样本仅含前四月。' },
             summary: [

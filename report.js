@@ -1,5 +1,5 @@
 /**
- * 报表沙盘 v1.4 — 双摘要同屏；环图左上角切换主线/并行
+ * 报表沙盘 v1.5 — indigo 摘要、全周期时间轴、设置中心选配、洞察常显
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
@@ -59,16 +59,59 @@
         return p ? p[view || state.chartView] : null;
     }
 
-    function renderSummaryCards(elId, cards) {
+    function renderSummaryRow(elId, view) {
+        const periodData = REPORT_DATA[state.period];
+        const slots = getReportSummarySlots(view);
         const box = document.getElementById(elId);
-        box.innerHTML = (cards || []).map((c) => `
-            <div class="card card-summary">
-                <div class="icon">${c.icon}</div>
-                <div class="num summary-value">${esc(c.value)}</div>
-                <div class="lbl">${esc(c.label)}</div>
-                <div class="sub">${esc(c.sub)}</div>
-            </div>
-        `).join('');
+        box.innerHTML = slots.map((id) => {
+            const m = resolveReportMetric(id, periodData, view);
+            return `<div class="stat-indigo">
+                <div class="stat-indigo-value">${esc(m.value)}</div>
+                <div class="stat-indigo-label">${esc(m.label)}</div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderTimeline(tl) {
+        const card = document.getElementById('timeline-card');
+        const titleEl = document.getElementById('timeline-title');
+        const hintEl = document.getElementById('timeline-hint');
+        const body = document.getElementById('timeline-body');
+        const scaleEl = document.getElementById('timeline-scale');
+
+        if (!tl) {
+            card.classList.add('hidden');
+            return;
+        }
+        card.classList.remove('hidden');
+        titleEl.textContent = tl.title || '时间分布';
+        hintEl.textContent = tl.hint || '';
+
+        if (tl.kind === 'day') {
+            let segHtml = '';
+            (tl.segments || []).forEach((s) => {
+                const w = Math.max(s.width, 0.25);
+                segHtml += `<button type="button" class="timeline-block" style="left:${s.left}%;width:${w}%;background:${s.color}" title="${esc(s.title)}">${s.width > 7 ? esc(s.label) : ''}</button>`;
+            });
+            if (tl.nowPct != null) {
+                segHtml += `<div class="timeline-now" style="left:${tl.nowPct}%"></div>`;
+            }
+            body.innerHTML = `<div class="timeline-track">${segHtml}</div>`;
+            scaleEl.innerHTML = (tl.scale || []).map((t) => `<span>${t}</span>`).join('');
+            scaleEl.classList.remove('hidden');
+        } else if (tl.kind === 'bars') {
+            const maxH = Math.max(...(tl.bars || []).map((b) => b.hours), 1);
+            body.innerHTML = `<div class="timeline-bars">${(tl.bars || []).map((b) => {
+                const w = Math.round((b.hours / maxH) * 100);
+                return `<div class="timeline-bar-row">
+                    <span class="timeline-bar-label">${esc(b.label)}</span>
+                    <div class="timeline-bar-track"><div class="timeline-bar-fill" style="width:${w}%;background:${b.color}"></div></div>
+                    <span class="timeline-bar-val">${b.hours}h</span>
+                </div>`;
+            }).join('')}</div>`;
+            scaleEl.classList.add('hidden');
+            scaleEl.innerHTML = '';
+        }
     }
 
     function render() {
@@ -83,8 +126,9 @@
         document.getElementById('bill-subtitle').innerHTML =
             `TimeBook · ${mainBundle.meta.title} · ${periodName} <span class="badge-sample">沙盘样本</span>`;
 
-        renderSummaryCards('summary-main', mainBundle.summary);
-        renderSummaryCards('summary-parallel', parallelBundle.summary);
+        renderSummaryRow('summary-main', 'main');
+        renderSummaryRow('summary-parallel', 'parallel');
+        renderTimeline(periodData.timeline);
 
         const total = chartBundle.l1.reduce((s, x) => s + x.hours, 0);
         const isMain = state.chartView === 'main';
@@ -97,11 +141,10 @@
         renderSunburst(chartBundle.l1, chartBundle.l2, total);
         renderLegend(chartBundle.l1, chartBundle.l2, total, isMain);
 
-        document.getElementById('insight-block').style.display =
-            (state.period === 'month' || state.period === 'year') ? 'block' : 'none';
+        document.getElementById('insight-block').style.display = 'block';
 
         document.getElementById('footer-note').textContent =
-            chartBundle.meta.footnote + ' · 周一起算 · v1.4';
+            chartBundle.meta.footnote + ' · 周一起算 · v1.5';
 
         syncToolbar();
     }

@@ -840,8 +840,52 @@ function toggleShortcutIcons() {
 }
 
 
+function renderReportSummarySettings() {
+    const box = document.getElementById('report-summary-settings-ui');
+    if (!box || typeof REPORT_METRIC_POOL === 'undefined') return;
+    box.innerHTML = '';
+
+    ['main', 'parallel'].forEach((view) => {
+        const title = view === 'main' ? '主线摘要（3 格）' : '并行摘要（3 格）';
+        const wrap = document.createElement('div');
+        wrap.className = 'space-y-2 border-b border-slate-50 pb-3 last:border-0';
+        const h = document.createElement('div');
+        h.className = 'text-[11px] font-black text-slate-600';
+        h.innerText = title;
+        wrap.appendChild(h);
+        const slots = getReportSummarySlots(view);
+        const used = new Set();
+        slots.forEach((slotId, idx) => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2';
+            const lab = document.createElement('span');
+            lab.className = 'text-[10px] font-bold text-slate-400 w-8 shrink-0';
+            lab.innerText = `格${idx + 1}`;
+            const sel = document.createElement('select');
+            sel.className = 'flex-1 text-[11px] font-bold bg-slate-50 border border-slate-100 rounded-xl px-2 py-2';
+            REPORT_METRIC_POOL[view].forEach((m) => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.innerText = m.label;
+                if (m.id === slotId) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            sel.addEventListener('change', () => {
+                const next = getReportSummarySlots(view);
+                next[idx] = sel.value;
+                saveReportSummarySlots(view, next);
+                renderReportSummarySettings();
+            });
+            row.append(lab, sel);
+            wrap.appendChild(row);
+        });
+        box.appendChild(wrap);
+    });
+}
+
 function renderConfig() {
     renderClockSettings();
+    renderReportSummarySettings();
     const shortcutList = document.getElementById('shortcut-list');
     shortcutList.innerHTML = "";
     shortcuts.forEach((s, idx) => {
