@@ -2800,14 +2800,6 @@ function confirmCalendarYearMonthPicker() {
     renderCalendarPage();
 }
 
-function jumpCalendarToday() {
-    viewDate = getTodayDateStr();
-    const d = new Date(Date.now() + BJ_OFFSET);
-    calendarViewYear = d.getUTCFullYear();
-    calendarViewMonth = d.getUTCMonth();
-    renderCalendarPage();
-}
-
 function shiftCalendarMonth(delta) {
     calendarViewMonth += delta;
     while (calendarViewMonth < 0) { calendarViewMonth += 12; calendarViewYear -= 1; }
@@ -2822,11 +2814,6 @@ function renderFlowCalendar() {
     const todayStr = formatBeijingDate(Date.now());
     const head = document.createElement('div');
     head.className = 'flow-calendar-head';
-    const headTop = document.createElement('div');
-    headTop.className = 'flow-calendar-head-top';
-
-    const titleWrap = document.createElement('div');
-    titleWrap.className = 'flow-calendar-title-wrap';
     const prev = document.createElement('button');
     prev.type = 'button';
     prev.className = 'flow-calendar-nav btn-active';
@@ -2842,16 +2829,7 @@ function renderFlowCalendar() {
     next.className = 'flow-calendar-nav btn-active';
     next.innerText = '›';
     next.addEventListener('click', () => shiftCalendarMonth(1));
-    titleWrap.append(prev, title, next);
-
-    const todayBtn = document.createElement('button');
-    todayBtn.type = 'button';
-    todayBtn.className = 'flow-calendar-today-btn btn-active';
-    todayBtn.innerText = '今';
-    todayBtn.addEventListener('click', jumpCalendarToday);
-
-    headTop.append(titleWrap, todayBtn);
-    head.appendChild(headTop);
+    head.append(prev, title, next);
     host.appendChild(head);
 
     const weekdays = document.createElement('div');

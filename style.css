@@ -367,13 +367,35 @@
 }
 
 .swipe-wrap { position: relative; overflow: hidden; border-radius: 1rem; margin-bottom: 0.5rem; touch-action: manipulation; }
-.swipe-actions { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; z-index: 0; }
-.swipe-actions.left { left: 0; }
-.swipe-actions.right { right: 0; }
-.swipe-action-btn { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 11px; font-weight: 900; color: #fff; border: none; white-space: nowrap; cursor: pointer; }
-.swipe-action-btn { font-size: var(--tb-swipe-btn-size); }
-.swipe-action-btn.delete { background: var(--tb-swipe-delete-bg); border-radius: 1rem 0 0 1rem; padding: 0 14px; }
-.swipe-action-btn.edit { background: var(--tb-swipe-edit-bg); border-radius: 0 1rem 1rem 0; padding: 0 14px; }
+.swipe-actions {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 80px;
+    display: flex;
+    align-items: stretch;
+    z-index: 0;
+}
+.swipe-actions.left { left: 0; background: var(--tb-swipe-delete-bg); border-radius: 1rem 0 0 1rem; }
+.swipe-actions.right { right: 0; background: var(--tb-swipe-edit-bg); border-radius: 0 1rem 1rem 0; }
+.swipe-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: var(--tb-swipe-btn-size);
+    font-weight: 900;
+    color: #fff;
+    border: none;
+    white-space: nowrap;
+    cursor: pointer;
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+}
+.swipe-action-btn.delete,
+.swipe-action-btn.edit { background: transparent; }
 .swipe-card { position: relative; z-index: 1; border-radius: 1rem; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1); will-change: transform; }
 /* 流水卡片状态（须在 .swipe-card 之后） */
 .swipe-card.log-flow-card--main-live,
@@ -493,7 +515,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.swipe-card.swiping { transition: none !important; }
+.swipe-card.swiping { transition: none !important; border-radius: 0; }
 .swipe-card.reveal-left { transform: translateX(70px); }
 .swipe-card.reveal-right { transform: translateX(-70px); }
 @media (max-width: 720px) {
@@ -629,22 +651,15 @@ body.compact-wheel-open { overflow: hidden; }
     border: 1px solid #f1f5f9;
 }
 .flow-calendar-head {
-    margin-bottom: 10px;
-}
-.flow-calendar-head-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-}
-.flow-calendar-title-wrap {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-    flex: 1;
+    margin-bottom: 10px;
 }
 .flow-calendar-title {
+    flex: 1;
+    text-align: center;
     font-size: 18px;
     font-weight: 900;
     color: #0f172a;
@@ -661,18 +676,6 @@ body.compact-wheel-open { overflow: hidden; }
     color: #64748b;
     flex-shrink: 0;
     border: none;
-}
-.flow-calendar-today-btn {
-    flex-shrink: 0;
-    min-width: 36px;
-    height: 32px;
-    padding: 0 10px;
-    border-radius: 8px;
-    border: 1px solid #0d9488;
-    background: #fff;
-    color: #0d9488;
-    font-size: 13px;
-    font-weight: 900;
 }
 .flow-calendar-weekdays {
     display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
