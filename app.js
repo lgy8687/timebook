@@ -275,10 +275,6 @@ function applyClockLayout() {
         panel60.classList.toggle('hidden', p.singleAxis !== '60m');
         panel24.classList.toggle('hidden', p.singleAxis !== '24h');
     }
-    const capA = panel60.querySelector('.clock-panel-caption');
-    const capB = panel24.querySelector('.clock-panel-caption');
-    if (capA) capA.textContent = p.spanHoursA + 'H';
-    if (capB) capB.textContent = p.spanHoursB + 'H';
 }
 
 function renderClockSettings() {
@@ -302,7 +298,7 @@ function renderClockSettings() {
     if (p.layout === 'single') {
         const row2 = document.createElement('div');
         row2.className = 'clock-settings-row';
-        [['60m', '内盘'], ['24h', '外盘']].forEach(([val, lab]) => {
+        [['60m', '60M 环'], ['24h', '24H 环']].forEach(([val, lab]) => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'clock-settings-btn btn-active' + (p.singleAxis === val ? ' active' : '');
@@ -332,12 +328,12 @@ function renderClockSettings() {
     };
 
     if (p.layout === 'dual') {
-        addSpanRow('内盘跨度', 'spanHoursA', p.spanHoursA);
-        addSpanRow('外盘跨度', 'spanHoursB', p.spanHoursB);
+        addSpanRow('60M 环 · 统计范围', 'spanHoursA', p.spanHoursA);
+        addSpanRow('24H 环 · 统计范围', 'spanHoursB', p.spanHoursB);
     } else {
         const key = p.singleAxis === '24h' ? 'spanHoursB' : 'spanHoursA';
         const val = p.singleAxis === '24h' ? p.spanHoursB : p.spanHoursA;
-        addSpanRow('显示跨度', key, val);
+        addSpanRow((p.singleAxis === '24h' ? '24H' : '60M') + ' 环 · 统计范围', key, val);
     }
 }
 

@@ -8,8 +8,8 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.13.1">
-    <link rel="stylesheet" href="dev-theme.css?v=4.13.1">
+    <link rel="stylesheet" href="style.css?v=4.13.2">
+    <link rel="stylesheet" href="dev-theme.css?v=4.13.2">
     <link rel="stylesheet" href="report.css?v=1.6">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -26,7 +26,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v4.13.1</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v4.13.2</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -219,17 +219,22 @@
                     <span class="config-tile-icon">📂</span>
                     <span class="config-tile-label">分类管理</span>
                 </button>
+                <button type="button" class="config-tile" onclick="openDevAppearance()">
+                    <span class="config-tile-icon">🛠</span>
+                    <span class="config-tile-label">开发外观</span>
+                </button>
                 <button type="button" class="config-tile" data-config-section="more" onclick="openConfigSection('more')">
                     <span class="config-tile-icon">⋯</span>
                     <span class="config-tile-label">更多设置</span>
                 </button>
+                <div class="config-tile config-tile--empty" aria-hidden="true"></div>
             </div>
             </div>
 
             <div id="config-expand" class="config-expand hidden">
                 <div id="config-panel-clock" class="config-panel hidden">
                     <h3 class="config-panel-title">时钟面板</h3>
-                    <p class="config-panel-hint">内盘 1 小时 = <strong>当前整点这一小时内</strong>（整点自动跳转）；外盘 24 小时 = 当日 0–24 点。更大跨度为连续多格/多日汇总。</p>
+                    <p class="config-panel-hint">只改各环<strong>统计多少小时</strong>的数据范围，环的绘制方式不变。1 小时 = 当前整点所在小时（如 12:02 即 12:00–13:00，整点跳转）；24 小时 = 当日 0–24 点。</p>
                     <div id="clock-settings-ui" class="space-y-3"></div>
                 </div>
                 <div id="config-panel-shortcut" class="config-panel hidden">
@@ -266,7 +271,6 @@
                 </div>
                 <div id="config-panel-more" class="config-panel hidden space-y-3">
                     <h3 class="config-panel-title">更多</h3>
-                    <button type="button" onclick="openDevAppearance()" class="w-full py-3.5 text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl">🛠 开发者外观</button>
                     <button type="button" onclick="if(confirm('清空全部本地数据？')){localStorage.clear();location.reload();}" class="w-full py-3 text-[10px] text-slate-300 font-bold uppercase tracking-widest">Factory Reset</button>
                 </div>
             </div>
@@ -290,9 +294,7 @@
         <button onclick="switchTab('record')" class="flex flex-col items-center text-indigo-600" id="nav-record">
             <span class="text-lg">📋</span><span class="text-[9px] mt-0.5 font-bold">流水</span>
         </button>
-        <div class="flex justify-center" id="nav-fab-slot" title="预留">
-            <div class="nav-fab-placeholder w-14 h-14 rounded-full border-2 border-dashed border-slate-200 bg-slate-50/90 -mt-4" aria-hidden="true"></div>
-        </div>
+        <div id="nav-fab-slot" aria-hidden="true"></div>
         <button onclick="switchTab('report')" class="flex flex-col items-center text-slate-400" id="nav-report">
             <span class="text-lg">📊</span><span class="text-[9px] mt-0.5 font-bold">报表</span>
         </button>
@@ -432,7 +434,7 @@
     <script src="report-sample.js?v=1.6"></script>
     <script src="report.js?v=1.6"></script>
     <script src="ui-theme.js?v=4.13.1"></script>
-    <script src="app.js?v=4.13.1"></script>
+    <script src="app.js?v=4.13.2"></script>
     <script src="dev-appearance.js?v=4.13"></script>
 </body>
 </html>
