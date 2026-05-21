@@ -6,8 +6,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>TimeBook · 报表沙盘 v1.1</title>
-    <link rel="stylesheet" href="report.css?v=1.1">
+    <title>TimeBook · 报表沙盘 v1.2</title>
+    <link rel="stylesheet" href="report.css?v=1.2">
 </head>
 <body>
 
@@ -29,46 +29,44 @@
     </div>
 
     <div class="header">
-        <h1 id="bill-title">🧾 时间消费账单 <span class="report-version" id="report-version">v1.1</span></h1>
+        <h1 id="bill-title">🧾 时间消费账单 <span class="report-version" id="report-version">v1.2</span></h1>
         <div class="period" id="bill-subtitle"></div>
     </div>
 
-    <div class="cards">
-        <div class="card card-period" id="card-period">
-            <div class="icon">📅</div>
-            <div class="num" id="card-period-num"></div>
-            <div class="lbl" id="card-period-lbl"></div>
-            <div class="sub" id="card-period-sub"></div>
-        </div>
-        <div class="card card-hours" id="card-hours">
-            <div class="icon">⏱️</div>
-            <div class="num" id="card-hours-num"></div>
-            <div class="lbl" id="card-hours-lbl"></div>
-            <div class="sub" id="card-hours-sub"></div>
-        </div>
-    </div>
+    <div class="cards cards-summary" id="summary-cards"></div>
 
     <div class="structure-card">
         <div class="structure-title" id="structure-title">主线结构（内外环）</div>
-        <div class="sunburst-layout">
-            <div class="sunburst-chart">
-                <svg id="sunburst-svg" class="sunburst-svg" viewBox="0 0 200 200" width="240" height="240"></svg>
-            </div>
-            <div class="sunburst-legend">
-                <div class="legend-hint">内环 = 一级目录 · 外环 = 二级目录 · 悬停联动高亮</div>
-                <div class="legend-toggle">
-                    <button type="button" class="active" id="btn-l1" onclick="setLegendMode('l1')">一级目录</button>
-                    <button type="button" id="btn-l2" onclick="setLegendMode('l2')">二级目录</button>
+
+        <div id="panel-main" class="structure-panel">
+            <div class="sunburst-layout">
+                <div class="sunburst-chart">
+                    <svg id="sunburst-svg" class="sunburst-svg" viewBox="0 0 200 200" width="240" height="240"></svg>
                 </div>
-                <div class="legend-list" id="legend-l1"></div>
-                <div class="legend-list" id="legend-l2" style="display:none"></div>
+                <div class="sunburst-legend">
+                    <div class="legend-hint">内环 = 一级 · 外环 = 二级 · 悬停联动</div>
+                    <div class="legend-toggle">
+                        <button type="button" class="active" id="btn-l1" onclick="setLegendMode('l1')">一级目录</button>
+                        <button type="button" id="btn-l2" onclick="setLegendMode('l2')">二级目录</button>
+                    </div>
+                    <div class="legend-list" id="legend-l1"></div>
+                    <div class="legend-list" id="legend-l2" style="display:none"></div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="leaderboard">
-        <h3>🏆 时间排行榜</h3>
-        <div id="leaderboard-rows"></div>
+        <div id="panel-parallel" class="structure-panel hidden">
+            <div class="sunburst-layout">
+                <div class="overlay-panel">
+                    <p class="overlay-caption" id="overlay-top-host"></p>
+                    <div id="overlay-chart" class="overlay-chart"></div>
+                </div>
+                <div class="sunburst-legend">
+                    <div class="legend-hint" id="parallel-legend-hint"></div>
+                    <div class="legend-list" id="legend-parallel"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="insight-placeholder" id="insight-block">
@@ -82,7 +80,7 @@
 
 <div id="tip"></div>
 
-<script src="report-sample.js?v=1.1"></script>
-<script src="report.js?v=1.1"></script>
+<script src="report-sample.js?v=1.2"></script>
+<script src="report.js?v=1.2"></script>
 </body>
 </html>

@@ -1,17 +1,20 @@
-/** 报表沙盘样本数据 — 并入主页后由 aggregate(logs, period, view) 替换 */
+/**
+ * 报表沙盘样本 — 全部假数据，并入主页后替换为 aggregate(logs, period)
+ * 并行 overlay：并行叠在对应主线一级时段上（方案 B）
+ */
 const REPORT_DATA = {
     month: {
         main: {
             meta: {
                 title: '2026年4月',
                 range: '2026年4月1日 → 4月30日',
-                days: 30,
-                records: 678,
-                totalHours: 720.7,
-                totalLabel: '主线总时长',
-                sub: '日均 24.0h · 仅统计主线（parallel=false）',
-                footnote: '主线时段互斥，单日合计不超过 24 小时。'
+                footnote: '主线时段互斥；样本数据，非真实日志。'
             },
+            summary: [
+                { icon: '🎯', label: '结构重心', value: '上班', sub: '占主线 44.6%' },
+                { icon: '🔀', label: '活动切换', value: '412', sub: '次快捷/切段' },
+                { icon: '📋', label: '流水条数', value: '678', sub: '条主线记录' }
+            ],
             l1: [
                 { name: '上班', hours: 321.5, color: '#3b82f6' },
                 { name: '生活', hours: 311.6, color: '#f59e0b' },
@@ -30,65 +33,84 @@ const REPORT_DATA = {
                 { l1: '學習', name: '公眾號', hours: 27.0, color: '#34d399' },
                 { l1: '餐飲', name: '早午晚餐', hours: 21.8, color: '#67e8f9' },
                 { l1: '交通', name: '開車', hours: 8.1, color: '#fca5a5' }
-            ],
-            leaderboard: [
-                { l2: '工作', l1: '上班', hours: 321.5, color: '#3b82f6' },
-                { l2: '睡眠', l1: '生活', hours: 217.8, color: '#f59e0b' },
-                { l2: '摸魚', l1: '生活', hours: 34.6, color: '#f59e0b' },
-                { l2: '休息', l1: '生活', hours: 34.5, color: '#f59e0b' },
-                { l2: '閱讀', l1: '學習', hours: 30.7, color: '#10b981' },
-                { l2: '公眾號', l1: '學習', hours: 27.0, color: '#10b981' },
-                { l2: '閱讀', l1: '生活', hours: 22.8, color: '#f59e0b' },
-                { l2: '早午晚餐', l1: '餐飲', hours: 21.8, color: '#06b6d4' },
-                { l2: '開車', l1: '交通', hours: 8.1, color: '#ef4444' },
-                { l2: '鍛煉', l1: '生活', hours: 1.8, color: '#f59e0b' }
             ]
         },
         parallel: {
             meta: {
                 title: '2026年4月',
-                range: '2026年4月1日 → 4月30日',
-                days: 30,
-                records: 412,
-                totalHours: 86.4,
-                totalLabel: '并行总时长',
-                sub: '日均 2.9h · 占主线 12.0%',
-                ratioToMain: 0.12,
-                footnote: '并行可从主线时段重叠累计，与主线不可相加。'
+                range: '并行叠在主线时段上 · 样本',
+                footnote: '并行可重叠累计，与主线不可相加；接入后用 parentId 归到主线段。'
             },
-            l1: [
-                { name: '生活', hours: 38.2, color: '#f59e0b' },
-                { name: '學習', hours: 39.1, color: '#10b981' },
-                { name: '上班', hours: 9.1, color: '#3b82f6' }
+            summary: [
+                { icon: '⏳', label: '并行总时长', value: '86.4', sub: '小时（重叠累计）' },
+                { icon: '📐', label: '叠在主线比', value: '12.0%', sub: '并行/主线时长' },
+                { icon: '🔝', label: '最常并行', value: '摸魚', sub: '34.6h · 样本' }
             ],
-            l2: [
-                { l1: '生活', name: '摸魚', hours: 34.6, color: '#fcd34d' },
-                { l1: '生活', name: '聽歌', hours: 3.6, color: '#fbbf24' },
-                { l1: '學習', name: '公眾號', hours: 27.0, color: '#6ee7b7' },
-                { l1: '學習', name: '閱讀', hours: 12.1, color: '#34d399' },
-                { l1: '上班', name: '臨時會議', hours: 9.1, color: '#93c5fd' }
+            overlay: [
+                {
+                    mainL1: '上班',
+                    mainHours: 321.5,
+                    parallelHours: 41.8,
+                    color: '#3b82f6',
+                    stacks: [
+                        { name: '摸魚', hours: 28.2, color: '#7c3aed' },
+                        { name: '臨時會議', hours: 9.1, color: '#a78bfa' },
+                        { name: '聽歌', hours: 4.5, color: '#c4b5fd' }
+                    ]
+                },
+                {
+                    mainL1: '生活',
+                    mainHours: 311.6,
+                    parallelHours: 28.4,
+                    color: '#f59e0b',
+                    stacks: [
+                        { name: '摸魚', hours: 6.4, color: '#7c3aed' },
+                        { name: '聽歌', hours: 3.6, color: '#c4b5fd' },
+                        { name: '閱讀', hours: 18.4, color: '#10b981' }
+                    ]
+                },
+                {
+                    mainL1: '學習',
+                    mainHours: 57.7,
+                    parallelHours: 14.2,
+                    color: '#10b981',
+                    stacks: [
+                        { name: '公眾號', hours: 9.8, color: '#34d399' },
+                        { name: '閱讀', hours: 4.4, color: '#6ee7b7' }
+                    ]
+                },
+                {
+                    mainL1: '餐飲',
+                    mainHours: 21.8,
+                    parallelHours: 1.2,
+                    color: '#06b6d4',
+                    stacks: [{ name: '聽歌', hours: 1.2, color: '#c4b5fd' }]
+                },
+                {
+                    mainL1: '交通',
+                    mainHours: 8.1,
+                    parallelHours: 0.8,
+                    color: '#ef4444',
+                    stacks: [{ name: '聽歌', hours: 0.8, color: '#c4b5fd' }]
+                }
             ],
-            leaderboard: [
-                { l2: '摸魚', l1: '生活', hours: 34.6, color: '#f59e0b' },
-                { l2: '公眾號', l1: '學習', hours: 27.0, color: '#10b981' },
-                { l2: '閱讀', l1: '學習', hours: 12.1, color: '#10b981' },
-                { l2: '臨時會議', l1: '上班', hours: 9.1, color: '#3b82f6' },
-                { l2: '聽歌', l1: '生活', hours: 3.6, color: '#f59e0b' }
+            activityLegend: [
+                { name: '摸魚', hours: 34.6, color: '#7c3aed' },
+                { name: '公眾號', hours: 27.0, color: '#34d399' },
+                { name: '閱讀', hours: 22.8, color: '#6ee7b7' },
+                { name: '臨時會議', hours: 9.1, color: '#a78bfa' },
+                { name: '聽歌', hours: 8.9, color: '#c4b5fd' }
             ]
         }
     },
     day: {
         main: {
-            meta: {
-                title: '2026年5月20日',
-                range: '00:00 → 24:00（北京时间）',
-                days: 1,
-                records: 42,
-                totalHours: 23.6,
-                totalLabel: '主线总时长',
-                sub: '当日主线记录',
-                footnote: '日报：24 小时时间轴将在下一步加入。'
-            },
+            meta: { title: '2026年5月20日', range: '当日主线 · 样本', footnote: '日报 24h 轴下一步加入。' },
+            summary: [
+                { icon: '🎯', label: '结构重心', value: '上班', sub: '占 44.5%' },
+                { icon: '🔀', label: '活动切换', value: '18', sub: '次' },
+                { icon: '📋', label: '流水条数', value: '42', sub: '条' }
+            ],
             l1: [
                 { name: '上班', hours: 10.5, color: '#3b82f6' },
                 { name: '生活', hours: 9.2, color: '#f59e0b' },
@@ -103,56 +125,35 @@ const REPORT_DATA = {
                 { l1: '學習', name: '閱讀', hours: 2.4, color: '#6ee7b7' },
                 { l1: '餐飲', name: '早午晚餐', hours: 1.2, color: '#67e8f9' },
                 { l1: '交通', name: '開車', hours: 0.3, color: '#fca5a5' }
-            ],
-            leaderboard: [
-                { l2: '工作', l1: '上班', hours: 10.5, color: '#3b82f6' },
-                { l2: '睡眠', l1: '生活', hours: 7.0, color: '#f59e0b' },
-                { l2: '休息', l1: '生活', hours: 2.2, color: '#f59e0b' },
-                { l2: '閱讀', l1: '學習', hours: 2.4, color: '#10b981' },
-                { l2: '早午晚餐', l1: '餐飲', hours: 1.2, color: '#06b6d4' },
-                { l2: '開車', l1: '交通', hours: 0.3, color: '#ef4444' }
             ]
         },
         parallel: {
-            meta: {
-                title: '2026年5月20日',
-                range: '00:00 → 24:00（北京时间）',
-                days: 1,
-                records: 18,
-                totalHours: 3.2,
-                totalLabel: '并行总时长',
-                sub: '占主线 13.6%',
-                ratioToMain: 0.136,
-                footnote: '并行可从主线时段重叠累计。'
-            },
-            l1: [
-                { name: '生活', hours: 2.1, color: '#f59e0b' },
-                { name: '學習', hours: 1.1, color: '#10b981' }
+            meta: { title: '2026年5月20日', range: '并行叠在主线 · 样本', footnote: '样本数据。' },
+            summary: [
+                { icon: '⏳', label: '并行总时长', value: '3.2', sub: '小时' },
+                { icon: '📐', label: '叠在主线比', value: '13.6%', sub: '并行/主线' },
+                { icon: '🔝', label: '最常并行', value: '摸魚', sub: '1.6h' }
             ],
-            l2: [
-                { l1: '生活', name: '摸魚', hours: 1.6, color: '#fcd34d' },
-                { l1: '生活', name: '聽歌', hours: 0.5, color: '#fbbf24' },
-                { l1: '學習', name: '公眾號', hours: 1.1, color: '#6ee7b7' }
+            overlay: [
+                { mainL1: '上班', mainHours: 10.5, parallelHours: 2.1, color: '#3b82f6', stacks: [{ name: '摸魚', hours: 1.6, color: '#7c3aed' }, { name: '公眾號', hours: 0.5, color: '#34d399' }] },
+                { mainL1: '生活', mainHours: 9.2, parallelHours: 0.8, color: '#f59e0b', stacks: [{ name: '聽歌', hours: 0.5, color: '#c4b5fd' }] },
+                { mainL1: '學習', mainHours: 2.4, parallelHours: 0.3, color: '#10b981', stacks: [{ name: '公眾號', hours: 0.3, color: '#34d399' }] }
             ],
-            leaderboard: [
-                { l2: '摸魚', l1: '生活', hours: 1.6, color: '#f59e0b' },
-                { l2: '公眾號', l1: '學習', hours: 1.1, color: '#10b981' },
-                { l2: '聽歌', l1: '生活', hours: 0.5, color: '#f59e0b' }
+            activityLegend: [
+                { name: '摸魚', hours: 1.6, color: '#7c3aed' },
+                { name: '公眾號', hours: 0.8, color: '#34d399' },
+                { name: '聽歌', hours: 0.5, color: '#c4b5fd' }
             ]
         }
     },
     week: {
         main: {
-            meta: {
-                title: '2026年第21周',
-                range: '5月19日（周一）→ 5月25日（周日）',
-                days: 7,
-                records: 312,
-                totalHours: 164.2,
-                totalLabel: '主线总时长',
-                sub: '日均 23.5h · 周一起算',
-                footnote: '周报按周一至周日汇总（北京时间）。'
-            },
+            meta: { title: '2026年第21周', range: '5/19（周一）→ 5/25（周日）', footnote: '周一起算 · 样本。' },
+            summary: [
+                { icon: '🎯', label: '结构重心', value: '上班', sub: '占 44.2%' },
+                { icon: '🔀', label: '活动切换', value: '96', sub: '次' },
+                { icon: '📋', label: '流水条数', value: '312', sub: '条' }
+            ],
             l1: [
                 { name: '上班', hours: 72.5, color: '#3b82f6' },
                 { name: '生活', hours: 72.1, color: '#f59e0b' },
@@ -164,66 +165,39 @@ const REPORT_DATA = {
                 { l1: '上班', name: '工作', hours: 72.5, color: '#93c5fd' },
                 { l1: '生活', name: '睡眠', hours: 50.2, color: '#fcd34d' },
                 { l1: '生活', name: '摸魚', hours: 8.1, color: '#fbbf24' },
-                { l1: '生活', name: '休息', hours: 8.0, color: '#f59e0b' },
                 { l1: '學習', name: '閱讀', hours: 8.2, color: '#6ee7b7' },
                 { l1: '學習', name: '公眾號', hours: 6.0, color: '#34d399' },
-                { l1: '餐飲', name: '早午晚餐', hours: 4.8, color: '#67e8f9' },
-                { l1: '交通', name: '開車', hours: 0.6, color: '#fca5a5' }
-            ],
-            leaderboard: [
-                { l2: '工作', l1: '上班', hours: 72.5, color: '#3b82f6' },
-                { l2: '睡眠', l1: '生活', hours: 50.2, color: '#f59e0b' },
-                { l2: '摸魚', l1: '生活', hours: 8.1, color: '#f59e0b' },
-                { l2: '休息', l1: '生活', hours: 8.0, color: '#f59e0b' },
-                { l2: '閱讀', l1: '學習', hours: 8.2, color: '#10b981' },
-                { l2: '公眾號', l1: '學習', hours: 6.0, color: '#10b981' },
-                { l2: '早午晚餐', l1: '餐飲', hours: 4.8, color: '#06b6d4' },
-                { l2: '開車', l1: '交通', hours: 0.6, color: '#ef4444' }
+                { l1: '餐飲', name: '早午晚餐', hours: 4.8, color: '#67e8f9' }
             ]
         },
         parallel: {
-            meta: {
-                title: '2026年第21周',
-                range: '5月19日（周一）→ 5月25日（周日）',
-                days: 7,
-                records: 198,
-                totalHours: 19.8,
-                totalLabel: '并行总时长',
-                sub: '占主线 12.1%',
-                ratioToMain: 0.121,
-                footnote: '并行可从主线时段重叠累计。'
-            },
-            l1: [
-                { name: '生活', hours: 9.2, color: '#f59e0b' },
-                { name: '學習', hours: 9.6, color: '#10b981' },
-                { name: '上班', hours: 1.0, color: '#3b82f6' }
+            meta: { title: '2026年第21周', range: '并行叠在主线 · 样本', footnote: '样本数据。' },
+            summary: [
+                { icon: '⏳', label: '并行总时长', value: '19.8', sub: '小时' },
+                { icon: '📐', label: '叠在主线比', value: '12.1%', sub: '并行/主线' },
+                { icon: '🔝', label: '最常并行', value: '摸魚', sub: '8.1h' }
             ],
-            l2: [
-                { l1: '生活', name: '摸魚', hours: 8.1, color: '#fcd34d' },
-                { l1: '學習', name: '公眾號', hours: 6.0, color: '#6ee7b7' },
-                { l1: '學習', name: '閱讀', hours: 3.6, color: '#34d399' },
-                { l1: '上班', name: '臨時會議', hours: 1.0, color: '#93c5fd' }
+            overlay: [
+                { mainL1: '上班', mainHours: 72.5, parallelHours: 10.2, color: '#3b82f6', stacks: [{ name: '摸魚', hours: 8.1, color: '#7c3aed' }, { name: '臨時會議', hours: 2.1, color: '#a78bfa' }] },
+                { mainL1: '生活', mainHours: 72.1, parallelHours: 6.4, color: '#f59e0b', stacks: [{ name: '閱讀', hours: 4.2, color: '#10b981' }] },
+                { mainL1: '學習', mainHours: 14.2, parallelHours: 3.2, color: '#10b981', stacks: [{ name: '公眾號', hours: 3.2, color: '#34d399' }] }
             ],
-            leaderboard: [
-                { l2: '摸魚', l1: '生活', hours: 8.1, color: '#f59e0b' },
-                { l2: '公眾號', l1: '學習', hours: 6.0, color: '#10b981' },
-                { l2: '閱讀', l1: '學習', hours: 3.6, color: '#10b981' },
-                { l2: '臨時會議', l1: '上班', hours: 1.0, color: '#3b82f6' }
+            activityLegend: [
+                { name: '摸魚', hours: 8.1, color: '#7c3aed' },
+                { name: '公眾號', hours: 3.2, color: '#34d399' },
+                { name: '閱讀', hours: 4.2, color: '#10b981' },
+                { name: '臨時會議', hours: 2.1, color: '#a78bfa' }
             ]
         }
     },
     year: {
         main: {
-            meta: {
-                title: '2026年',
-                range: '1月1日 → 12月31日（样本截至4月）',
-                days: 120,
-                records: 2140,
-                totalHours: 2882.4,
-                totalLabel: '主线总时长',
-                sub: '样本期日均 24.0h',
-                footnote: '年报样本仅含前四月，接入后按全年日志汇总。'
-            },
+            meta: { title: '2026年', range: '样本期 1–4 月', footnote: '年报样本仅含前四月。' },
+            summary: [
+                { icon: '🎯', label: '结构重心', value: '上班', sub: '占 44.6%' },
+                { icon: '🔀', label: '活动切换', value: '1680', sub: '次（样本期）' },
+                { icon: '📋', label: '流水条数', value: '2140', sub: '条' }
+            ],
             l1: [
                 { name: '上班', hours: 1286.0, color: '#3b82f6' },
                 { name: '生活', hours: 1246.4, color: '#f59e0b' },
@@ -235,51 +209,27 @@ const REPORT_DATA = {
                 { l1: '上班', name: '工作', hours: 1286.0, color: '#93c5fd' },
                 { l1: '生活', name: '睡眠', hours: 871.2, color: '#fcd34d' },
                 { l1: '生活', name: '摸魚', hours: 138.4, color: '#fbbf24' },
-                { l1: '生活', name: '休息', hours: 138.0, color: '#f59e0b' },
                 { l1: '學習', name: '閱讀', hours: 122.8, color: '#6ee7b7' },
-                { l1: '學習', name: '公眾號', hours: 108.0, color: '#34d399' },
-                { l1: '餐飲', name: '早午晚餐', hours: 87.2, color: '#67e8f9' },
-                { l1: '交通', name: '開車', hours: 32.4, color: '#fca5a5' }
-            ],
-            leaderboard: [
-                { l2: '工作', l1: '上班', hours: 1286.0, color: '#3b82f6' },
-                { l2: '睡眠', l1: '生活', hours: 871.2, color: '#f59e0b' },
-                { l2: '摸魚', l1: '生活', hours: 138.4, color: '#f59e0b' },
-                { l2: '休息', l1: '生活', hours: 138.0, color: '#f59e0b' },
-                { l2: '閱讀', l1: '學習', hours: 122.8, color: '#10b981' },
-                { l2: '公眾號', l1: '學習', hours: 108.0, color: '#10b981' },
-                { l2: '早午晚餐', l1: '餐飲', hours: 87.2, color: '#06b6d4' },
-                { l2: '開車', l1: '交通', hours: 32.4, color: '#ef4444' }
+                { l1: '學習', name: '公眾號', hours: 108.0, color: '#34d399' }
             ]
         },
         parallel: {
-            meta: {
-                title: '2026年',
-                range: '1月1日 → 12月31日（样本截至4月）',
-                days: 120,
-                records: 1240,
-                totalHours: 345.6,
-                totalLabel: '并行总时长',
-                sub: '占主线 12.0%',
-                ratioToMain: 0.12,
-                footnote: '并行可从主线时段重叠累计。'
-            },
-            l1: [
-                { name: '生活', hours: 152.8, color: '#f59e0b' },
-                { name: '學習', hours: 156.4, color: '#10b981' },
-                { name: '上班', hours: 36.4, color: '#3b82f6' }
+            meta: { title: '2026年', range: '并行叠在主线 · 样本', footnote: '样本数据。' },
+            summary: [
+                { icon: '⏳', label: '并行总时长', value: '345.6', sub: '小时（样本期）' },
+                { icon: '📐', label: '叠在主线比', value: '12.0%', sub: '并行/主线' },
+                { icon: '🔝', label: '最常并行', value: '摸魚', sub: '138.4h' }
             ],
-            l2: [
-                { l1: '生活', name: '摸魚', hours: 138.4, color: '#fcd34d' },
-                { l1: '學習', name: '公眾號', hours: 108.0, color: '#6ee7b7' },
-                { l1: '學習', name: '閱讀', hours: 48.4, color: '#34d399' },
-                { l1: '上班', name: '臨時會議', hours: 36.4, color: '#93c5fd' }
+            overlay: [
+                { mainL1: '上班', mainHours: 1286, parallelHours: 168, color: '#3b82f6', stacks: [{ name: '摸魚', hours: 112, color: '#7c3aed' }, { name: '臨時會議', hours: 36.4, color: '#a78bfa' }] },
+                { mainL1: '生活', mainHours: 1246.4, parallelHours: 118, color: '#f59e0b', stacks: [{ name: '摸魚', hours: 26.4, color: '#7c3aed' }, { name: '閱讀', hours: 72, color: '#10b981' }] },
+                { mainL1: '學習', mainHours: 230.8, parallelHours: 52, color: '#10b981', stacks: [{ name: '公眾號', hours: 48, color: '#34d399' }] }
             ],
-            leaderboard: [
-                { l2: '摸魚', l1: '生活', hours: 138.4, color: '#f59e0b' },
-                { l2: '公眾號', l1: '學習', hours: 108.0, color: '#10b981' },
-                { l2: '閱讀', l1: '學習', hours: 48.4, color: '#10b981' },
-                { l2: '臨時會議', l1: '上班', hours: 36.4, color: '#3b82f6' }
+            activityLegend: [
+                { name: '摸魚', hours: 138.4, color: '#7c3aed' },
+                { name: '公眾號', hours: 108.0, color: '#34d399' },
+                { name: '閱讀', hours: 72.0, color: '#10b981' },
+                { name: '臨時會議', hours: 36.4, color: '#a78bfa' }
             ]
         }
     }

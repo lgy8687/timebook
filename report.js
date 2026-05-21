@@ -1,6 +1,5 @@
 /**
- * 报表沙盘渲染 — 周期 × 视图（主线/并行）
- * 并入主页：getReportBundle(logs, period, view) 替换 REPORT_DATA 读取
+ * 报表沙盘 v1.2 — 主线/并行同层切换；并行=叠在主线（方案 B）
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
@@ -31,20 +30,10 @@
 
     function buildRingSegments(items, cx, cy, r0, r1, total, keyCat) {
         let angle = 0;
-        
-        return items.map((item) => {
+        return items.filter((item) => item.hours > 0).map((item) => {
             const sweep = (item.hours / total) * 360;
             const path = arcPath(cx, cy, r0, r1, angle, angle + sweep);
-            const seg = {
-                path,
-                cat: item[keyCat] || item.name,
-                name: item.name,
-                l1: item.l1,
-                hours: item.hours,
-                color: item.color,
-                start: angle,
-                end: angle + sweep
-            };
+            const seg = { path, cat: item[keyCat] || item.name, name: item.name, l1: item.l1, hours: item.hours, color: item.color };
             angle += sweep;
             return seg;
         });
@@ -59,56 +48,67 @@
         return (Math.round((h / total) * 1000) / 10) + '%';
     }
 
+    function esc(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/"/g, '&quot;');
+    }
+
     function getBundle() {
         const p = REPORT_DATA[state.period];
-        if (!p) return null;
-        return p[state.view] || null;
+        return p ? p[state.view] : null;
     }
 
     function render() {
         const bundle = getBundle();
         if (!bundle) return;
 
-        const { meta, l1, l2, leaderboard } = bundle;
-        const total = meta.totalHours || l1.reduce((s, x) => s + x.hours, 0);
-        const periodName = PERIOD_LABELS[state.period];
         const viewName = VIEW_LABELS[state.view];
+        const periodName = PERIOD_LABELS[state.period];
 
-        document.getElementById('bill-title').textContent = '🧾 时间消费账单';
         document.getElementById('bill-subtitle').innerHTML =
-            `TimeBook · ${meta.title} · ${meta.days} 天 · ${meta.records} 条记录 · <strong>${viewName}</strong>视图`;
+            `TimeBook · ${bundle.meta.title} · <strong>${viewName}</strong> · ${periodName} <span class="badge-sample">沙盘样本</span>`;
 
-        const cardPeriod = document.getElementById('card-period');
-        const cardHours = document.getElementById('card-hours');
-        cardPeriod.className = 'card card-period' + (state.view === 'parallel' ? ' view-parallel' : '');
-        cardHours.className = 'card card-hours' + (state.view === 'parallel' ? ' view-parallel' : '');
+        renderSummary(bundle.summary);
+        toggleStructurePanels();
 
-        document.getElementById('card-period-num').innerHTML =
-            `${meta.days}<span class="unit"> 天</span>`;
-        document.getElementById('card-period-lbl').textContent = periodName + ' · 统计周期';
-        document.getElementById('card-period-sub').textContent = meta.range;
-
-        document.getElementById('card-hours-num').innerHTML =
-            `${Math.round(meta.totalHours * 10) / 10}<span class="unit"> 小时</span>`;
-        document.getElementById('card-hours-lbl').textContent = meta.totalLabel;
-        document.getElementById('card-hours-sub').textContent = meta.sub;
-
-        document.getElementById('structure-title').textContent =
-            state.view === 'parallel' ? '并行结构（内外环）' : '主线结构（内外环）';
-
-        renderSunburst(l1, l2, total);
-        renderLegend(l1, l2, total);
-        document.querySelector(".leaderboard h3").textContent =
-            state.view === "parallel" ? "🏆 并行时间排行榜" : "🏆 时间排行榜";
-        renderLeaderboard(leaderboard, total);
+        if (state.view === 'main') {
+            const total = bundle.l1.reduce((s, x) => s + x.hours, 0);
+            document.getElementById('structure-title').textContent = '主线结构（内外环）';
+            renderSunburst(bundle.l1, bundle.l2, total);
+            renderMainLegend(bundle.l1, bundle.l2, total);
+        } else {
+            document.getElementById('structure-title').textContent = '并行叠在主线（方案 B）';
+            renderOverlay(bundle.overlay);
+            renderParallelLegend(bundle.activityLegend, bundle.overlay);
+        }
 
         const insight = document.getElementById('insight-block');
         insight.style.display = (state.period === 'month' || state.period === 'year') ? 'block' : 'none';
 
         document.getElementById('footer-note').textContent =
-            meta.footnote + ' · 样本沙盘 · 周一起算';
+            bundle.meta.footnote + ' · 周一起算 · v1.2';
 
         syncToolbar();
+    }
+
+    function renderSummary(cards) {
+        const box = document.getElementById('summary-cards');
+        box.innerHTML = (cards || []).map((c) => `
+            <div class="card card-summary">
+                <div class="icon">${c.icon}</div>
+                <div class="num summary-value">${esc(c.value)}</div>
+                <div class="lbl">${esc(c.label)}</div>
+                <div class="sub">${esc(c.sub)}</div>
+            </div>
+        `).join('');
+    }
+
+    function toggleStructurePanels() {
+        const isMain = state.view === 'main';
+        document.getElementById('panel-main').classList.toggle('hidden', !isMain);
+        document.getElementById('panel-parallel').classList.toggle('hidden', isMain);
     }
 
     function renderSunburst(l1, l2, total) {
@@ -144,7 +144,7 @@
         el.addEventListener('mouseleave', hideTip);
     }
 
-    function renderLegend(l1, l2, total) {
+    function renderMainLegend(l1, l2, total) {
         const l1Box = document.getElementById('legend-l1');
         const l2Box = document.getElementById('legend-l2');
         l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.hours, row.color, total, row.name)).join('');
@@ -153,11 +153,7 @@
         l2Box.style.display = state.legendMode === 'l2' ? 'block' : 'none';
         document.getElementById('btn-l1').classList.toggle('active', state.legendMode === 'l1');
         document.getElementById('btn-l2').classList.toggle('active', state.legendMode === 'l2');
-
-        document.querySelectorAll('.legend-item').forEach((el) => {
-            el.addEventListener('mouseenter', () => highlightCat(el.dataset.cat));
-            el.addEventListener('mouseleave', unhighlightCat);
-        });
+        bindLegendHighlight();
     }
 
     function legendRow(name, l1, hours, color, total, cat) {
@@ -170,23 +166,62 @@
         </div>`;
     }
 
-    function renderLeaderboard(rows, total) {
-        const box = document.getElementById('leaderboard-rows');
-        const maxH = rows[0]?.hours || 1;
-        const medals = ['#f59e0b', '#94a3b8', '#b45309'];
-        box.innerHTML = rows.map((row, i) => {
-            const rankCls = i < 3 ? 'top3' : '';
-            const rankColor = i < 3 ? medals[i] : '';
-            const w = Math.round((row.hours / maxH) * 100);
-            return `<div class="lb-row">
-                <span class="lb-rank ${rankCls}" style="color:${rankColor || ''}">${i + 1}</span>
-                <span class="lb-dot" style="background:${row.color}"></span>
-                <span class="lb-name">${esc(row.l2)} <span class="lb-cat-badge">· ${esc(row.l1)}</span></span>
-                <div class="lb-bar-bg"><div class="lb-bar-fill" style="width:${w}%;background:${row.color}"></div></div>
-                <span class="lb-hours">${fmtHours(row.hours)}</span>
-                <span class="lb-pct">${pct(row.hours, total)}</span>
+    function bindLegendHighlight() {
+        document.querySelectorAll('#panel-main .legend-item').forEach((el) => {
+            el.addEventListener('mouseenter', () => highlightCat(el.dataset.cat));
+            el.addEventListener('mouseleave', unhighlightCat);
+        });
+    }
+
+    function renderOverlay(rows) {
+        const box = document.getElementById('overlay-chart');
+        const maxMain = Math.max(...rows.map((r) => r.mainHours), 1);
+        box.innerHTML = rows.map((row) => {
+            const mainW = Math.round((row.mainHours / maxMain) * 100);
+            const paraPctOfMain = row.mainHours ? (row.parallelHours / row.mainHours) * 100 : 0;
+            const paraW = Math.min(Math.round(paraPctOfMain), 100);
+            let stackHtml = '';
+            let left = 0;
+            row.stacks.forEach((st) => {
+                const w = row.parallelHours ? (st.hours / row.parallelHours) * paraW : 0;
+                stackHtml += `<span class="overlay-stack-seg" style="left:${left}%;width:${w}%;background:${st.color}" title="${esc(st.name)} ${fmtHours(st.hours)}"></span>`;
+                left += w;
+            });
+            const penet = row.mainHours ? Math.round((row.parallelHours / row.mainHours) * 100) : 0;
+            return `<div class="overlay-row">
+                <div class="overlay-label">
+                    <span class="overlay-dot" style="background:${row.color}"></span>
+                    <span class="overlay-name">${esc(row.mainL1)}</span>
+                    <span class="overlay-meta">主线 ${fmtHours(row.mainHours)} · 叠 +${fmtHours(row.parallelHours)} (${penet}%)</span>
+                </div>
+                <div class="overlay-track">
+                    <div class="overlay-main-bar" style="width:${mainW}%;background:${row.color}22;border-color:${row.color}55"></div>
+                    <div class="overlay-para-layer" style="width:${mainW}%">
+                        ${stackHtml}
+                    </div>
+                </div>
             </div>`;
         }).join('');
+    }
+
+    function renderParallelLegend(activities, overlay) {
+        const box = document.getElementById('legend-parallel');
+        const totalPara = activities.reduce((s, a) => s + a.hours, 0);
+        document.getElementById('parallel-legend-hint').textContent =
+            '并行活动（样本）· 色块叠在对应主线时段上';
+        box.innerHTML = activities.map((a) => `
+            <div class="legend-item">
+                <span class="legend-dot" style="background:${a.color}"></span>
+                <span class="legend-name">${esc(a.name)}</span>
+                <span class="legend-val">${fmtHours(a.hours)}</span>
+                <span class="legend-pct">${pct(a.hours, totalPara)}</span>
+            </div>
+        `).join('');
+
+        const topHost = overlay.reduce((best, r) => (r.parallelHours > (best?.parallelHours || 0) ? r : best), null);
+        document.getElementById('overlay-top-host').textContent = topHost
+            ? `并行最多叠在：${topHost.mainL1}（+${fmtHours(topHost.parallelHours)}）`
+            : '';
     }
 
     function syncToolbar() {
@@ -199,13 +234,6 @@
             btn.classList.toggle('view-main', btn.dataset.view === 'main');
             btn.classList.toggle('view-parallel', btn.dataset.view === 'parallel');
         });
-    }
-
-    function esc(s) {
-        return String(s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/"/g, '&quot;');
     }
 
     window.showTip = function (e, title, val1, val2) {
