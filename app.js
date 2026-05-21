@@ -54,7 +54,10 @@ const EMOJI_CATS = {
 const EMOJI_CAT_ORDER = ['所有', '表情', '工作', '出行', '娱乐', '饮食', '生活'];
 let selL1 = cats[0]?.name || "";
 let pickerMode = 'record';
-let logLimit = 10;
+const CLOCK_SPAN_OPTIONS = [1, 3, 6, 9, 12, 24];
+let viewDate = '';
+let calendarViewYear = 0;
+let calendarViewMonth = 0;
 let editIndex = null;
 let editingShortcutIndex = null;
 let configEditMode = false;
@@ -69,8 +72,12 @@ let clockPrefs = { ...CLOCK_PREFS_DEFAULT, ...safeJSON('v9_clock_prefs') };
 
 function clampClockSpanHours(n) {
     const v = parseInt(n, 10);
-    if (!Number.isFinite(v)) return 1;
-    return Math.min(24, Math.max(1, v));
+    if (!Number.isFinite(v)) return CLOCK_SPAN_OPTIONS[0];
+    let best = CLOCK_SPAN_OPTIONS[0];
+    CLOCK_SPAN_OPTIONS.forEach((o) => {
+        if (Math.abs(o - v) < Math.abs(best - v)) best = o;
+    });
+    return best;
 }
 
 function getClockPrefs() {
@@ -80,20 +87,28 @@ function getClockPrefs() {
     return raw;
 }
 
-/** 两环同一规则：最近 N 个整点小时，右端对齐下一整点；N≥24 为当日 0–24 点 */
+/** 查看日 N 小时：不跨查看日 0 点；N≥24=查看日全天；历史日按结转闭合 */
 function getClockWindow(which) {
     const p = getClockPrefs();
-    const now = Date.now();
+    const anchor = getViewAnchorMs();
+    const dayStart = beijingDateStrToDayStart(viewDate);
+    const dayEnd = dayStart + DAY_MS;
     const hours = which === 'b' ? p.spanHoursB : p.spanHoursA;
 
     if (hours >= 24) {
-        const dayStart = beijingPeriodStart(now, DAY_MS);
-        return { rangeStart: dayStart, rangeEnd: dayStart + DAY_MS };
+        return { rangeStart: dayStart, rangeEnd: dayEnd };
     }
 
-    const hourEnd = beijingPeriodStart(now, HOUR_MS) + HOUR_MS;
-    const rangeStart = hourEnd - hours * HOUR_MS;
-    return { rangeStart, rangeEnd: hourEnd };
+    if (!isViewToday()) {
+        const rangeEnd = dayEnd;
+        const rangeStart = Math.max(dayStart, dayEnd - hours * HOUR_MS);
+        return { rangeStart, rangeEnd };
+    }
+
+    const hourEnd = beijingPeriodStart(anchor, HOUR_MS) + HOUR_MS;
+    const rangeEnd = Math.min(hourEnd, dayEnd);
+    const rangeStart = Math.max(dayStart, rangeEnd - hours * HOUR_MS);
+    return { rangeStart, rangeEnd };
 }
 
 function formatClockRemain(ms) {
@@ -110,7 +125,8 @@ function formatClockCenterRemain(remainMs, spanHours) {
     return formatClockRemain(ms);
 }
 
-function updateClockCenterLabels(now) {
+function updateClockCenterLabels(anchorMs) {
+    const now = anchorMs;
     const p = getClockPrefs();
     const show60 = p.layout === 'dual' || p.singleAxis === '60m';
     const show24 = p.layout === 'dual' || p.singleAxis === '24h';
@@ -146,6 +162,7 @@ function setClockPref(key, value) {
     lastSecondTs = 0;
     renderFlow();
     renderClockSettings();
+    if (document.getElementById('page-record')?.classList.contains('active')) renderRecordPage();
 }
 
 const COMPACT_WHEEL_ITEM_H = 28;
@@ -263,6 +280,7 @@ function createPickerTrigger(displayText, onOpen) {
 
 window.onload = () => {
     try {
+        initViewDateState();
         applyClockLayout();
         renderAll();
         tickLoop();
@@ -281,6 +299,7 @@ function renderAll() {
     renderShortcuts();
     renderParallelShortcuts();
     renderLogs();
+    renderFlowCalendar();
     renderConfig();
     renderReport();
     updateUI();
@@ -332,6 +351,53 @@ function formatBeijingClockSec(ms) {
 function formatBeijingDate(ms) {
     const d = new Date(ms + BJ_OFFSET);
     return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+}
+
+const WEEKDAY_ZH = ['日', '一', '二', '三', '四', '五', '六'];
+
+function beijingDateStrToDayStart(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return Date.UTC(y, m - 1, d) - BJ_OFFSET;
+}
+
+function beijingDateStrToDayEnd(dateStr) {
+    return beijingDateStrToDayStart(dateStr) + DAY_MS;
+}
+
+function isViewToday() {
+    return viewDate === formatBeijingDate(Date.now());
+}
+
+function getViewAnchorMs() {
+    if (isViewToday()) return Date.now();
+    return beijingDateStrToDayEnd(viewDate) - 1;
+}
+
+function formatDateHeaderLabel(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const wd = new Date(beijingDateStrToDayStart(dateStr) + BJ_OFFSET);
+    const w = WEEKDAY_ZH[wd.getUTCDay()];
+    return `${y}年${m}月${d}日 星期${w}`;
+}
+
+function setViewDate(dateStr) {
+    viewDate = dateStr;
+    renderRecordPage();
+}
+
+function renderRecordPage() {
+    applyClockLayout();
+    renderFlow();
+    renderLogs();
+    renderFlowCalendar();
+    renderDayRemain();
+}
+
+function initViewDateState() {
+    viewDate = formatBeijingDate(Date.now());
+    const d = new Date(Date.now() + BJ_OFFSET);
+    calendarViewYear = d.getUTCFullYear();
+    calendarViewMonth = d.getUTCMonth();
 }
 
 function getCat(name) {
@@ -421,7 +487,7 @@ function applyClockLayout() {
     const cap24 = panel24.querySelector('.clock-panel-caption');
     if (cap60) cap60.textContent = p.spanHoursA + 'H';
     if (cap24) cap24.textContent = p.spanHoursB + 'H';
-    updateClockCenterLabels(Date.now());
+    updateClockCenterLabels(getViewAnchorMs());
 }
 
 function renderClockSettings() {
@@ -462,7 +528,7 @@ function renderClockSettings() {
         const lab = document.createElement('label');
         lab.innerText = label;
         const items = [];
-        for (let h = 1; h <= 24; h++) items.push({ value: h, label: h + ' 小时' });
+        CLOCK_SPAN_OPTIONS.forEach((h) => items.push({ value: h, label: h + ' 小时' }));
         const trigger = createPickerTrigger(value + ' 小时', () => {
             openCompactWheel({
                 title: label,
@@ -1343,8 +1409,8 @@ function renderLogs() {
     const moreWrap = document.getElementById('load-more-wrap');
     list.innerHTML = "";
 
-    // ── 实时卡片（如果 current 正在跑） ──
-    if (current) {
+    // ── 实时卡片（仅查看今天） ──
+    if (isViewToday() && current) {
         const liveWrap = document.createElement('div');
         liveWrap.className = "swipe-wrap";
         const liveCard = document.createElement('div');
@@ -1413,7 +1479,7 @@ function renderLogs() {
     }
 
     // ── 主线下并行窗口（实时 + 已结束） ──
-    if (parallelCurrent || parallelHistory.length > 0) {
+    if (isViewToday() && (parallelCurrent || parallelHistory.length > 0)) {
         const ph = document.createElement('div');
         ph.className = "flex items-center gap-2 px-1 pt-4 pb-1";
         const icon = document.createElement('span');
@@ -1441,60 +1507,36 @@ function renderLogs() {
         list.appendChild(pWrap);
     }
 
-    const dayMap = new Map();
-    const today = formatBeijingDate(Date.now());
-    // 今天不折叠，过去的天数用 logLimit 截断
-    const todayLogs = logs.filter(l => formatBeijingDate(l.startTime) === today);
-    const pastLogs = logs.filter(l => formatBeijingDate(l.startTime) !== today).slice(0, logLimit);
-    const show = [...todayLogs, ...pastLogs];
-    show.forEach(log => {
-        const startDay = formatBeijingDate(log.startTime);
-        if (!dayMap.has(startDay)) dayMap.set(startDay, []);
-        dayMap.get(startDay).push(log);
-    });
+    const header = document.createElement('div');
+    header.className = 'log-day-header';
+    header.innerText = isViewToday()
+        ? `今日 · ${formatDateHeaderLabel(viewDate)}`
+        : formatDateHeaderLabel(viewDate);
+    list.appendChild(header);
 
-    const days = [...dayMap.keys()].sort((a,b) => b.localeCompare(a));
-    days.forEach(day => {
-        const header = document.createElement('div');
-        header.className = "log-day-header text-[10px] font-black uppercase tracking-widest px-1 py-2 border-b border-slate-100 mb-2";
-        const isToday = day === formatBeijingDate(Date.now());
-        let headerText = `📅 ${day}`;
-        if (isToday) {
-            const elapsed = Math.floor((Date.now() - beijingPeriodStart(Date.now(), DAY_MS)) / 60000);
-            const h = Math.floor(elapsed / 60);
-            const m = elapsed % 60;
-            headerText = `📋 今日流水 · 逝 ${h}h ${m}m`;
-        }
-        header.innerText = headerText;
-        list.appendChild(header);
+    const dayLogs = logs.filter((l) => formatBeijingDate(l.startTime) === viewDate);
+    const normalLogs = dayLogs.filter((l) => !l.parallel).sort((a, b) => b.startTime - a.startTime);
+    const parallelLogs = dayLogs.filter((l) => l.parallel);
 
-        const normalLogs = dayMap.get(day).filter(l => !l.parallel).sort((a,b) => b.startTime - a.startTime);
-        const parallelLogs = dayMap.get(day).filter(l => l.parallel);
-
-        normalLogs.forEach((log, idx) => {
-            const realIdx = logs.indexOf(log);
-            createLogRow(list, log, realIdx);
-            const children = parallelLogs.filter(p => p.parentId === log.id).sort((a,b) => a.startTime - b.startTime);
-            children.forEach(child => {
-                const childIdx = logs.indexOf(child);
-                const parent = logs.find(l => l.id === child.parentId);
-                const wrap = document.createElement('div');
-                wrap.className = "log-flow-nest mt-1 mb-1";
-                const row = createLogRow(wrap, child, childIdx);
-                list.appendChild(wrap);
-            });
+    normalLogs.forEach((log) => {
+        const realIdx = logs.indexOf(log);
+        createLogRow(list, log, realIdx);
+        parallelLogs.filter((p) => p.parentId === log.id).sort((a, b) => a.startTime - b.startTime).forEach((child) => {
+            const childIdx = logs.indexOf(child);
+            const wrap = document.createElement('div');
+            wrap.className = 'log-flow-nest mt-1 mb-1';
+            createLogRow(wrap, child, childIdx);
+            list.appendChild(wrap);
         });
     });
-    moreWrap.innerHTML = "";
-    const pastHidden = logs.filter(l => formatBeijingDate(l.startTime) !== today).length - pastLogs.length;
-    if (pastHidden > 0) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = "text-[10px] text-indigo-400 font-bold py-3 btn-active";
-        btn.innerText = `加载更多 (${pastHidden} 条隐藏)`;
-        btn.addEventListener('click', () => { logLimit += 10; renderLogs(); });
-        moreWrap.appendChild(btn);
+
+    if (dayLogs.length === 0 && !(isViewToday() && (current || parallelCurrent))) {
+        const empty = document.createElement('div');
+        empty.className = 'text-center text-[11px] text-slate-400 py-6';
+        empty.innerText = '该日暂无流水';
+        list.appendChild(empty);
     }
+    if (moreWrap) moreWrap.innerHTML = '';
 }
 
 function createLogRow(list, log, idx) {
@@ -2489,6 +2531,7 @@ function renderPicker() {
 let lastSecondTs = 0;
 function tick() {
     const now = Date.now();
+    const clockNow = getViewAnchorMs();
     const d = new Date(now + BJ_OFFSET);
     const secAngle = (d.getUTCSeconds() + d.getUTCMilliseconds() / 1000) * 6;
 
@@ -2504,7 +2547,7 @@ function tick() {
         const wA = getClockWindow('a');
         const spanA = wA.rangeEnd - wA.rangeStart;
         const hand60 = document.getElementById('hand-60m');
-        const angle60 = spanA > 0 ? ((now - wA.rangeStart) / spanA) * 360 : 0;
+        const angle60 = spanA > 0 ? ((clockNow - wA.rangeStart) / spanA) * 360 : 0;
         if (hand60) hand60.style.transform = `translateX(-50%) rotate(${angle60}deg)`;
         const sec60 = document.getElementById('second-60m');
         if (sec60) sec60.style.transform = `rotate(${secAngle}deg)`;
@@ -2513,7 +2556,7 @@ function tick() {
         const wB = getClockWindow('b');
         const spanB = wB.rangeEnd - wB.rangeStart;
         const hand24 = document.getElementById('hand-24h');
-        const angle24 = spanB > 0 ? ((now - wB.rangeStart) / spanB) * 360 : 0;
+        const angle24 = spanB > 0 ? ((clockNow - wB.rangeStart) / spanB) * 360 : 0;
         if (hand24) hand24.style.transform = `translateX(-50%) rotate(${angle24}deg)`;
         const sec24 = document.getElementById('second-24h');
         if (sec24) sec24.style.transform = `rotate(${secAngle}deg)`;
@@ -2523,7 +2566,7 @@ function tick() {
     if (sec !== lastSecondTs) {
         lastSecondTs = sec;
 
-        updateClockCenterLabels(now);
+        updateClockCenterLabels(clockNow);
 
         if (current) {
             const diff = now - current.startTime;
@@ -2560,14 +2603,20 @@ function tick() {
 }
 
 function renderDayRemain() {
-    const now = Date.now();
-    const dayStart = beijingPeriodStart(now, DAY_MS);
-    const elapsed = Math.min(DAY_MS, Math.max(0, now - dayStart));
-    const remain = Math.max(0, DAY_MS - elapsed);
-    const remainPct = (remain / DAY_MS) * 100;
     const fill = document.getElementById('day-remain-fill');
     const flame = document.getElementById('match-flame');
     if (!fill) return;
+    if (!isViewToday()) {
+        fill.style.width = '100%';
+        if (flame) flame.style.opacity = '0';
+        setText('day-remain-label', '已结转 · ' + formatDateHeaderLabel(viewDate));
+        return;
+    }
+    const now = Date.now();
+    const dayStart = beijingDateStrToDayStart(viewDate);
+    const elapsed = Math.min(DAY_MS, Math.max(0, now - dayStart));
+    const remain = Math.max(0, DAY_MS - elapsed);
+    const remainPct = (remain / DAY_MS) * 100;
     fill.style.width = `${remainPct}%`;
     if (flame) {
         flame.style.left = `calc(${remainPct}% - 1px)`;
@@ -2583,7 +2632,7 @@ function updateUI() {
 window.addEventListener('load', () => {});
 
 function renderFlow() {
-    const now = Date.now();
+    const now = getViewAnchorMs();
     const dayStart = beijingPeriodStart(now, DAY_MS);
     const dayEnd = dayStart + DAY_MS;
     const hourStart = beijingPeriodStart(now, HOUR_MS);
@@ -2627,13 +2676,82 @@ function renderFlow() {
     }
     updateClockCenterLabels(now);
 }
+
+function shiftCalendarMonth(delta) {
+    calendarViewMonth += delta;
+    while (calendarViewMonth < 0) { calendarViewMonth += 12; calendarViewYear -= 1; }
+    while (calendarViewMonth > 11) { calendarViewMonth -= 12; calendarViewYear += 1; }
+    renderFlowCalendar();
+}
+
+function renderFlowCalendar() {
+    const host = document.getElementById('flow-calendar');
+    if (!host) return;
+    host.innerHTML = '';
+    const todayStr = formatBeijingDate(Date.now());
+    const head = document.createElement('div');
+    head.className = 'flow-calendar-head';
+    const prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'flow-calendar-nav btn-active';
+    prev.innerText = '‹';
+    prev.addEventListener('click', () => shiftCalendarMonth(-1));
+    const title = document.createElement('span');
+    title.className = 'flow-calendar-title';
+    title.innerText = `${calendarViewYear}年${calendarViewMonth + 1}月`;
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'flow-calendar-nav btn-active';
+    next.innerText = '›';
+    next.addEventListener('click', () => shiftCalendarMonth(1));
+    head.append(prev, title, next);
+    host.appendChild(head);
+
+    const weekdays = document.createElement('div');
+    weekdays.className = 'flow-calendar-weekdays';
+    ['一', '二', '三', '四', '五', '六', '日'].forEach((w) => {
+        const el = document.createElement('span');
+        el.innerText = w;
+        weekdays.appendChild(el);
+    });
+    host.appendChild(weekdays);
+
+    const grid = document.createElement('div');
+    grid.className = 'flow-calendar-grid';
+    const first = new Date(Date.UTC(calendarViewYear, calendarViewMonth, 1));
+    const startWeekday = (first.getUTCDay() + 6) % 7;
+    const daysInMonth = new Date(Date.UTC(calendarViewYear, calendarViewMonth + 1, 0)).getUTCDate();
+    const logDays = new Set(logs.map((l) => formatBeijingDate(l.startTime)));
+
+    for (let i = 0; i < startWeekday; i++) {
+        const pad = document.createElement('span');
+        pad.className = 'flow-calendar-pad';
+        grid.appendChild(pad);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${calendarViewYear}-${pad2(calendarViewMonth + 1)}-${pad2(d)}`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'flow-calendar-day btn-active';
+        if (dateStr === todayStr) btn.classList.add('is-today');
+        if (dateStr === viewDate) btn.classList.add('is-selected');
+        if (dateStr > todayStr) btn.classList.add('is-future');
+        if (logDays.has(dateStr)) btn.classList.add('has-logs');
+        btn.innerText = String(d);
+        if (dateStr <= todayStr) btn.addEventListener('click', () => setViewDate(dateStr));
+        else btn.disabled = true;
+        grid.appendChild(btn);
+    }
+    host.appendChild(grid);
+}
+
 function switchTab(t) {
     pickerMode = 'record';
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     const page = document.getElementById('page-' + t);
     if (page) page.classList.add('active');
     if (t === 'dev' && typeof renderDevAppearancePanel === 'function') renderDevAppearancePanel();
-    ['record', 'report'].forEach(name => {
+    ['record', 'report', 'mine'].forEach(name => {
         const nav = document.getElementById('nav-' + name);
         if (nav) {
             nav.classList.remove('text-indigo-600');
@@ -2643,12 +2761,11 @@ function switchTab(t) {
     const btn = document.getElementById('nav-'+t); if(btn) btn.classList.replace('text-slate-400','text-indigo-600');
     if (t === 'report') renderReport();
     if (t === 'record') {
-        applyClockLayout();
-        renderFlow();
+        renderRecordPage();
         renderShortcuts();
         renderParallelShortcuts();
     }
-    if (t === 'config') syncConfigSectionUI();
+    if (t === 'mine') syncConfigSectionUI();
 }
 function handleFreeInput() {
     const el = document.getElementById('free-input'); const val = el.value.trim(); if(!val) return;

@@ -606,3 +606,53 @@
 body.compact-wheel-open { overflow: hidden; }
 .summary-settings-group { margin-bottom: 6px; }
 .summary-settings-group > div:first-child { margin-bottom: 4px; }
+
+.app-header {
+    padding-top: max(1rem, env(safe-area-inset-top, 0px));
+}
+.app-bottom-nav {
+    padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
+}
+.log-day-header {
+    font-size: 15px;
+    font-weight: 900;
+    color: #1e293b;
+    padding: 14px 4px 10px;
+    margin-top: 8px;
+    border-bottom: 2px solid #e2e8f0;
+}
+.flow-calendar-panel {
+    margin-top: 12px;
+    padding: 12px 10px 8px;
+    background: #fff;
+    border-radius: 20px;
+    border: 1px solid #f1f5f9;
+}
+.flow-calendar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.flow-calendar-title { font-size: 13px; font-weight: 900; color: #334155; }
+.flow-calendar-nav {
+    width: 32px; height: 32px; border-radius: 10px; background: #f1f5f9;
+    font-size: 18px; font-weight: 900; color: #475569;
+}
+.flow-calendar-weekdays {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+    text-align: center; font-size: 9px; font-weight: 800; color: #94a3b8; margin-bottom: 4px;
+}
+.flow-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.flow-calendar-pad { visibility: hidden; min-height: 32px; }
+.flow-calendar-day {
+    aspect-ratio: 1; min-height: 32px; border-radius: 10px;
+    font-size: 11px; font-weight: 800; color: #475569; background: #f8fafc; border: 1px solid transparent; position: relative;
+}
+.flow-calendar-day.is-today { border-color: #818cf8; color: #4338ca; }
+.flow-calendar-day.is-selected { background: #eef2ff; border-color: #6366f1; color: #4338ca; }
+.flow-calendar-day.has-logs::after {
+    content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%; background: #6366f1;
+}
+.flow-calendar-day.is-future { opacity: 0.35; }
