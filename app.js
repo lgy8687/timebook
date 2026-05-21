@@ -2686,11 +2686,52 @@ function renderFlow() {
     updateClockCenterLabels(now);
 }
 
+
+function openCalendarYearMonthPicker() {
+    const modal = document.getElementById('calendar-ym-modal');
+    const yearSel = document.getElementById('calendar-ym-year');
+    const monthSel = document.getElementById('calendar-ym-month');
+    if (!modal || !yearSel || !monthSel) return;
+    const now = new Date(Date.now() + BJ_OFFSET);
+    const curYear = now.getUTCFullYear();
+    yearSel.innerHTML = '';
+    for (let y = curYear - 10; y <= curYear + 1; y++) {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = y + '年';
+        if (y === calendarViewYear) opt.selected = true;
+        yearSel.appendChild(opt);
+    }
+    monthSel.innerHTML = '';
+    for (let m = 0; m < 12; m++) {
+        const opt = document.createElement('option');
+        opt.value = String(m);
+        opt.textContent = (m + 1) + '月';
+        if (m === calendarViewMonth) opt.selected = true;
+        monthSel.appendChild(opt);
+    }
+    modal.classList.remove('hidden');
+}
+
+function closeCalendarYearMonthPicker() {
+    const modal = document.getElementById('calendar-ym-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function confirmCalendarYearMonthPicker() {
+    const yearSel = document.getElementById('calendar-ym-year');
+    const monthSel = document.getElementById('calendar-ym-month');
+    if (yearSel) calendarViewYear = parseInt(yearSel.value, 10);
+    if (monthSel) calendarViewMonth = parseInt(monthSel.value, 10);
+    closeCalendarYearMonthPicker();
+    renderCalendarPage();
+}
+
 function shiftCalendarMonth(delta) {
     calendarViewMonth += delta;
     while (calendarViewMonth < 0) { calendarViewMonth += 12; calendarViewYear -= 1; }
     while (calendarViewMonth > 11) { calendarViewMonth -= 12; calendarViewYear += 1; }
-    renderFlowCalendar();
+    renderCalendarPage();
 }
 
 function renderFlowCalendar() {
