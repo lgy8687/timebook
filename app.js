@@ -290,6 +290,8 @@ function createPickerTrigger(displayText, onOpen) {
 window.onload = () => {
     try {
         initViewDateState();
+        lastBeijingDateStr = getTodayDateStr();
+        if (ensureDayRolloversBefore(Date.now())) renderAll();
         applyClockLayout();
         renderAll();
         tickLoop();
@@ -371,6 +373,127 @@ function beijingDateStrToDayStart(dateStr) {
 
 function beijingDateStrToDayEnd(dateStr) {
     return beijingDateStrToDayStart(dateStr) + DAY_MS;
+}
+
+function nextBeijingDateStr(dateStr) {
+    return formatBeijingDate(beijingDateStrToDayStart(dateStr) + DAY_MS);
+}
+
+function logEndMs(log, liveEndMs) {
+    if (!log) return 0;
+    if (liveEndMs != null) return liveEndMs;
+    if (log.endTime != null) return log.endTime;
+    if (log.duration != null) return log.startTime + Math.round(log.duration * 60000);
+    return log.startTime;
+}
+
+/** 记录是否与某日 00:00–24:00（北京）有重叠 */
+function logTouchesDate(log, dateStr) {
+    const dayStart = beijingDateStrToDayStart(dateStr);
+    const dayEnd = dayStart + DAY_MS;
+    const end = logEndMs(log, log.live ? Date.now() : null);
+    return log.startTime < dayEnd && end > dayStart;
+}
+
+function collectLogCalendarDays() {
+    const days = new Set();
+    logs.forEach((l) => {
+        if (l.parallel) return;
+        let d = formatBeijingDate(l.startTime);
+        const endDay = formatBeijingDate(logEndMs(l) - 1);
+        while (d <= endDay) {
+            days.add(d);
+            if (d === endDay) break;
+            d = nextBeijingDateStr(d);
+        }
+    });
+    if (current) {
+        let d = formatBeijingDate(current.startTime);
+        const today = getTodayDateStr();
+        while (d <= today) {
+            days.add(d);
+            if (d === today) break;
+            d = nextBeijingDateStr(d);
+        }
+    }
+    return days;
+}
+
+let lastBeijingDateStr = '';
+
+function settleParallelForMainSlice(mainLogId, segStart, segEnd, opts) {
+    const { continueSame, rollover, endParallel } = opts;
+    parallelHistory.forEach((p) => {
+        logs.unshift({ ...p, parentId: mainLogId });
+    });
+    parallelHistory = [];
+    if (parallelCurrent) {
+        const pStart = Math.max(parallelCurrent.startTime, segStart);
+        if (segEnd > pStart) {
+            const pDur = Math.max(1, Math.round((segEnd - pStart) / 60000));
+            logs.unshift({
+                ...parallelCurrent,
+                startTime: pStart,
+                endTime: segEnd,
+                duration: pDur,
+                parallel: true,
+                parentId: mainLogId,
+                note: parallelCurrent.note || ''
+            });
+        }
+        if (continueSame || (rollover && !endParallel)) {
+            parallelCurrent = { ...parallelCurrent, id: segEnd + 0.001, startTime: segEnd };
+            localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+        } else {
+            parallelCurrent = null;
+            localStorage.removeItem('v9_parallel');
+        }
+    }
+    localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+}
+
+/** 闭合 current 的一段 [startTime, endMs)；continueSame=true 为日界结转续跑 */
+function commitCurrentSlice(endMs, continueSame, parallelOpts) {
+    if (!current || endMs <= current.startTime) return;
+    const cat = getCat(current.l1);
+    const color = current.color || (cat ? cat.color : '#cbd5e1');
+    const mainLogId = continueSame ? endMs : (Date.now() + Math.random());
+    const dur = Math.max(1, Math.round((endMs - current.startTime) / 60000));
+    logs.unshift({
+        ...current,
+        id: mainLogId,
+        endTime: endMs,
+        duration: dur,
+        color,
+        status: current.l1 ? 'ok' : 'pending'
+    });
+    if (parallelCurrent && (continueSame || parallelOpts.isMidnightRollover || parallelOpts.endParallel || parallelOpts.rollover)) {
+        settleParallelForMainSlice(mainLogId, current.startTime, endMs, {
+            continueSame,
+            rollover: parallelOpts.rollover,
+            endParallel: parallelOpts.endParallel
+        });
+    } else if (parallelHistory.length) {
+        parallelHistory.forEach((p) => logs.unshift({ ...p, parentId: mainLogId }));
+        parallelHistory = [];
+        localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+    }
+    if (continueSame) {
+        current = { ...current, id: endMs, startTime: endMs };
+        localStorage.setItem('v9_current', JSON.stringify(current));
+    }
+    localStorage.setItem('v9_logs', JSON.stringify(logs));
+}
+
+/** 跨过 0 点：把已结束的自然日逐段写入日志，主线（与并行）从当日 0 点续跑 */
+function ensureDayRolloversBefore(now) {
+    let changed = false;
+    while (current && formatBeijingDate(current.startTime) !== formatBeijingDate(now)) {
+        const dayEnd = beijingDateStrToDayEnd(formatBeijingDate(current.startTime));
+        commitCurrentSlice(dayEnd, true, { isMidnightRollover: true });
+        changed = true;
+    }
+    return changed;
 }
 
 function isViewToday() {
@@ -830,32 +953,11 @@ function executeRecord(l1, l2, tag, note) {
 }
 function doExecuteRecord(l1, l2, tag, note, endParallel, rollover) {
     const now = Date.now();
+    ensureDayRolloversBefore(now);
     const cat = getCat(l1);
     const color = cat ? cat.color : "#cbd5e1";
     if (current) {
-        const dur = Math.max(1, Math.round((now - current.startTime) / 60000));
-        logs.unshift({ ...current, endTime: now, duration: dur, color: current.color || color, status: current.l1 ? 'ok' : 'pending' });
-        // 主线切换时，结算并行
-        const pid = current.id;
-        if (parallelCurrent && (endParallel || rollover)) {
-            const pDur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
-            logs.unshift({ ...parallelCurrent, endTime: now, duration: pDur, parallel: true, parentId: pid, note: parallelCurrent.note || '' });
-            if (rollover) {
-                // 结转：结束当前段，重启续上
-                parallelCurrent = { ...parallelCurrent, id: now + 0.001, startTime: now };
-                localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
-            } else {
-                // 一起结束
-                parallelCurrent = null;
-                localStorage.removeItem('v9_parallel');
-            }
-        }
-        parallelHistory.forEach(p => {
-            logs.unshift({ ...p, parentId: pid });
-        });
-        parallelHistory = [];
-        localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
-        localStorage.setItem('v9_logs', JSON.stringify(logs));
+        commitCurrentSlice(now, false, { endParallel: !!endParallel, rollover: !!rollover });
     }
     current = { id: now, startTime: now, l1, l2, tag, note, color };
     localStorage.setItem('v9_current', JSON.stringify(current));
@@ -1526,7 +1628,7 @@ function renderLogs(listId, dateStr) {
     header.innerText = formatDateHeaderLabel(dateStr);
     list.appendChild(header);
 
-    const dayLogs = logs.filter((l) => formatBeijingDate(l.startTime) === dateStr);
+    const dayLogs = logs.filter((l) => logTouchesDate(l, dateStr));
     const normalLogs = dayLogs.filter((l) => !l.parallel).sort((a, b) => b.startTime - a.startTime);
     const parallelLogs = dayLogs.filter((l) => l.parallel);
 
@@ -1771,7 +1873,8 @@ function mergeAdjacentSameActivity() {
     const merged = [];
     for (const log of logs) {
         const last = merged[merged.length - 1];
-        if (last && last.l1 === log.l1 && last.l2 === log.l2 && last.endTime === log.startTime && last.parallel === log.parallel) {
+        if (last && last.l1 === log.l1 && last.l2 === log.l2 && last.endTime === log.startTime && last.parallel === log.parallel
+            && formatBeijingDate(last.startTime) === formatBeijingDate(log.startTime)) {
             last.endTime = log.endTime;
             last.duration = Math.round((last.endTime - last.startTime) / 60000);
         } else {
@@ -2575,6 +2678,11 @@ function tick() {
     }
 
     const sec = Math.floor(now / 1000);
+    const todayStr = formatBeijingDate(now);
+    if (todayStr !== lastBeijingDateStr) {
+        lastBeijingDateStr = todayStr;
+        if (ensureDayRolloversBefore(now)) renderAll();
+    }
     if (sec !== lastSecondTs) {
         lastSecondTs = sec;
 
@@ -2844,7 +2952,7 @@ function renderFlowCalendar() {
     const first = new Date(Date.UTC(calendarViewYear, calendarViewMonth, 1));
     const startWeekday = (first.getUTCDay() + 6) % 7;
     const daysInMonth = new Date(Date.UTC(calendarViewYear, calendarViewMonth + 1, 0)).getUTCDate();
-    const logDays = new Set(logs.map((l) => formatBeijingDate(l.startTime)));
+    const logDays = collectLogCalendarDays();
 
     for (let i = 0; i < startWeekday; i++) {
         const pad = document.createElement('span');
