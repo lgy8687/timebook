@@ -397,8 +397,7 @@ function logTouchesDate(log, dateStr) {
 
 function collectLogCalendarDays() {
     const days = new Set();
-    logs.forEach((l) => {
-        if (l.parallel) return;
+    const addLogDays = (l) => {
         let d = formatBeijingDate(l.startTime);
         const endDay = formatBeijingDate(logEndMs(l) - 1);
         while (d <= endDay) {
@@ -406,7 +405,8 @@ function collectLogCalendarDays() {
             if (d === endDay) break;
             d = nextBeijingDateStr(d);
         }
-    });
+    };
+    logs.forEach(addLogDays);
     if (current) {
         let d = formatBeijingDate(current.startTime);
         const today = getTodayDateStr();
@@ -421,12 +421,50 @@ function collectLogCalendarDays() {
 
 let lastBeijingDateStr = '';
 
+/** 已结束并行：只把落在 [segStart, segEnd) 内的部分挂到本日主线上，其余留待后续日界 */
+function flushParallelHistoryForSlice(mainLogId, segStart, segEnd) {
+    const keep = [];
+    parallelHistory.forEach((p) => {
+        const pEnd = logEndMs(p);
+        if (pEnd <= segStart || p.startTime >= segEnd) {
+            keep.push(p);
+            return;
+        }
+        const clipStart = Math.max(p.startTime, segStart);
+        const clipEnd = Math.min(pEnd, segEnd);
+        if (clipEnd > clipStart) {
+            logs.unshift({
+                ...p,
+                startTime: clipStart,
+                endTime: clipEnd,
+                duration: Math.max(1, Math.round((clipEnd - clipStart) / 60000)),
+                parallel: true,
+                parentId: mainLogId,
+                note: p.note || ''
+            });
+        }
+        if (p.startTime < segStart) {
+            keep.push({
+                ...p,
+                endTime: segStart,
+                duration: Math.max(1, Math.round((segStart - p.startTime) / 60000))
+            });
+        }
+        if (pEnd > segEnd) {
+            keep.push({
+                ...p,
+                startTime: segEnd,
+                endTime: p.endTime,
+                duration: Math.max(1, Math.round((pEnd - segEnd) / 60000))
+            });
+        }
+    });
+    parallelHistory = keep;
+}
+
 function settleParallelForMainSlice(mainLogId, segStart, segEnd, opts) {
     const { continueSame, rollover, endParallel } = opts;
-    parallelHistory.forEach((p) => {
-        logs.unshift({ ...p, parentId: mainLogId });
-    });
-    parallelHistory = [];
+    flushParallelHistoryForSlice(mainLogId, segStart, segEnd);
     if (parallelCurrent) {
         const pStart = Math.max(parallelCurrent.startTime, segStart);
         if (segEnd > pStart) {
@@ -474,8 +512,7 @@ function commitCurrentSlice(endMs, continueSame, parallelOpts) {
             endParallel: parallelOpts.endParallel
         });
     } else if (parallelHistory.length) {
-        parallelHistory.forEach((p) => logs.unshift({ ...p, parentId: mainLogId }));
-        parallelHistory = [];
+        flushParallelHistoryForSlice(mainLogId, current.startTime, endMs);
         localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
     }
     if (continueSame) {
