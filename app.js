@@ -33,6 +33,8 @@ let current = safeJSON('v9_current') || null;
 let parallelCurrent = safeJSON('v9_parallel') || null;
 let parallelHistory = safeJSON('v9_parallel_history') || [];
 let labelFontSize = safeJSON('v9_labelFontSize') || 13;
+/** 自由输入短语 → 分类，如「火锅」→ 餐饮（由编辑流水或历史记录学习） */
+let inputAliases = safeJSON('v9_input_aliases') || {};
 const SUB_ICON_MAP = {
     '开网约车':'🚕','开会':'📋','会议':'📋','写代码':'💻','编程':'💻','办公':'📝','上班':'📝',
     '睡觉':'😴','起床':'⏰','休息':'☕','洗漱':'🧴','刷牙':'🪥','洗澡':'🚿',
@@ -290,6 +292,7 @@ function createPickerTrigger(displayText, onOpen) {
 window.onload = () => {
     try {
         initViewDateState();
+        rebuildInputAliasesFromLogs();
         lastBeijingDateStr = getTodayDateStr();
         if (ensureDayRolloversBefore(Date.now())) renderAll();
         applyClockLayout();
@@ -576,6 +579,55 @@ function initViewDateState() {
 
 function getCat(name) {
     return cats.find(c => c.name === name);
+}
+
+function normalizePhraseKey(text) {
+    return (text || '').replace(/#\S+/g, '').trim().toLowerCase();
+}
+
+function rememberInputAlias(phrase, l1, l2) {
+    const key = normalizePhraseKey(phrase);
+    if (!key || !l1) return;
+    inputAliases[key] = { l1, l2: l2 || '' };
+    localStorage.setItem('v9_input_aliases', JSON.stringify(inputAliases));
+}
+
+function rebuildInputAliasesFromLogs() {
+    logs.forEach((log) => {
+        if (!log || log.parallel || !log.l1) return;
+        const phrase = normalizePhraseKey(log.note);
+        if (phrase.length < 2) return;
+        const key = normalizePhraseKey(phrase);
+        if (!inputAliases[key]) rememberInputAlias(phrase, log.l1, log.l2);
+    });
+}
+
+/** 从「记」输入框解析分类：已学习短语 → 子类名 → 一级类名 */
+function matchCategoryFromInput(val) {
+    const tag = val.match(/#(\S+)/)?.[1] || '';
+    const note = val;
+    const plain = normalizePhraseKey(val);
+
+    const aliasKeys = Object.keys(inputAliases).sort((a, b) => b.length - a.length);
+    for (const k of aliasKeys) {
+        if (plain === k || (k.length >= 2 && plain.includes(k))) {
+            const a = inputAliases[k];
+            return { l1: a.l1, l2: a.l2 || '', tag, note };
+        }
+    }
+
+    const matches = [];
+    cats.forEach((c) => c.subs.forEach((s) => {
+        const idx = val.indexOf(s);
+        if (idx >= 0) matches.push({ l1: c.name, l2: s, idx, len: s.length });
+    }));
+    cats.forEach((c) => {
+        const idx = val.indexOf(c.name);
+        if (idx >= 0) matches.push({ l1: c.name, l2: '', idx, len: c.name.length });
+    });
+    matches.sort((a, b) => a.idx - b.idx || b.len - a.len);
+    const best = matches[0];
+    return best ? { l1: best.l1, l2: best.l2, tag, note } : { l1: '', l2: '', tag, note };
 }
 
 function displayName(log) {
@@ -935,6 +987,7 @@ function confirmEdit() {
         const log = logs[editIndex];
         if (editOldL1) { log.l1 = editOldL1; log.l2 = editOldL2; }
         log.note = document.getElementById('edit-note-input').value;
+        if (log.l1) rememberInputAlias(log.note, log.l1, log.l2);
         localStorage.setItem('v9_logs', JSON.stringify(logs));
     }
     document.getElementById('edit-modal').classList.add('hidden');
@@ -1580,6 +1633,7 @@ function renderLogs(listId, dateStr) {
             live: true,
             durId: 'live-main-duration'
         }));
+        appendLogFlowNote(body, current);
         inner.append(bar, body);
         liveCard.appendChild(inner);
         liveWrap.appendChild(liveCard);
@@ -3060,12 +3114,7 @@ function handleFreeInput() {
         const startMs = dayStart + fbH * 3600000 + fbM * 60000 + fbS * 1000;
         const endMs = dayStart + feH * 3600000 + feM * 60000 + feS * 1000;
         if (endMs <= startMs) { showConfirm('⏱ 时间不合法', '结束时间必须晚于开始时间。', '知道了', () => {}); return; }
-        // 解析分类
-        const matches = [];
-        cats.forEach(c => c.subs.forEach(s => { const idx = val.indexOf(s); if (idx >= 0) matches.push({ l1: c.name, l2: s, idx }); }));
-        cats.forEach(c => { const idx = val.indexOf(c.name); if (idx >= 0) matches.push({ l1: c.name, l2: "", idx }); });
-        matches.sort((a, b) => a.idx - b.idx || b.l2.length - a.l2.length);
-        const match = matches[0] || { l1: "", l2: "" };
+        const match = matchCategoryFromInput(val);
         const cat = getCat(match.l1);
         const entry = {
             id: Date.now() + Math.random(),
@@ -3073,8 +3122,8 @@ function handleFreeInput() {
             endTime: endMs,
             duration: Math.round((endMs - startMs) / 60000),
             l1: match.l1, l2: match.l2 || '',
-            tag: val.match(/#(\S+)/)?.[1] || '',
-            note: val,
+            tag: match.tag,
+            note: match.note,
             color: cat?.color || '#cbd5e1',
             parallel: false
         };
@@ -3085,20 +3134,9 @@ function handleFreeInput() {
         renderAll();
         return;
     }
-    // 普通模式（无时间选择）
-    const matches = [];
-    cats.forEach(c => c.subs.forEach(s => {
-        const index = val.indexOf(s);
-        if (index >= 0) matches.push({ l1: c.name, l2: s, index });
-    }));
-    cats.forEach(c => {
-        const index = val.indexOf(c.name);
-        if (index >= 0) matches.push({ l1: c.name, l2: "", index });
-    });
-    matches.sort((a, b) => a.index - b.index || b.l2.length - a.l2.length);
-    const match = matches[0] || { l1: "", l2: "" };
-    const tag = val.match(/#(\S+)/)?.[1] || "";
-    executeRecord(match.l1, match.l2, tag, val); el.value = "";
+    const match = matchCategoryFromInput(val);
+    executeRecord(match.l1, match.l2, match.tag, match.note);
+    el.value = "";
 }
 
 function closeDrawer() { document.getElementById('drawer').classList.add('hidden'); pickerMode = 'record'; _parallelCallback = null; }
