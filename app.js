@@ -5,29 +5,44 @@ function safeJSON(key, fallback) {
         return v ? JSON.parse(v) : fallback;
     } catch(e) { return fallback; }
 }
-// --- 数据模型 ---
-let cats = safeJSON('v9_cats') || [
-    { id: 1, name: "上班", icon: "💼", color: "#3b82f6", subs: ["开网约车", "开会", "写代码", "办公"] },
-    { id: 2, name: "生活", icon: "🏠", color: "#f59e0b", subs: ["睡觉", "起床", "休息", "洗漱"] },
-    { id: 3, name: "交通", icon: "🚗", color: "#ef4444", subs: ["开车", "加油"] },
-    { id: 4, name: "餐饮", icon: "🍱", color: "#10b981", subs: ["早午晚餐", "午休"] }
+// --- 数据模型（仅首次无 v9_cats 时注入）---
+const DEFAULT_CATS = [
+    { id: 1, name: "工作", icon: "💼", color: "#3b82f6", subs: ["办公", "开会", "沟通", "见客户", "上班"] },
+    { id: 2, name: "学习", icon: "📖", color: "#6366f1", subs: ["学习", "阅读", "上课", "备考"] },
+    { id: 3, name: "生活", icon: "🏠", color: "#f59e0b", subs: ["睡觉", "起床", "洗漱", "家务", "做饭", "餐饮"] },
+    { id: 4, name: "出行", icon: "🚗", color: "#ef4444", subs: ["开车", "网约车", "公交", "地铁", "高铁", "飞机", "步行"] },
+    { id: 5, name: "休闲", icon: "🎮", color: "#a855f7", subs: ["娱乐", "社交", "购物", "休息"] },
+    { id: 6, name: "锻炼", icon: "🏃", color: "#14b8a6", subs: ["运动", "健身", "跑步", "散步", "瑜伽", "冥想"] }
 ];
 const DEFAULT_SHORTCUTS = [
-    { l1: "上班", l2: "开网约车", icon: "🚕" },
-    { l1: "上班", l2: "写代码", icon: "💻" },
-    { l1: "上班", l2: "开会", icon: "📋" },
     { l1: "生活", l2: "睡觉", icon: "🛌" },
-    { l1: "生活", l2: "休息", icon: "☕" },
-    { l1: "餐饮", l2: "早午晚餐", icon: "🍽️" }
+    { l1: "工作", l2: "办公", icon: "📝" },
+    { l1: "生活", l2: "餐饮", icon: "🍽️" },
+    { l1: "出行", l2: "开车", icon: "🚗" },
+    { l1: "学习", l2: "学习", icon: "📖" },
+    { l1: "锻炼", l2: "运动", icon: "🏋️" }
 ];
+/** 并行高发：上班、开会、见客户等叠加在主线上 */
 const DEFAULT_PARALLEL_SHORTCUTS = [
-    { l1: "生活", l2: "休息", icon: "☕" },
-    { l1: "餐饮", l2: "早午晚餐", icon: "🍽️" },
-    { l1: "生活", l2: "睡觉", icon: "🛌" },
-    { l1: "上班", l2: "开会", icon: "📋" },
-    { l1: "交通", l2: "开车", icon: "🚗" },
-    { l1: "生活", l2: "洗漱", icon: "🧴" }
+    { l1: "工作", l2: "上班", icon: "💼" },
+    { l1: "工作", l2: "开会", icon: "📋" },
+    { l1: "工作", l2: "见客户", icon: "🤝" },
+    { l1: "生活", l2: "餐饮", icon: "🍽️" },
+    { l1: "休闲", l2: "休息", icon: "☕" },
+    { l1: "锻炼", l2: "瑜伽", icon: "🧘" }
 ];
+const DEFAULT_INPUT_ALIASES = {
+    火锅: { l1: "生活", l2: "餐饮" },
+    外卖: { l1: "生活", l2: "餐饮" },
+    聚餐: { l1: "生活", l2: "餐饮" },
+    跑步: { l1: "锻炼", l2: "跑步" },
+    瑜伽课: { l1: "锻炼", l2: "瑜伽" }
+};
+let cats = safeJSON('v9_cats');
+if (!cats || !Array.isArray(cats) || !cats.length) {
+    cats = JSON.parse(JSON.stringify(DEFAULT_CATS));
+    localStorage.setItem('v9_cats', JSON.stringify(cats));
+}
 let shortcuts = safeJSON('v9_shorts') || [];
 function padShortcutsToDefault(list, defaults) {
     const next = [...list];
@@ -37,11 +52,21 @@ function padShortcutsToDefault(list, defaults) {
     });
     return next;
 }
-if (!shortcuts.length) shortcuts = [...DEFAULT_SHORTCUTS];
-else if (shortcuts.length < 6) shortcuts = padShortcutsToDefault(shortcuts, DEFAULT_SHORTCUTS);
+if (!shortcuts.length) {
+    shortcuts = [...DEFAULT_SHORTCUTS];
+    localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
+} else if (shortcuts.length < 6) {
+    shortcuts = padShortcutsToDefault(shortcuts, DEFAULT_SHORTCUTS);
+    localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
+}
 let parallelShortcuts = safeJSON('v9_parallel_shorts') || [];
-if (!parallelShortcuts.length) parallelShortcuts = [...DEFAULT_PARALLEL_SHORTCUTS];
-else if (parallelShortcuts.length < 6) parallelShortcuts = padShortcutsToDefault(parallelShortcuts, DEFAULT_PARALLEL_SHORTCUTS);
+if (!parallelShortcuts.length) {
+    parallelShortcuts = [...DEFAULT_PARALLEL_SHORTCUTS];
+    localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
+} else if (parallelShortcuts.length < 6) {
+    parallelShortcuts = padShortcutsToDefault(parallelShortcuts, DEFAULT_PARALLEL_SHORTCUTS);
+    localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
+}
 let logs = safeJSON('v9_logs') || [];
 let current = safeJSON('v9_current') || null;
 function normalizeCurrentTimestamps() {
