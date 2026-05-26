@@ -8,14 +8,14 @@ function safeJSON(key, fallback) {
 // --- 数据模型（仅首次无 v9_cats 时注入）---
 const DEFAULT_CATS = [
     { id: 1, name: "工作", icon: "💼", color: "#3b82f6", subs: ["办公", "开会", "沟通", "见客户", "上班"] },
-    { id: 2, name: "学习", icon: "📖", color: "#6366f1", subs: ["学习", "阅读", "上课", "备考"] },
+    { id: 2, name: "学习", icon: "📘", color: "#6366f1", subs: ["学习", "阅读", "上课", "备考"] },
     { id: 3, name: "生活", icon: "🏠", color: "#f59e0b", subs: ["睡觉", "起床", "洗漱", "家务", "做饭", "餐饮"] },
-    { id: 4, name: "出行", icon: "🚗", color: "#ef4444", subs: ["开车", "网约车", "公交", "地铁", "高铁", "飞机", "步行"] },
-    { id: 5, name: "休闲", icon: "🎮", color: "#a855f7", subs: ["娱乐", "社交", "购物", "休息"] },
-    { id: 6, name: "锻炼", icon: "🏃", color: "#14b8a6", subs: ["运动", "健身", "跑步", "散步", "瑜伽", "冥想"] }
+    { id: 4, name: "出行", icon: "🧭", color: "#ef4444", subs: ["开车", "网约车", "公交", "地铁", "高铁", "飞机", "步行", "骑行"] },
+    { id: 5, name: "休闲", icon: "🎧", color: "#a855f7", subs: ["游戏", "刷手机", "娱乐", "社交", "购物", "休息"] },
+    { id: 6, name: "锻炼", icon: "🏅", color: "#14b8a6", subs: ["运动", "健身", "跑步", "散步", "瑜伽", "冥想"] }
 ];
 const DEFAULT_SHORTCUTS = [
-    { l1: "生活", l2: "睡觉", icon: "🛌" },
+    { l1: "生活", l2: "睡觉", icon: "😴" },
     { l1: "工作", l2: "办公", icon: "📝" },
     { l1: "生活", l2: "餐饮", icon: "🍽️" },
     { l1: "出行", l2: "开车", icon: "🚗" },
@@ -24,11 +24,11 @@ const DEFAULT_SHORTCUTS = [
 ];
 /** 并行高发：上班、开会、见客户等叠加在主线上 */
 const DEFAULT_PARALLEL_SHORTCUTS = [
-    { l1: "工作", l2: "上班", icon: "💼" },
+    { l1: "工作", l2: "上班", icon: "👔" },
     { l1: "工作", l2: "开会", icon: "📋" },
     { l1: "工作", l2: "见客户", icon: "🤝" },
     { l1: "生活", l2: "餐饮", icon: "🍽️" },
-    { l1: "休闲", l2: "休息", icon: "☕" },
+    { l1: "休闲", l2: "刷手机", icon: "📱" },
     { l1: "锻炼", l2: "瑜伽", icon: "🧘" }
 ];
 const DEFAULT_INPUT_ALIASES = {
@@ -86,15 +86,22 @@ let parallelHistory = safeJSON('v9_parallel_history') || [];
 let labelFontSize = safeJSON('v9_labelFontSize') || 13;
 /** 自由输入短语 → 分类，如「火锅」→ 餐饮（由编辑流水或历史记录学习） */
 let inputAliases = safeJSON('v9_input_aliases') || {};
+if (!localStorage.getItem('v9_input_aliases')) {
+    inputAliases = { ...DEFAULT_INPUT_ALIASES };
+    localStorage.setItem('v9_input_aliases', JSON.stringify(inputAliases));
+}
 let pendingClassifyLogIds = [];
 let _classifyPromptOpen = false;
 let _classifyTargetLogId = null;
+/** 默认子类图标：互不重复（一级类图标另用 cat.icon，不与子类抢同一个） */
 const SUB_ICON_MAP = {
-    '开网约车':'🚕','开会':'📋','会议':'📋','写代码':'💻','编程':'💻','办公':'📝','上班':'📝',
-    '睡觉':'😴','起床':'⏰','休息':'☕','洗漱':'🧴','刷牙':'🪥','洗澡':'🚿',
-    '开车':'🚗','加油':'⛽','早午晚餐':'🍽️','午休':'😪',
-    '学习':'📖','看书':'📖','阅读':'📖','跑步':'🏃','运动':'🏋️','健身':'🏋️','散步':'🚶',
-    '购物':'🛒','做饭':'👨‍🍳'
+    '办公': '📝', '开会': '📋', '沟通': '💬', '见客户': '🤝', '上班': '👔',
+    '学习': '📖', '阅读': '📚', '上课': '🎓', '备考': '✏️',
+    '睡觉': '😴', '起床': '⏰', '洗漱': '🧴', '家务': '🧹', '做饭': '🍳', '餐饮': '🍽️',
+    '开车': '🚗', '网约车': '🚕', '公交': '🚌', '地铁': '🚇', '高铁': '🚄', '飞机': '✈️', '步行': '🚶', '骑行': '🚴',
+    '游戏': '🎮', '刷手机': '📱', '娱乐': '📺', '社交': '👥', '购物': '🛒', '休息': '☕',
+    '运动': '🏋️', '健身': '💪', '跑步': '🏃', '散步': '🦶', '瑜伽': '🧘', '冥想': '🕯️',
+    '开网约车': '🚕', '写代码': '💻', '早午晚餐': '🍽️'
 };
 function getSubIcon(name, parentIcon) { return SUB_ICON_MAP[name] || parentIcon; }
 
