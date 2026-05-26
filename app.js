@@ -47,6 +47,9 @@ let parallelHistory = safeJSON('v9_parallel_history') || [];
 let labelFontSize = safeJSON('v9_labelFontSize') || 13;
 /** 自由输入短语 → 分类，如「火锅」→ 餐饮（由编辑流水或历史记录学习） */
 let inputAliases = safeJSON('v9_input_aliases') || {};
+let pendingClassifyLogIds = [];
+let _classifyPromptOpen = false;
+let _classifyTargetLogId = null;
 const SUB_ICON_MAP = {
     '开网约车':'🚕','开会':'📋','会议':'📋','写代码':'💻','编程':'💻','办公':'📝','上班':'📝',
     '睡觉':'😴','起床':'⏰','休息':'☕','洗漱':'🧴','刷牙':'🪥','洗澡':'🚿',
@@ -515,6 +518,7 @@ function commitCurrentSlice(endMs, continueSame, parallelOpts) {
     const color = current.color || (cat ? cat.color : '#cbd5e1');
     const mainLogId = continueSame ? endMs : (Date.now() + Math.random());
     const dur = Math.max(1, Math.round((endMs - current.startTime) / 60000));
+    const needsClassify = !current.l1 && !!(current.note || current.tag);
     logs.unshift({
         ...current,
         id: mainLogId,
@@ -523,6 +527,7 @@ function commitCurrentSlice(endMs, continueSame, parallelOpts) {
         color,
         status: current.l1 ? 'ok' : 'pending'
     });
+    if (needsClassify) pendingClassifyLogIds.push(mainLogId);
     if (parallelCurrent && (continueSame || parallelOpts.isMidnightRollover || parallelOpts.endParallel || parallelOpts.rollover)) {
         settleParallelForMainSlice(mainLogId, current.startTime, endMs, {
             continueSame,
@@ -548,6 +553,7 @@ function ensureDayRolloversBefore(now) {
         commitCurrentSlice(dayEnd, true, { isMidnightRollover: true });
         changed = true;
     }
+    if (pendingClassifyLogIds.length) setTimeout(flushUncategorizedClassifyPrompt, 50);
     return changed;
 }
 
@@ -594,6 +600,114 @@ function initViewDateState() {
 
 function getCat(name) {
     return cats.find(c => c.name === name);
+}
+
+function resolveShortcutIcon(s) {
+    const cat = getCat(s.l1);
+    if (!cat) return s.icon || '📌';
+    if (s.l2) return getSubIcon(s.l2, cat.icon);
+    return cat.icon || s.icon || '📌';
+}
+
+function syncParallelShortcutRefs(oldL1, newL1, catName, oldL2, newL2) {
+    if (oldL1 != null && newL1 != null) {
+        parallelShortcuts.forEach((s) => { if (s.l1 === oldL1) s.l1 = newL1; });
+    }
+    if (catName != null && oldL2 != null && newL2 != null) {
+        parallelShortcuts.forEach((s) => {
+            if (s.l1 === catName && s.l2 === oldL2) s.l2 = newL2;
+        });
+    }
+}
+
+function recordRecentPick(l1, l2) {
+    if (!l1) return;
+    let recents = safeJSON('v9_recent_picks') || [];
+    recents = [{ l1, l2: l2 || '', t: Date.now() }, ...recents.filter((r) => !(r.l1 === l1 && (r.l2 || '') === (l2 || '')))];
+    localStorage.setItem('v9_recent_picks', JSON.stringify(recents.slice(0, 8)));
+}
+
+function isPickerWithRecents() {
+    return ['record', 'parallel-backfill', 'edit', 'split', 'classify-log'].includes(pickerMode);
+}
+
+function appendDrawerRecentsBar(l2Box) {
+    if (!isPickerWithRecents()) return;
+    const recents = safeJSON('v9_recent_picks') || [];
+    const wrap = document.createElement('div');
+    wrap.className = 'drawer-recents-wrap';
+    const label = document.createElement('div');
+    label.className = 'drawer-recents-label';
+    label.innerText = '最近';
+    wrap.appendChild(label);
+    const row = document.createElement('div');
+    row.className = 'drawer-recents-row';
+    recents.forEach((r) => {
+        const cat = getCat(r.l1);
+        if (!cat) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'drawer-recent-btn btn-active';
+        const icon = r.l2 ? getSubIcon(r.l2, cat.icon) : cat.icon;
+        btn.innerHTML = `<span class="drawer-recent-icon">${icon}</span><span class="drawer-recent-text">${r.l2 || r.l1}</span>`;
+        btn.addEventListener('click', () => drawerPick(r.l1, r.l2 || ''));
+        row.appendChild(btn);
+    });
+    const addL1Btn = document.createElement('button');
+    addL1Btn.type = 'button';
+    addL1Btn.className = 'drawer-quick-add-btn btn-active';
+    addL1Btn.title = '新建一级分类';
+    addL1Btn.innerText = '＋';
+    addL1Btn.addEventListener('click', () => addL1());
+    const addSubBtn = document.createElement('button');
+    addSubBtn.type = 'button';
+    addSubBtn.className = 'drawer-quick-add-btn drawer-quick-add-btn--sub btn-active';
+    addSubBtn.title = '新建子分类';
+    addSubBtn.innerText = '＋子';
+    addSubBtn.addEventListener('click', () => openQuickAddSubCategory());
+    row.append(addL1Btn, addSubBtn);
+    wrap.appendChild(row);
+    l2Box.appendChild(wrap);
+}
+
+function openQuickAddSubCategory() {
+    const cat = getCat(selL1) || cats[0];
+    if (!cat) { addL1(); return; }
+    showPrompt('新建子分类', `添加到「${cat.name}」下`, '', (n) => {
+        if (!n || !n.trim()) return;
+        const name = n.trim();
+        showCategoryPicker(`为「${name}」选图标`, (icon) => {
+            cat.subs.push(name);
+            SUB_ICON_MAP[name] = icon || '📌';
+            save();
+            renderPicker();
+        });
+    });
+}
+
+function flushUncategorizedClassifyPrompt() {
+    if (_classifyPromptOpen || !pendingClassifyLogIds.length) return;
+    const id = pendingClassifyLogIds.shift();
+    const log = logs.find((l) => l.id === id);
+    if (!log) {
+        flushUncategorizedClassifyPrompt();
+        return;
+    }
+    _classifyPromptOpen = true;
+    _classifyTargetLogId = id;
+    pickerMode = 'classify-log';
+    document.getElementById('drawer-title').innerText = '请为未分类记录选择归档';
+    document.getElementById('parallel-time-row').classList.add('hidden');
+    document.getElementById('drawer-footer').classList.remove('hidden');
+    const noteEl = document.getElementById('drawer-note');
+    if (noteEl) {
+        noteEl.value = log.note || '';
+        noteEl.placeholder = '可补充备注…';
+    }
+    if (drawerViewMode === 'columns') drawerViewMode = 'flat';
+    showDrawer();
+    renderPicker();
+    renderDrawerToggle();
 }
 
 function normalizePhraseKey(text) {
@@ -1072,7 +1186,9 @@ function doExecuteRecord(l1, l2, tag, note, endParallel, rollover) {
     }
     current = { id: now, startTime: now, l1, l2, tag, note, color };
     localStorage.setItem('v9_current', JSON.stringify(current));
-    closeDrawer(); renderAll();
+    closeDrawer();
+    renderAll();
+    if (pendingClassifyLogIds.length) setTimeout(flushUncategorizedClassifyPrompt, 50);
 }
 
 function executeAddShortcut(l1, l2) {
@@ -1103,7 +1219,27 @@ function drawerPick(l1, l2) {
         _parallelPending = false;
         const cat = getCat(l1);
         closeDrawer();
-        toggleParallel(l1, l2 || '', cat?.icon || '📌');
+        toggleParallel(l1, l2 || '', resolveShortcutIcon({ l1, l2: l2 || '' }));
+        return;
+    }
+    if (pickerMode !== 'shortcut' && pickerMode !== 'shortcut-edit' && pickerMode !== 'parallel-shortcut') {
+        recordRecentPick(l1, l2);
+    }
+    if (pickerMode === 'classify-log') {
+        const log = logs.find((l) => l.id === _classifyTargetLogId);
+        if (log) {
+            log.l1 = l1;
+            log.l2 = l2 || '';
+            log.color = getCat(l1)?.color || log.color;
+            log.status = 'ok';
+            rememberInputAlias(log.note, l1, l2);
+            localStorage.setItem('v9_logs', JSON.stringify(logs));
+        }
+        _classifyPromptOpen = false;
+        _classifyTargetLogId = null;
+        closeDrawer();
+        renderAll();
+        setTimeout(flushUncategorizedClassifyPrompt, 80);
         return;
     }
     if (pickerMode === 'shortcut') {
@@ -1192,7 +1328,7 @@ function renderShortcuts() {
         });
         const icon = document.createElement('span');
         icon.className = "keycap-icon";
-        icon.innerText = s.icon;
+        icon.innerText = resolveShortcutIcon(s);
         const label = document.createElement('span');
         label.className = "keycap-label";
         label.innerText = s.l2 || s.l1;
@@ -1230,12 +1366,12 @@ function renderParallelShortcuts() {
         item.title = s.l2 || s.l1;
         const icon = document.createElement('span');
         icon.className = "keycap-icon";
-        icon.innerText = s.icon;
+        icon.innerText = resolveShortcutIcon(s);
         const label = document.createElement('span');
         label.className = "keycap-label";
         label.innerText = s.l2 || s.l1;
         item.append(icon, label);
-        item.addEventListener('click', () => { toggleParallel(s.l1, s.l2, s.icon); });
+        item.addEventListener('click', () => { toggleParallel(s.l1, s.l2, resolveShortcutIcon(s)); });
         grid.appendChild(item);
     });
     container.appendChild(grid);
@@ -2520,7 +2656,7 @@ function addShortcut(l1, l2, icon) {
 function addParallelShortcut(l1, l2, icon) {
     if (parallelShortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
     const cat = getCat(l1);
-    parallelShortcuts.push({ l1, l2: l2 || '', icon: cat?.icon || '📌' });
+    parallelShortcuts.push({ l1, l2: l2 || '', icon: getSubIcon(l2 || '', cat?.icon || '📌') });
     localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
     renderPicker();
     renderAll();
@@ -2534,7 +2670,7 @@ function removeShortcut(l1, l2) {
 function renderDrawerToggle() {
     const btn = document.getElementById('drawer-view-toggle');
     if (!btn) return;
-    if (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split') {
+    if (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split' || pickerMode === 'classify-log') {
         btn.classList.remove('hidden');
         const modes = [
             { key: 'columns', icon: '◧', title: '左右分栏' },
@@ -2663,9 +2799,10 @@ function renderPicker() {
         return;
     }
 
-    if (drawerViewMode === 'flat' && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split')) {
+    if (drawerViewMode === 'flat' && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split' || pickerMode === 'classify-log')) {
         l1Box.style.display = 'none';
         l2Box.className = "w-full p-3 overflow-y-auto grid grid-cols-5 gap-1.5 h-fit";
+        appendDrawerRecentsBar(l2Box);
         cats.forEach(c => {
             if (!c.subs.length) {
                 const btn = document.createElement('button');
@@ -2688,9 +2825,10 @@ function renderPicker() {
         return;
     }
 
-    if (drawerViewMode === 'stacked' && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split')) {
+    if (drawerViewMode === 'stacked' && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split' || pickerMode === 'classify-log')) {
         l1Box.style.display = 'none';
         l2Box.className = "w-full p-4 overflow-y-auto h-fit";
+        appendDrawerRecentsBar(l2Box);
         cats.forEach(c => {
             const header = document.createElement('div');
             header.className = "flex items-center gap-2 mb-2 mt-4 first:mt-0";
@@ -2720,6 +2858,7 @@ function renderPicker() {
     l1Box.style.display = '';
     l2Box.className = "w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit";
     if (!cats.some(c => c.name === selL1)) selL1 = cats[0].name;
+    if (isPickerWithRecents()) appendDrawerRecentsBar(l2Box);
 
     cats.forEach(c => {
         const btn = document.createElement('button');
@@ -3170,7 +3309,17 @@ function handleFreeInput() {
     el.value = "";
 }
 
-function closeDrawer() { document.getElementById('drawer').classList.add('hidden'); pickerMode = 'record'; _parallelCallback = null; }
+function closeDrawer() {
+    const wasClassify = pickerMode === 'classify-log' && _classifyPromptOpen;
+    document.getElementById('drawer').classList.add('hidden');
+    pickerMode = 'record';
+    _parallelCallback = null;
+    if (wasClassify) {
+        _classifyPromptOpen = false;
+        _classifyTargetLogId = null;
+        setTimeout(flushUncategorizedClassifyPrompt, 80);
+    }
+}
 
 function toggleFreeBackfill() {
     const el = document.getElementById('free-backfill');
@@ -3222,6 +3371,7 @@ function editL1(id) {
         if (!name || !name.trim()) return;
         cat.name = name.trim();
         shortcuts.forEach(s => { if (s.l1 === oldName) s.l1 = cat.name; });
+        syncParallelShortcutRefs(oldName, cat.name, null, null, null);
         logs.forEach(l => { if (l.l1 === oldName) l.l1 = cat.name; });
         if (current?.l1 === oldName) current.l1 = cat.name;
         if (selL1 === oldName) selL1 = cat.name;
@@ -3243,6 +3393,7 @@ function editS(id, oldName) {
         if (!next) return;
         cat.subs = cat.subs.map(s => s === oldName ? next : s);
         shortcuts.forEach(s => { if (s.l1 === cat.name && s.l2 === oldName) s.l2 = next; });
+        syncParallelShortcutRefs(null, null, cat.name, oldName, next);
         logs.forEach(l => { if (l.l1 === cat.name && l.l2 === oldName) l.l2 = next; });
         if (current?.l1 === cat.name && current?.l2 === oldName) current.l2 = next;
         saveAll();
@@ -3254,6 +3405,7 @@ function delS(id, name) {
     if (confirm(`删除子类「${name}」？`)) {
         cat.subs = cat.subs.filter(s => s !== name);
         shortcuts = shortcuts.filter(s => !(s.l1 === cat.name && s.l2 === name));
+        parallelShortcuts = parallelShortcuts.filter(s => !(s.l1 === cat.name && s.l2 === name));
         saveAll();
     }
 }
@@ -3261,7 +3413,10 @@ function delL1(id) {
     const cat = cats.find(c => c.id === id);
     if(confirm("删除？")) {
         cats = cats.filter(c=>c.id!==id);
-        if (cat) shortcuts = shortcuts.filter(s => s.l1 !== cat.name);
+        if (cat) {
+            shortcuts = shortcuts.filter(s => s.l1 !== cat.name);
+            parallelShortcuts = parallelShortcuts.filter(s => s.l1 !== cat.name);
+        }
         if (!cats.some(c => c.name === selL1)) selL1 = cats[0]?.name || "";
         saveAll();
     }
