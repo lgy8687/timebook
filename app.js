@@ -30,6 +30,18 @@ let parallelShortcuts = safeJSON('v9_parallel_shorts') || [
 ];
 let logs = safeJSON('v9_logs') || [];
 let current = safeJSON('v9_current') || null;
+function normalizeCurrentTimestamps() {
+    if (!current) return;
+    current.startTime = Number(current.startTime);
+    if (!Number.isFinite(current.startTime)) {
+        current = null;
+        localStorage.removeItem('v9_current');
+        return;
+    }
+    if (current.l1 == null) current.l1 = '';
+    if (current.l2 == null) current.l2 = '';
+}
+normalizeCurrentTimestamps();
 let parallelCurrent = safeJSON('v9_parallel') || null;
 let parallelHistory = safeJSON('v9_parallel_history') || [];
 let labelFontSize = safeJSON('v9_labelFontSize') || 13;
@@ -292,9 +304,10 @@ function createPickerTrigger(displayText, onOpen) {
 window.onload = () => {
     try {
         initViewDateState();
-        rebuildInputAliasesFromLogs();
+        try { rebuildInputAliasesFromLogs(); } catch (e) { console.warn('rebuildInputAliases', e); }
+        normalizeCurrentTimestamps();
         lastBeijingDateStr = getTodayDateStr();
-        if (ensureDayRolloversBefore(Date.now())) renderAll();
+        ensureDayRolloversBefore(Date.now());
         applyClockLayout();
         renderAll();
         tickLoop();
@@ -495,7 +508,9 @@ function settleParallelForMainSlice(mainLogId, segStart, segEnd, opts) {
 
 /** 闭合 current 的一段 [startTime, endMs)；continueSame=true 为日界结转续跑 */
 function commitCurrentSlice(endMs, continueSame, parallelOpts) {
-    if (!current || endMs <= current.startTime) return;
+    if (!current) return;
+    current.startTime = Number(current.startTime);
+    if (!Number.isFinite(current.startTime) || endMs <= current.startTime) return;
     const cat = getCat(current.l1);
     const color = current.color || (cat ? cat.color : '#cbd5e1');
     const mainLogId = continueSame ? endMs : (Date.now() + Math.random());
@@ -632,6 +647,12 @@ function matchCategoryFromInput(val) {
 
 function displayName(log) {
     return log?.l2 || log?.l1 || "未分类";
+}
+
+/** 未分类进行中：点任意快捷都应切换；仅已明确分类且与快捷相同时忽略点击 */
+function isSameClassifiedMainActivity(l1, l2) {
+    if (!current || !current.l1) return false;
+    return current.l1 === l1 && (current.l2 || '') === (l2 || '');
 }
 
 function formatHours(ms) {
@@ -1148,7 +1169,10 @@ function renderShortcuts() {
     shortcuts.forEach((s, idx) => {
         const item = document.createElement('button');
         item.type = 'button';
-        const isPressed = current && current.l1 === s.l1 && current.l2 === s.l2;
+        const isPressed = current && (
+            (!current.l1 && !current.l2) ||
+            (current.l1 === s.l1 && current.l2 === s.l2)
+        );
         item.className = `keycap keycap--main${isPressed ? ' pressed' : ''} btn-active`;
         let pressTimer = null;
         let longPressed = false;
@@ -1162,7 +1186,7 @@ function renderShortcuts() {
         item.addEventListener('pointercancel', clearPress);
         item.addEventListener('click', (e) => {
             if (longPressed) { e.preventDefault(); return; }
-            if (current && current.l1 === s.l1 && current.l2 === s.l2) return;
+            if (isSameClassifiedMainActivity(s.l1, s.l2)) return;
             pickerMode = 'record';
             executeRecord(s.l1, s.l2, "", "");
         });
@@ -2834,7 +2858,14 @@ function updateUI() {
     renderFlow();
 }
 
-window.addEventListener('load', () => {});
+window.addEventListener('pageshow', () => {
+    try {
+        normalizeCurrentTimestamps();
+        const todayStr = formatBeijingDate(Date.now());
+        if (todayStr !== lastBeijingDateStr) lastBeijingDateStr = todayStr;
+        if (ensureDayRolloversBefore(Date.now())) renderAll();
+    } catch (e) { console.warn('pageshow rollover', e); }
+});
 
 function renderFlow() {
     const todayStr = getTodayDateStr();
