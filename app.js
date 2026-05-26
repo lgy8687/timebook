@@ -12,22 +12,36 @@ let cats = safeJSON('v9_cats') || [
     { id: 3, name: "交通", icon: "🚗", color: "#ef4444", subs: ["开车", "加油"] },
     { id: 4, name: "餐饮", icon: "🍱", color: "#10b981", subs: ["早午晚餐", "午休"] }
 ];
-let shortcuts = safeJSON('v9_shorts') || [
+const DEFAULT_SHORTCUTS = [
     { l1: "上班", l2: "开网约车", icon: "🚕" },
+    { l1: "上班", l2: "写代码", icon: "💻" },
+    { l1: "上班", l2: "开会", icon: "📋" },
     { l1: "生活", l2: "睡觉", icon: "🛌" },
-    { l1: "交通", l2: "开车", icon: "🚗" }
-];
-if (shortcuts.length < 3) {
-    shortcuts = [
-        { l1: "上班", l2: "开网约车", icon: "🚕" },
-        { l1: "生活", l2: "睡觉", icon: "🛌" },
-        { l1: "交通", l2: "开车", icon: "🚗" }
-    ];
-}
-let parallelShortcuts = safeJSON('v9_parallel_shorts') || [
     { l1: "生活", l2: "休息", icon: "☕" },
     { l1: "餐饮", l2: "早午晚餐", icon: "🍽️" }
 ];
+const DEFAULT_PARALLEL_SHORTCUTS = [
+    { l1: "生活", l2: "休息", icon: "☕" },
+    { l1: "餐饮", l2: "早午晚餐", icon: "🍽️" },
+    { l1: "生活", l2: "睡觉", icon: "🛌" },
+    { l1: "上班", l2: "开会", icon: "📋" },
+    { l1: "交通", l2: "开车", icon: "🚗" },
+    { l1: "生活", l2: "洗漱", icon: "🧴" }
+];
+let shortcuts = safeJSON('v9_shorts') || [];
+function padShortcutsToDefault(list, defaults) {
+    const next = [...list];
+    defaults.forEach((def) => {
+        if (next.length >= 6) return;
+        if (!next.some((s) => s.l1 === def.l1 && s.l2 === def.l2)) next.push({ ...def });
+    });
+    return next;
+}
+if (!shortcuts.length) shortcuts = [...DEFAULT_SHORTCUTS];
+else if (shortcuts.length < 6) shortcuts = padShortcutsToDefault(shortcuts, DEFAULT_SHORTCUTS);
+let parallelShortcuts = safeJSON('v9_parallel_shorts') || [];
+if (!parallelShortcuts.length) parallelShortcuts = [...DEFAULT_PARALLEL_SHORTCUTS];
+else if (parallelShortcuts.length < 6) parallelShortcuts = padShortcutsToDefault(parallelShortcuts, DEFAULT_PARALLEL_SHORTCUTS);
 let logs = safeJSON('v9_logs') || [];
 let current = safeJSON('v9_current') || null;
 function normalizeCurrentTimestamps() {
@@ -3367,6 +3381,7 @@ function editL1(id) {
     const cat = cats.find(c => c.id == id);
     if (!cat) return;
     const oldName = cat.name;
+    const prevIcon = cat.icon;
     showPrompt("编辑一级分类名称", "输入大类名称", cat.name, (name) => {
         if (!name || !name.trim()) return;
         cat.name = name.trim();
@@ -3375,12 +3390,10 @@ function editL1(id) {
         logs.forEach(l => { if (l.l1 === oldName) l.l1 = cat.name; });
         if (current?.l1 === oldName) current.l1 = cat.name;
         if (selL1 === oldName) selL1 = cat.name;
-        showPrompt("编辑图标", "输入一个 Emoji", cat.icon || "📁", (icon) => {
-            if (icon && icon.trim()) cat.icon = icon.trim();
-            showPrompt("编辑颜色", "例如 #6366f1", cat.color || "#94a3b8", (color) => {
-                if (color && color.trim()) cat.color = color.trim();
-                saveAll();
-            });
+        showCategoryPicker(`为「${cat.name}」选择图标（点空白处可保留原图标）`, (icon) => {
+            if (icon) cat.icon = icon;
+            else cat.icon = prevIcon;
+            saveAll();
         });
     });
 }
@@ -3391,12 +3404,21 @@ function editS(id, oldName) {
         if (name === null) return;
         const next = name.trim();
         if (!next) return;
+        if (SUB_ICON_MAP[oldName] != null) {
+            SUB_ICON_MAP[next] = SUB_ICON_MAP[oldName];
+            delete SUB_ICON_MAP[oldName];
+        }
         cat.subs = cat.subs.map(s => s === oldName ? next : s);
         shortcuts.forEach(s => { if (s.l1 === cat.name && s.l2 === oldName) s.l2 = next; });
         syncParallelShortcutRefs(null, null, cat.name, oldName, next);
         logs.forEach(l => { if (l.l1 === cat.name && l.l2 === oldName) l.l2 = next; });
         if (current?.l1 === cat.name && current?.l2 === oldName) current.l2 = next;
-        saveAll();
+        const prevSubIcon = SUB_ICON_MAP[next];
+        showCategoryPicker(`为「${next}」选择图标（点空白处可保留原图标）`, (icon) => {
+            if (icon) SUB_ICON_MAP[next] = icon;
+            else if (prevSubIcon) SUB_ICON_MAP[next] = prevSubIcon;
+            saveAll();
+        });
     });
 }
 function delS(id, name) {

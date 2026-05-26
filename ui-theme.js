@@ -44,7 +44,7 @@ const UI_THEME_DEFAULTS = {
     shortcutAddParallelBg: '#f1f5f9',
     shortcutAddParallelColor: '#475569',
     freeInputSize: 16,
-    recordBtnBg: '#1e293b',
+    recordBtnBg: '#c2410c',
     recordBtnColor: '#ffffff',
     clockFaceBg: '#ffffff',
     clockRingStroke: '#e2e8f0',
@@ -140,8 +140,8 @@ const UI_THEME_SECTIONS = [
     ]},
     { id: 'input', title: '⑤ 随手记', fields: [
         { key: 'freeInputSize', label: '输入框字号', type: 'number', min: 12, max: 20, unit: 'px' },
-        { key: 'recordBtnBg', label: '「记」按钮底', type: 'color' },
-        { key: 'recordBtnColor', label: '「记」按钮字', type: 'color' }
+        { key: 'recordBtnBg', label: '随手记书签底', type: 'color' },
+        { key: 'recordBtnColor', label: '随手记书签字', type: 'color' }
     ]},
     { id: 'clock', title: '⑥ 双钟面', fields: [
         { key: 'clockFaceBg', label: '表盘背景', type: 'color' },
