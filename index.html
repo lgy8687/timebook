@@ -26,7 +26,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v4.29</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v4.30</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -54,9 +54,9 @@
                 </div>
                 <div id="parallel-shortcuts"></div>
             </div>
-            <div class="flex space-x-2">
-                <input type="text" id="free-input" placeholder="输入：#标签 内容" class="flex-1 bg-white border-none rounded-2xl px-4 py-4 shadow-sm text-base focus:ring-2 focus:ring-indigo-100">
-                <button onclick="handleFreeInput()" class="bg-slate-800 text-white px-6 rounded-2xl font-bold btn-active text-lg">记</button>
+            <div class="free-note-row">
+                <button type="button" onclick="handleFreeInput()" class="free-note-label btn-active">随手记</button>
+                <input type="text" id="free-input" placeholder="#标签 或内容…" class="free-note-input flex-1 bg-white border-none rounded-2xl px-4 py-4 shadow-sm text-base focus:ring-2 focus:ring-indigo-100">
             </div>
             <div id="free-backfill" class="hidden space-y-2">
                 <div class="flex items-center justify-between">

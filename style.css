@@ -529,7 +529,75 @@
     #home-shortcuts button { min-height: unset !important; }
     .day-remain-track { height: 22px; }
     .day-remain-label { font-size: 11px; padding: 0 10px; }
-    #free-input { font-size: 14px; padding: 12px 16px !important; }
+    #free-input, .free-note-input { font-size: 14px; padding: 12px 16px !important; }
+.free-note-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+.free-note-label {
+    flex-shrink: 0;
+    min-width: 4.5rem;
+    padding: 0 14px;
+    border: none;
+    border-radius: 1rem;
+    background: #1e293b;
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+.drawer-recents-wrap {
+    grid-column: 1 / -1;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+}
+.drawer-recents-label {
+    font-size: 10px;
+    font-weight: 900;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 6px;
+}
+.drawer-recents-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.drawer-recent-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    color: #475569;
+}
+.drawer-recent-icon { font-size: 14px; line-height: 1; }
+.drawer-quick-add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 12px;
+    border: 1px dashed #a5b4fc;
+    background: #eef2ff;
+    color: #4f46e5;
+    font-size: 16px;
+    font-weight: 900;
+}
+.drawer-quick-add-btn--sub {
+    font-size: 11px;
+    min-width: 44px;
+}
     #header-timer { font-size: 1.25rem !important; }
     .report-card { padding: 14px !important; }
     .log-flow-inner { min-height: 50px; padding: 11px 10px 11px 8px; }

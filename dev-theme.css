@@ -12,7 +12,7 @@ header .text-indigo-500 { color: var(--tb-header-active-label) !important; }
 .log-day-header { color: var(--tb-log-day-header-color) !important; }
 #parallel-status { color: var(--tb-parallel-status-color) !important; }
 #free-input { font-size: var(--tb-free-input-size) !important; }
-button[onclick="handleFreeInput()"] { background: var(--tb-record-btn-bg) !important; color: var(--tb-record-btn-color) !important; }
+.free-note-label { background: var(--tb-record-btn-bg) !important; color: var(--tb-record-btn-color) !important; }
 .clock-face { background: var(--tb-clock-face-bg) !important; }
 .clock-face svg > circle { stroke: var(--tb-clock-ring-stroke) !important; }
 #label-60m-remain { color: var(--tb-clock-60m-remain) !important; }
