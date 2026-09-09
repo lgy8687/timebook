@@ -342,9 +342,9 @@
                     <button onclick="closeDrawer()" class="text-slate-300 text-2xl">✕</button>
                 </div>
             </div>
-            <div class="flex-1 overflow-hidden flex">
+            <div class="flex-1 min-h-0 overflow-hidden flex">
                 <div class="w-1/4 bg-slate-50 overflow-y-auto" id="drawer-l1"></div>
-                <div class="w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit" id="drawer-l2"></div>
+                <div class="w-3/4 flex-1 min-h-0 p-4 overflow-y-auto grid grid-cols-2 content-start gap-3" id="drawer-l2"></div>
             </div>
             <div id="drawer-footer" class="p-6 bg-white shrink-0 border-t border-slate-50">
                 <!-- 并行模式：时间（上面） + 进度条（下面） -->

@@ -2745,7 +2745,7 @@ function renderPicker() {
     l2Box.innerHTML = "";
     if (!cats.length) {
         l1Box.style.display = '';
-        l2Box.className = "w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit";
+        l2Box.className = "w-3/4 flex-1 min-h-0 p-4 overflow-y-auto grid grid-cols-2 content-start gap-3";
         const empty = document.createElement('div');
         empty.className = "p-4 text-sm text-slate-400 font-bold";
         empty.innerText = "暂无分类";
@@ -2755,7 +2755,7 @@ function renderPicker() {
 
     if (pickerMode === 'shortcut') {
         l1Box.style.display = 'none';
-        l2Box.className = "w-full p-3 overflow-y-auto grid grid-cols-4 gap-2 h-fit";
+        l2Box.className = "w-full flex-1 min-h-0 p-3 overflow-y-auto grid grid-cols-4 content-start gap-2";
         cats.forEach(c => {
             if (!c.subs.length) {
                 const btn = document.createElement('button');
@@ -2800,7 +2800,7 @@ function renderPicker() {
 
     if (pickerMode === 'parallel-shortcut') {
         l1Box.style.display = 'none';
-        l2Box.className = "w-full p-3 overflow-y-auto grid grid-cols-4 gap-2 h-fit";
+        l2Box.className = "w-full flex-1 min-h-0 p-3 overflow-y-auto grid grid-cols-4 content-start gap-2";
         cats.forEach(c => {
             if (!c.subs.length) {
                 const btn = document.createElement('button');
@@ -2847,7 +2847,7 @@ function renderPicker() {
 
     if (drawerViewMode === 'flat' && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split' || pickerMode === 'classify-log')) {
         l1Box.style.display = 'none';
-        l2Box.className = "w-full p-3 overflow-y-auto grid grid-cols-5 gap-1.5 h-fit";
+        l2Box.className = "w-full flex-1 min-h-0 p-3 overflow-y-auto grid grid-cols-5 content-start gap-1.5";
         appendDrawerRecentsBar(l2Box);
         cats.forEach(c => {
             if (!c.subs.length) {
@@ -2873,7 +2873,7 @@ function renderPicker() {
 
     if (drawerViewMode === 'stacked' && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split' || pickerMode === 'classify-log')) {
         l1Box.style.display = 'none';
-        l2Box.className = "w-full p-4 overflow-y-auto h-fit";
+        l2Box.className = "w-full flex-1 min-h-0 p-4 overflow-y-auto";
         appendDrawerRecentsBar(l2Box);
         cats.forEach(c => {
             const header = document.createElement('div');
@@ -2902,7 +2902,7 @@ function renderPicker() {
     }
 
     l1Box.style.display = '';
-    l2Box.className = "w-3/4 p-4 overflow-y-auto grid grid-cols-2 gap-3 h-fit";
+    l2Box.className = "w-3/4 flex-1 min-h-0 p-4 overflow-y-auto grid grid-cols-2 content-start gap-3";
     if (!cats.some(c => c.name === selL1)) selL1 = cats[0].name;
     if (isPickerWithRecents()) appendDrawerRecentsBar(l2Box);
 
