@@ -1051,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('edit-note-input').addEventListener('keydown', e => {
         if (e.key === 'Enter') confirmEdit();
     });
-    document.getElementById('edit-duration-input').addEventListener('keydown', e => {
+    document.getElementById('edit-start-input').addEventListener('keydown', e => {
         if (e.key === 'Enter') confirmEdit();
     });
 });
@@ -1140,8 +1140,8 @@ function openEdit(index) {
     editOldL1 = log.l1;
     editOldL2 = log.l2;
     document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration((log.endTime||Date.now())-log.startTime)}`;
-    document.getElementById('edit-start-display').innerText = formatBeijingClockSec(log.startTime);
-    document.getElementById('edit-duration-input').value = formatDuration(logDurationMs(log));
+    document.getElementById('edit-start-input').value = formatBeijingClockSec(log.startTime);
+    document.getElementById('edit-duration-display').innerText = formatDuration(logDurationMs(log));
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -1166,77 +1166,61 @@ document.addEventListener('DOMContentLoaded', () => {
         renderDrawerToggle();
     });
 });
-function parseEditDuration(value) {
+function parseEditClock(value, referenceMs) {
     const parts = String(value || '').trim().split(':').map(Number);
-    if (!parts.length || parts.some(n => !Number.isFinite(n) || n < 0)) return null;
-    let seconds = 0;
-    if (parts.length === 3) seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-    else if (parts.length === 2) seconds = parts[0] * 60 + parts[1];
-    else if (parts.length === 1) seconds = parts[0] * 60;
-    return seconds > 0 ? Math.round(seconds * 1000) : null;
+    if (parts.length !== 2 && parts.length !== 3) return null;
+    if (parts.some(n => !Number.isFinite(n) || n < 0)) return null;
+    const h = parts.length === 3 ? parts[0] : parts[0];
+    const m = parts.length === 3 ? parts[1] : parts[1];
+    const s = parts.length === 3 ? parts[2] : 0;
+    if (h > 23 || m > 59 || s > 59) return null;
+    const date = formatBeijingDate(referenceMs);
+    return beijingDateStrToDayStart(date) + (h * 3600 + m * 60 + s) * 1000;
 }
 
-function getDurationNeighbor(log) {
+function getStartTimeNeighbor(log) {
     const sameDay = logs
         .filter(l => !l.parallel && l.id !== log.id && formatBeijingDate(l.startTime) === formatBeijingDate(log.startTime))
         .sort((a, b) => a.startTime - b.startTime);
-    const index = sameDay.findIndex(l => l.startTime > log.startTime);
-    const next = index >= 0 ? sameDay[index] : null;
-    const previous = [...sameDay].reverse().find(l => l.startTime < log.startTime) || null;
-    return { next, previous };
+    return [...sameDay].reverse().find(l => l.startTime < log.startTime) || null;
 }
 
-function applyEditedDuration(log, nextDurationMs, done) {
-    const oldEnd = logEndMs(log);
-    const newEnd = log.startTime + nextDurationMs;
-    const delta = newEnd - oldEnd;
-    if (!delta) { done(); return; }
-    const { next, previous } = getDurationNeighbor(log);
-
-    if (next) {
-        const nextEnd = logEndMs(next);
-        const nextNewStart = next.startTime + delta;
-        if (nextNewStart >= nextEnd) {
-            showConfirm('确认吞并相邻记录', `这次调整会吞并相邻的「${displayName(next)}」。是否继续？`, '继续', ok => {
-                if (!ok) return;
-                log.endTime = nextEnd;
-                log.duration = Math.round((log.endTime - log.startTime) / 60000);
-                logs = logs.filter(l => l.id !== next.id);
-                done();
-            }, '取消');
-            return;
-        }
-        next.startTime = nextNewStart;
-        next.duration = Math.round((nextEnd - next.startTime) / 60000);
-        log.endTime = newEnd;
-        log.duration = Math.round((log.endTime - log.startTime) / 60000);
-        done();
+function applyEditedStart(log, newStart, done) {
+    const oldStart = log.startTime;
+    const end = logEndMs(log);
+    if (newStart === oldStart) { done(); return; }
+    if (newStart >= end) {
+        showConfirm('时间不合法', '开始时间必须早于结束时间。', '知道了', () => {});
         return;
     }
-
-    if (previous && newEnd <= oldEnd) {
-        const newStart = log.startTime - delta;
-        if (newStart <= previous.startTime) {
-            showConfirm('时间范围不足', '调整后会吞并整个相邻时间段，当前操作已取消。', '知道了', () => {}, '关闭');
-            return;
-        }
-        previous.endTime = newStart;
-        previous.duration = Math.round((previous.endTime - previous.startTime) / 60000);
-        log.startTime = newStart;
-        log.duration = Math.round((oldEnd - log.startTime) / 60000);
-        done();
+    const previous = getStartTimeNeighbor(log);
+    if (!previous) {
+        showConfirm('无法调整开始时间', '上面没有可分配的已结束时间段，不能让时间轴产生空档。', '知道了', () => {});
         return;
     }
-
-    showConfirm('无法调整时长', '后面没有可分配的已结束时间段，不能让时间轴产生空档。', '知道了', () => {}, '关闭');
+    if (newStart <= previous.startTime) {
+        showConfirm('确认吞并相邻记录', `这次调整会吞并相邻的「${displayName(previous)}」。是否继续？`, '继续', ok => {
+            if (!ok) return;
+            log.startTime = previous.startTime;
+            log.duration = Math.round((end - log.startTime) / 60000);
+            logs = logs.filter(l => l.id !== previous.id);
+            done();
+        }, '取消');
+        return;
+    }
+    previous.endTime = newStart;
+    previous.duration = Math.round((previous.endTime - previous.startTime) / 60000);
+    log.startTime = newStart;
+    log.duration = Math.round((end - log.startTime) / 60000);
+    done();
 }
 
 function confirmEdit() {
     if (editIndex === null || !logs[editIndex]) return;
     const log = logs[editIndex];
-    const nextDurationMs = parseEditDuration(document.getElementById('edit-duration-input').value);
-    if (!nextDurationMs) {
-        showConfirm('时长格式不正确', '请输入 MM:SS、HH:MM:SS，或直接输入分钟数。', '知道了', () => {});
+    const newStart = parseEditClock(document.getElementById('edit-start-input').value, log.startTime);
+    if (newStart === null) {
+        showConfirm('开始时间格式不正确', '请输入 HH:MM 或 HH:MM:SS。', '知道了', () => {});
         return;
     }
     const finish = () => {
@@ -1250,7 +1234,7 @@ function confirmEdit() {
         editOldL1 = null; editOldL2 = null;
         renderAll();
     };
-    applyEditedDuration(log, nextDurationMs, finish);
+    applyEditedStart(log, newStart, finish);
 }
 function closeEdit() {
     document.getElementById('edit-modal').classList.add('hidden');
