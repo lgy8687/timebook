@@ -69,9 +69,24 @@ if (!parallelShortcuts.length) {
 }
 let logs = safeJSON('v9_logs') || [];
 let current = safeJSON('v9_current') || null;
+function toSecondMs(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.floor(n / 1000) * 1000 : n;
+}
+function nowSecondMs() {
+    return Math.floor(Date.now() / 1000) * 1000;
+}
+function normalizeTimeRecord(record) {
+    if (!record || typeof record !== 'object') return record;
+    if (record.startTime != null) record.startTime = toSecondMs(record.startTime);
+    if (record.endTime != null) record.endTime = toSecondMs(record.endTime);
+    return record;
+}
+logs = logs.map(normalizeTimeRecord);
+if (logs.length) localStorage.setItem('v9_logs', JSON.stringify(logs));
 function normalizeCurrentTimestamps() {
     if (!current) return;
-    current.startTime = Number(current.startTime);
+    current.startTime = toSecondMs(current.startTime);
     if (!Number.isFinite(current.startTime)) {
         current = null;
         localStorage.removeItem('v9_current');
@@ -83,6 +98,11 @@ function normalizeCurrentTimestamps() {
 normalizeCurrentTimestamps();
 let parallelCurrent = safeJSON('v9_parallel') || null;
 let parallelHistory = safeJSON('v9_parallel_history') || [];
+parallelCurrent = normalizeTimeRecord(parallelCurrent);
+parallelHistory = parallelHistory.map(normalizeTimeRecord);
+if (current) localStorage.setItem('v9_current', JSON.stringify(current));
+if (parallelCurrent) localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+if (parallelHistory.length) localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
 let labelFontSize = safeJSON('v9_labelFontSize') || 13;
 /** 自由输入短语 → 分类，如「火锅」→ 餐饮（由编辑流水或历史记录学习） */
 let inputAliases = safeJSON('v9_input_aliases') || {};
@@ -152,7 +172,7 @@ function getClockPrefs() {
 
 /** 查看日 N 小时：不跨查看日 0 点；N≥24=查看日全天；历史日按结转闭合 */
 function getTodayDateStr() {
-    return formatBeijingDate(Date.now());
+    return formatBeijingDate(nowSecondMs());
 }
 
 function isDateToday(dateStr) {
@@ -356,7 +376,7 @@ window.onload = () => {
         try { rebuildInputAliasesFromLogs(); } catch (e) { console.warn('rebuildInputAliases', e); }
         normalizeCurrentTimestamps();
         lastBeijingDateStr = getTodayDateStr();
-        ensureDayRolloversBefore(Date.now());
+        ensureDayRolloversBefore(nowSecondMs());
         applyClockLayout();
         renderAll();
         tickLoop();
@@ -392,10 +412,10 @@ function formatDuration(ms) {
     return `${mm}:${ss}`;
 }
 
-/** 优先用 endTime-startTime 毫秒差，避免 duration(分钟) 丢秒 */
+/** 优先用 endTime-startTime 的整秒差，避免 duration(分钟) 丢秒 */
 function logDurationMs(log, liveEndMs) {
     if (!log) return 0;
-    const end = liveEndMs != null ? liveEndMs : (log.endTime || (log.live ? Date.now() : null));
+    const end = liveEndMs != null ? liveEndMs : (log.endTime || (log.live ? nowSecondMs() : null));
     if (end != null && log.startTime != null) return Math.max(0, end - log.startTime);
     if (log.duration != null) return Math.max(1000, Math.round(log.duration * 60000));
     return 0;
@@ -456,7 +476,7 @@ function logEndMs(log, liveEndMs) {
 function logTouchesDate(log, dateStr) {
     const dayStart = beijingDateStrToDayStart(dateStr);
     const dayEnd = dayStart + DAY_MS;
-    const end = logEndMs(log, log.live ? Date.now() : null);
+    const end = logEndMs(log, log.live ? nowSecondMs() : null);
     return log.startTime < dayEnd && end > dayStart;
 }
 
@@ -609,7 +629,7 @@ function isViewToday() {
 
 function getViewAnchorMs(dateStr) {
     const d = dateStr || viewDate;
-    if (isDateToday(d)) return Date.now();
+    if (isDateToday(d)) return nowSecondMs();
     return beijingDateStrToDayEnd(d) - 1;
 }
 
@@ -638,8 +658,8 @@ function renderCalendarPage() {
 }
 
 function initViewDateState() {
-    viewDate = formatBeijingDate(Date.now());
-    const d = new Date(Date.now() + BJ_OFFSET);
+    viewDate = formatBeijingDate(nowSecondMs());
+    const d = new Date(nowSecondMs() + BJ_OFFSET);
     calendarViewYear = d.getUTCFullYear();
     calendarViewMonth = d.getUTCMonth();
 }
@@ -669,7 +689,7 @@ function syncParallelShortcutRefs(oldL1, newL1, catName, oldL2, newL2) {
 function recordRecentPick(l1, l2) {
     if (!l1) return;
     let recents = safeJSON('v9_recent_picks') || [];
-    recents = [{ l1, l2: l2 || '', t: Date.now() }, ...recents.filter((r) => !(r.l1 === l1 && (r.l2 || '') === (l2 || '')))];
+    recents = [{ l1, l2: l2 || '', t: nowSecondMs() }, ...recents.filter((r) => !(r.l1 === l1 && (r.l2 || '') === (l2 || '')))];
     localStorage.setItem('v9_recent_picks', JSON.stringify(recents.slice(0, 8)));
 }
 
@@ -1142,7 +1162,7 @@ function openEdit(index) {
     if (!log) return;
     editOldL1 = log.l1;
     editOldL2 = log.l2;
-    document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration((log.endTime||Date.now())-log.startTime)}`;
+    document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration((log.endTime||nowSecondMs())-log.startTime)}`;
     document.getElementById('edit-start-input').value = formatBeijingClockSec(log.startTime);
     document.getElementById('edit-end-input').value = formatBeijingClockSec(logEndMs(log));
     document.getElementById('edit-note-input').value = log.note || '';
@@ -1391,7 +1411,7 @@ function executeRecord(l1, l2, tag, note) {
     doExecuteRecord(l1, l2, tag, note, false);
 }
 function doExecuteRecord(l1, l2, tag, note, endParallel, rollover) {
-    const now = Date.now();
+    const now = nowSecondMs();
     ensureDayRolloversBefore(now);
     const cat = getCat(l1);
     const color = cat ? cat.color : "#cbd5e1";
@@ -1464,12 +1484,12 @@ function drawerPick(l1, l2) {
         const cat = getCat(l1);
         const t = document.getElementById('parallel-start').value.split(':');
         const dur = parseInt(document.getElementById('parallel-dur').value) || 30;
-        const now = Date.now();
+        const now = nowSecondMs();
         const d = new Date(now);
         d.setHours(+t[0], +t[1], 0, 0);
         if (d.getTime() > now) d.setDate(d.getDate() - 1);
         const entry = {
-            id: Date.now() + Math.random(),
+            id: now + Math.random(),
             startTime: d.getTime(),
             endTime: d.getTime() + dur * 60000,
             duration: dur,
@@ -1592,7 +1612,7 @@ function renderParallelShortcuts() {
     updateParallelStatus();
 }
 function toggleParallel(l1, l2, icon) {
-    const now = Date.now();
+    const now = nowSecondMs();
     // 结束当前并行 → 存入 parallelHistory
     if (parallelCurrent) {
         const dur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
@@ -2003,7 +2023,7 @@ function renderLogs(listId, dateStr) {
         body.appendChild(buildLogFlowMainRow({
             timeText: formatBeijingClockSec(current.startTime),
             nameText: displayName(current),
-            durText: formatDuration(logDurationMs(current, Date.now())),
+            durText: formatDuration(logDurationMs(current, nowSecondMs())),
             live: true,
             durId: 'live-main-duration'
         }));
@@ -2044,7 +2064,7 @@ function renderLogs(listId, dateStr) {
         const bar = buildLogFlowBar(barColor, false);
         const body = document.createElement('div');
         body.className = 'log-flow-body';
-        const durMs = logDurationMs(parallel, isActive ? Date.now() : null);
+        const durMs = logDurationMs(parallel, isActive ? nowSecondMs() : null);
         body.appendChild(buildLogFlowMainRow({
             timeText: formatBeijingClockSec(parallel.startTime),
             nameText: displayName(parallel),
@@ -2665,7 +2685,7 @@ function isTimeInParentRange() {
 });
 
 function getTodaySegments() {
-    const now = Date.now();
+    const now = nowSecondMs();
     const dayStart = beijingPeriodStart(now, DAY_MS);
     const dayEnd = dayStart + DAY_MS;
     const currentLog = current ? { ...current, endTime: now, live: true } : null;
@@ -2713,7 +2733,7 @@ function parallelHostL1(paraLog) {
 }
 
 function buildLiveReportDay() {
-    const now = Date.now();
+    const now = nowSecondMs();
     const dayStart = beijingPeriodStart(now, DAY_MS);
     const all = getTodaySegments();
     const mainSegs = all.filter((l) => !l.parallel);
@@ -3113,10 +3133,10 @@ function renderPicker() {
 
 let lastSecondTs = 0;
 function tick() {
-    const now = Date.now();
+    const now = nowSecondMs();
     const clockNow = getViewAnchorMs(getTodayDateStr());
     const d = new Date(now + BJ_OFFSET);
-    const secAngle = (d.getUTCSeconds() + d.getUTCMilliseconds() / 1000) * 6;
+    const secAngle = d.getUTCSeconds() * 6;
 
     const p = getClockPrefs();
     const hourStart = beijingPeriodStart(now, HOUR_MS);
@@ -3194,7 +3214,7 @@ function renderDayRemain() {
     const fill = document.getElementById('day-remain-fill');
     const flame = document.getElementById('match-flame');
     if (!fill) return;
-    const now = Date.now();
+    const now = nowSecondMs();
     const dayStart = beijingDateStrToDayStart(getTodayDateStr());
     const elapsed = Math.min(DAY_MS, Math.max(0, now - dayStart));
     const remain = Math.max(0, DAY_MS - elapsed);
@@ -3214,9 +3234,9 @@ function updateUI() {
 window.addEventListener('pageshow', () => {
     try {
         normalizeCurrentTimestamps();
-        const todayStr = formatBeijingDate(Date.now());
+        const todayStr = formatBeijingDate(nowSecondMs());
         if (todayStr !== lastBeijingDateStr) lastBeijingDateStr = todayStr;
-        if (ensureDayRolloversBefore(Date.now())) renderAll();
+        if (ensureDayRolloversBefore(nowSecondMs())) renderAll();
     } catch (e) { console.warn('pageshow rollover', e); }
 });
 
@@ -3338,7 +3358,7 @@ function openCalendarYearMonthPicker() {
     const monthList = document.getElementById('calendar-ym-month-list');
     if (!modal || !yearVp || !yearList || !monthVp || !monthList) return;
 
-    const now = new Date(Date.now() + BJ_OFFSET);
+    const now = new Date(nowSecondMs() + BJ_OFFSET);
     const curYear = now.getUTCFullYear();
     const yearItems = [];
     for (let y = curYear - 10; y <= curYear + 1; y++) {
@@ -3392,7 +3412,7 @@ function renderFlowCalendar() {
     const host = document.getElementById('flow-calendar');
     if (!host) return;
     host.innerHTML = '';
-    const todayStr = formatBeijingDate(Date.now());
+    const todayStr = formatBeijingDate(nowSecondMs());
     const head = document.createElement('div');
     head.className = 'flow-calendar-head';
     const prev = document.createElement('button');
@@ -3487,7 +3507,7 @@ function handleFreeInput() {
     const backfillVisible = !document.getElementById('free-backfill').classList.contains('hidden');
     if (backfillVisible) {
         // 带时间段的补录模式
-        const now = Date.now();
+        const now = nowSecondMs();
         const dayStart = beijingPeriodStart(now, DAY_MS);
         const fbH = parseInt(document.getElementById('fb-h').value) || 0;
         const fbM = parseInt(document.getElementById('fb-m').value) || 0;
@@ -3540,7 +3560,7 @@ function toggleFreeBackfill() {
     el.classList.toggle('hidden');
     if (!el.classList.contains('hidden')) {
         // 初始化时间为当前小时的前后
-        const now = Date.now();
+        const now = nowSecondMs();
         const d = new Date(now);
         const h = d.getHours();
         document.getElementById('fb-h').value = String(Math.max(0, h-2)).padStart(2,'0');
