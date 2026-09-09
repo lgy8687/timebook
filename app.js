@@ -1249,9 +1249,11 @@ function getEditBoundaryNeighbors(log) {
     const sameDay = logs
         .filter(l => !l.parallel && l.id !== log.id && formatBeijingDate(l.startTime) === formatBeijingDate(log.startTime))
         .sort((a, b) => a.startTime - b.startTime);
+    const activeNext = current && formatBeijingDate(current.startTime) === formatBeijingDate(log.startTime)
+        && current.startTime > log.startTime ? current : null;
     return {
         previous: [...sameDay].reverse().find(l => l.startTime < log.startTime) || null,
-        next: sameDay.find(l => l.startTime > log.startTime) || null
+        next: sameDay.find(l => l.startTime > log.startTime) || activeNext
     };
 }
 
@@ -1279,7 +1281,8 @@ function applyEditedRange(log, newStart, newEnd, done) {
         return;
     }
     const swallowPrevious = needsPrevious && effectiveStart <= previous.startTime;
-    const swallowNext = needsNext && effectiveEnd >= logEndMs(next);
+    // current 没有固定结束时间，调整上一段时只移动 current 的起点，不吞并当前活动。
+    const swallowNext = needsNext && next !== current && effectiveEnd >= logEndMs(next);
     const swallowed = [swallowPrevious ? previous : null, swallowNext ? next : null].filter(Boolean);
     if (swallowed.length) {
         const names = swallowed.map(displayName).join('、');
@@ -1302,7 +1305,10 @@ function commitEditedRange(log, newStart, newEnd, previous, next, swallowPreviou
         }
     }
     if (next && newEnd !== logEndMs(log)) {
-        if (swallowNext) {
+        if (next === current) {
+            current.startTime = newEnd;
+            localStorage.setItem('v9_current', JSON.stringify(current));
+        } else if (swallowNext) {
             logs = logs.filter(l => l.id !== next.id);
         } else {
             const nextEnd = logEndMs(next);
