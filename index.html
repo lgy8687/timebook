@@ -408,6 +408,19 @@
         </div>
     </div>
 
+    <!-- 删除后的时间合并方向 -->
+    <div id="merge-direction-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in" onclick="if(event.target===this)closeMergeDirection(false)">
+        <div class="bg-white rounded-3xl p-5 w-4/5 max-w-xs shadow-xl">
+            <h3 class="text-sm font-black mb-2">删除后怎么合并？</h3>
+            <p id="merge-direction-message" class="text-sm text-slate-500 mb-4 leading-relaxed"></p>
+            <div class="grid grid-cols-2 gap-3">
+                <button type="button" id="merge-up-btn" onclick="chooseMergeDirection('up')" class="py-3 text-sm font-bold text-white bg-indigo-600 rounded-2xl whitespace-pre-line">向上合并</button>
+                <button type="button" id="merge-down-btn" onclick="chooseMergeDirection('down')" class="py-3 text-sm font-bold text-white bg-indigo-600 rounded-2xl whitespace-pre-line">向下合并</button>
+            </div>
+            <button type="button" onclick="closeMergeDirection(false)" class="w-full mt-3 py-2.5 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
+        </div>
+    </div>
+
     <!-- 自定义输入弹窗 -->
     <div id="prompt-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in">
         <div class="bg-white rounded-3xl p-5 w-4/5 max-w-xs shadow-xl" id="prompt-modal-body">

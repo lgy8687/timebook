@@ -1184,19 +1184,7 @@ function closeEdit() {
 
 function deleteLogEntry(id) {
     const target = logs.find(l => l.id === id);
-    if (target && !target.parallel) {
-        // 删除：时间段合并到前一段（同一天）
-        const sameDay = logs
-            .filter(l => !l.parallel && formatBeijingDate(l.startTime) === formatBeijingDate(target.startTime))
-            .sort((a, b) => a.startTime - b.startTime);
-        const idx = sameDay.findIndex(l => l.id === id);
-        if (idx > 0) {
-            const prev = sameDay[idx - 1];
-            const targetEnd = target.endTime || (target.startTime + (target.duration || 0) * 60000);
-            prev.endTime = Math.max(prev.endTime || prev.startTime, targetEnd);
-            prev.duration = Math.round((prev.endTime - prev.startTime) / 60000);
-        }
-    }
+    if (target && !target.parallel) mergeDeletedTime(target, 'down');
     logs = logs.filter(l => l.id !== id);
     // 级联删除挂载的并行子记录
     if (target && !target.parallel) {
@@ -1205,6 +1193,81 @@ function deleteLogEntry(id) {
     mergeAdjacentSameActivity();
     localStorage.setItem('v9_logs', JSON.stringify(logs));
     renderAll();
+}
+
+function getDeleteMergeNeighbors(target) {
+    const sameDay = logs
+        .filter(l => !l.parallel && l.id !== target.id && formatBeijingDate(l.startTime) === formatBeijingDate(target.startTime))
+        .sort((a, b) => a.startTime - b.startTime);
+    return {
+        // 流水页面按倒序展示：up 是时间更晚、视觉上方的记录，down 是时间更早、视觉下方的记录。
+        up: sameDay.find(l => l.startTime > target.startTime) || null,
+        down: sameDay.slice().reverse().find(l => l.startTime < target.startTime) || null
+    };
+}
+
+function mergeDeletedTime(target, direction) {
+    const neighbors = getDeleteMergeNeighbors(target);
+    const neighbor = direction === 'up' ? neighbors.up : neighbors.down;
+    if (!neighbor) return;
+    const targetEnd = target.endTime || (target.startTime + (target.duration || 0) * 60000);
+    const neighborEnd = neighbor.endTime || (neighbor.startTime + (neighbor.duration || 0) * 60000);
+    if (direction === 'up') {
+        neighbor.startTime = Math.min(neighbor.startTime, target.startTime);
+    } else {
+        neighbor.endTime = Math.max(neighborEnd, targetEnd);
+    }
+    neighbor.endTime = Math.max(neighbor.endTime || neighbor.startTime, neighbor.startTime);
+    neighbor.duration = Math.round((neighbor.endTime - neighbor.startTime) / 60000);
+}
+
+let mergeDirectionCallback = null;
+function closeMergeDirection(result) {
+    document.getElementById('merge-direction-modal').classList.add('hidden');
+    if (mergeDirectionCallback) mergeDirectionCallback(result);
+    mergeDirectionCallback = null;
+}
+function chooseMergeDirection(direction) {
+    closeMergeDirection(direction);
+}
+function showMergeDirection(target, callback) {
+    const neighbors = getDeleteMergeNeighbors(target);
+    const modal = document.getElementById('merge-direction-modal');
+    const message = document.getElementById('merge-direction-message');
+    const upBtn = document.getElementById('merge-up-btn');
+    const downBtn = document.getElementById('merge-down-btn');
+    message.innerText = `删除「${displayName(target)}」后，将把这段时间并入相邻记录。`;
+    upBtn.innerText = `向上\n${neighbors.up ? displayName(neighbors.up) : '无上方记录'}`;
+    downBtn.innerText = `向下\n${neighbors.down ? displayName(neighbors.down) : '无下方记录'}`;
+    upBtn.disabled = !neighbors.up;
+    downBtn.disabled = !neighbors.down;
+    upBtn.classList.toggle('opacity-40', !neighbors.up);
+    downBtn.classList.toggle('opacity-40', !neighbors.down);
+    mergeDirectionCallback = callback;
+    modal.classList.remove('hidden');
+}
+
+function requestDeleteLogEntry(id) {
+    const target = logs.find(l => l.id === id);
+    if (!target) return;
+    if (target.parallel) {
+        deleteLogEntry(id);
+        return;
+    }
+    const neighbors = getDeleteMergeNeighbors(target);
+    if (!neighbors.up && !neighbors.down) {
+        deleteLogEntry(id);
+        return;
+    }
+    showMergeDirection(target, direction => {
+        if (!direction) return;
+        mergeDeletedTime(target, direction);
+        logs = logs.filter(l => l.id !== id);
+        logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
+        mergeAdjacentSameActivity();
+        localStorage.setItem('v9_logs', JSON.stringify(logs));
+        renderAll();
+    });
 }
 
 function executeRecord(l1, l2, tag, note) {
@@ -2004,7 +2067,7 @@ function createLogRow(list, log, idx) {
             if (currentDx > 55) {
                 const logName = displayName(log);
                 showConfirm("确认删除", `删除「${logName}」？这条记录将被永久移除。`, "删除", (ok) => {
-                    if (ok) deleteLogEntry(log.id);
+                    if (ok) requestDeleteLogEntry(log.id);
                 });
             } else if (currentDx < -55) {
                 openEdit(idx);
