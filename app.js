@@ -1199,9 +1199,11 @@ function getDeleteMergeNeighbors(target) {
     const sameDay = logs
         .filter(l => !l.parallel && l.id !== target.id && formatBeijingDate(l.startTime) === formatBeijingDate(target.startTime))
         .sort((a, b) => a.startTime - b.startTime);
+    const activeUp = current && formatBeijingDate(current.startTime) === formatBeijingDate(target.startTime)
+        && current.startTime > target.startTime ? current : null;
     return {
-        // 流水页面按倒序展示：up 是时间更晚、视觉上方的记录，down 是时间更早、视觉下方的记录。
-        up: sameDay.find(l => l.startTime > target.startTime) || null,
+        // 流水页面按倒序展示：up 是时间更晚、视觉上方的记录，包含顶部正在进行的 current。
+        up: activeUp || sameDay.find(l => l.startTime > target.startTime) || null,
         down: sameDay.slice().reverse().find(l => l.startTime < target.startTime) || null
     };
 }
@@ -1218,7 +1220,7 @@ function mergeDeletedTime(target, direction) {
         neighbor.endTime = Math.max(neighborEnd, targetEnd);
     }
     neighbor.endTime = Math.max(neighbor.endTime || neighbor.startTime, neighbor.startTime);
-    neighbor.duration = Math.round((neighbor.endTime - neighbor.startTime) / 60000);
+        neighbor.duration = Math.round((neighbor.endTime - neighbor.startTime) / 60000);
 }
 
 let mergeDirectionCallback = null;
@@ -1259,9 +1261,14 @@ function requestDeleteLogEntry(id) {
         deleteLogEntry(id);
         return;
     }
+    const activeUp = neighbors.up === current;
     showMergeDirection(target, direction => {
         if (!direction) return;
         mergeDeletedTime(target, direction);
+        if (direction === 'up' && activeUp && current) {
+            // 顶部正在进行的活动不在 logs 中，合并后要把新的起点写回 current。
+            localStorage.setItem('v9_current', JSON.stringify(current));
+        }
         logs = logs.filter(l => l.id !== id);
         logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
         mergeAdjacentSameActivity();
