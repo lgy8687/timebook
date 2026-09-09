@@ -98,6 +98,21 @@
 .segment { fill: none; stroke-width: 10; transition: all 0.5s; }
 .btn-active:active { transform: scale(0.95); filter: brightness(0.9); }
 .drawer-up { animation: slideUp 0.3s ease-out; }
+
+/* 分类选择器需要在抽屉内部滚动，不能被动态 grid 内容撑开。 */
+#drawer > .drawer-up { min-height: 0; }
+#drawer > .drawer-up > .flex-1 { min-height: 0; }
+#drawer-l1,
+#drawer-l2 {
+    min-height: 0;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+#drawer-l2 {
+    flex: 1 1 auto;
+    max-height: 100%;
+    align-content: start;
+}
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .fade-in { animation: fadeIn 0.15s ease-out; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
