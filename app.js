@@ -1194,13 +1194,18 @@ function getEditBoundaryNeighbors(log) {
 function applyEditedRange(log, newStart, newEnd, done) {
     const oldStart = log.startTime;
     const oldEnd = logEndMs(log);
-    if (newStart >= newEnd) {
+    // 输入框精确到秒，原始时间戳可能带毫秒；同一显示秒内的差异不应被当成修改。
+    const startChanged = Math.floor(newStart / 1000) !== Math.floor(oldStart / 1000);
+    const endChanged = Math.floor(newEnd / 1000) !== Math.floor(oldEnd / 1000);
+    const effectiveStart = startChanged ? newStart : oldStart;
+    const effectiveEnd = endChanged ? newEnd : oldEnd;
+    if (effectiveStart >= effectiveEnd) {
         showConfirm('时间不合法', '开始时间必须早于结束时间。', '知道了', () => {});
         return;
     }
     const { previous, next } = getEditBoundaryNeighbors(log);
-    const needsPrevious = newStart !== oldStart;
-    const needsNext = newEnd !== oldEnd;
+    const needsPrevious = startChanged;
+    const needsNext = endChanged;
     if (needsPrevious && !previous) {
         showConfirm('无法调整开始时间', '上面没有可分配的已结束时间段，不能让时间轴产生空档。', '知道了', () => {});
         return;
@@ -1209,18 +1214,18 @@ function applyEditedRange(log, newStart, newEnd, done) {
         showConfirm('无法调整结束时间', '下面没有可分配的已结束时间段，不能让时间轴产生空档。', '知道了', () => {});
         return;
     }
-    const swallowPrevious = needsPrevious && newStart <= previous.startTime;
-    const swallowNext = needsNext && newEnd >= logEndMs(next);
+    const swallowPrevious = needsPrevious && effectiveStart <= previous.startTime;
+    const swallowNext = needsNext && effectiveEnd >= logEndMs(next);
     const swallowed = [swallowPrevious ? previous : null, swallowNext ? next : null].filter(Boolean);
     if (swallowed.length) {
         const names = swallowed.map(displayName).join('、');
         showConfirm('确认吞并相邻记录', `这次调整会吞并相邻的「${names}」。是否继续？`, '继续', ok => {
             if (!ok) return;
-            commitEditedRange(log, newStart, newEnd, previous, next, swallowPrevious, swallowNext, done);
+            commitEditedRange(log, effectiveStart, effectiveEnd, previous, next, swallowPrevious, swallowNext, done);
         }, '取消');
         return;
     }
-    commitEditedRange(log, newStart, newEnd, previous, next, false, false, done);
+    commitEditedRange(log, effectiveStart, effectiveEnd, previous, next, false, false, done);
 }
 
 function commitEditedRange(log, newStart, newEnd, previous, next, swallowPrevious, swallowNext, done) {
