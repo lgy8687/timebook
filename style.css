@@ -824,6 +824,80 @@ body.compact-wheel-open { overflow: hidden; }
 }
 .flow-calendar-day.is-future { opacity: 0.35; }
 
+.calendar-day-summary {
+    padding: 14px 16px 12px;
+    background: #fff;
+    border: 1px solid #f1f5f9;
+    border-radius: 20px;
+}
+.calendar-summary-top {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+}
+.calendar-summary-top > div:first-child { min-width: 0; }
+.calendar-summary-kicker,
+.calendar-summary-total span,
+.calendar-summary-flow-label {
+    display: block;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 800;
+}
+.calendar-summary-top strong {
+    display: block;
+    margin-top: 3px;
+    color: #1e293b;
+    font-size: 15px;
+    font-weight: 900;
+}
+.calendar-summary-total { text-align: right; flex-shrink: 0; }
+.calendar-summary-total b {
+    display: block;
+    color: #4f46e5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 20px;
+    line-height: 1;
+}
+.calendar-summary-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 13px;
+}
+.calendar-summary-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    color: #475569;
+    background: #f8fafc;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+}
+.calendar-summary-chip i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+.calendar-summary-empty { color: #cbd5e1; font-size: 11px; font-weight: 700; }
+.calendar-summary-flow-label { margin-top: 14px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+.flow-calendar-day.has-logs::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    bottom: 0;
+    height: max(2px, calc(var(--calendar-load, 0) * 5px));
+    border-radius: 999px;
+    background: #6366f1;
+    opacity: .55;
+}
+.flow-calendar-day.is-today.has-logs::before,
+.flow-calendar-day.is-selected.has-logs::before { background: #fff; opacity: .8; }
+
 .flow-calendar-title-btn {
     border: none;
     background: transparent;

@@ -654,7 +654,51 @@ function renderRecordPage() {
 
 function renderCalendarPage() {
     renderFlowCalendar();
+    renderCalendarDaySummary();
     renderLogs('calendar-log-list', viewDate);
+}
+
+function getCalendarDaySummary(dateStr) {
+    const dayStart = beijingDateStrToDayStart(dateStr);
+    const dayEnd = dayStart + DAY_MS;
+    const live = isDateToday(dateStr) && current ? [{ ...current, endTime: nowSecondMs(), live: true }] : [];
+    const segments = logs.filter(l => !l.parallel).concat(live).flatMap(log => {
+        const end = logEndMs(log, log.live ? nowSecondMs() : null);
+        const start = Math.max(dayStart, log.startTime);
+        const finish = Math.min(dayEnd, end);
+        return finish > start ? [{ log, start, end: finish }] : [];
+    });
+    const byCategory = new Map();
+    segments.forEach(({ log, start, end }) => {
+        const key = log.l1 || '未分类';
+        const item = byCategory.get(key) || { name: key, ms: 0, color: getCat(key)?.color || '#94a3b8' };
+        item.ms += end - start;
+        byCategory.set(key, item);
+    });
+    return {
+        totalMs: segments.reduce((sum, item) => sum + item.end - item.start, 0),
+        count: segments.length,
+        categories: [...byCategory.values()].sort((a, b) => b.ms - a.ms)
+    };
+}
+
+function renderCalendarDaySummary() {
+    const host = document.getElementById('calendar-day-summary');
+    if (!host) return;
+    const summary = getCalendarDaySummary(viewDate);
+    const dateLabel = formatDateHeaderLabel(viewDate);
+    const total = formatDuration(summary.totalMs);
+    const categories = summary.categories.slice(0, 6).map(item => `
+        <span class="calendar-summary-chip">
+            <i style="background:${item.color}"></i>${item.name} ${formatDuration(item.ms)}
+        </span>`).join('');
+    host.innerHTML = `
+        <div class="calendar-summary-top">
+            <div><span class="calendar-summary-kicker">当天复盘</span><strong>${dateLabel}</strong></div>
+            <div class="calendar-summary-total"><b>${total}</b><span>${summary.count} 段活动</span></div>
+        </div>
+        <div class="calendar-summary-chips">${categories || '<span class="calendar-summary-empty">当天暂无记录</span>'}</div>
+        <div class="calendar-summary-flow-label">当天流水</div>`;
 }
 
 function initViewDateState() {
@@ -3456,6 +3500,7 @@ function renderFlowCalendar() {
     }
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${calendarViewYear}-${pad2(calendarViewMonth + 1)}-${pad2(d)}`;
+        const daySummary = getCalendarDaySummary(dateStr);
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'flow-calendar-day btn-active';
@@ -3463,6 +3508,11 @@ function renderFlowCalendar() {
         if (dateStr === viewDate) btn.classList.add('is-selected');
         if (dateStr > todayStr) btn.classList.add('is-future');
         if (logDays.has(dateStr)) btn.classList.add('has-logs');
+        if (daySummary.totalMs > 0) {
+            const load = Math.min(1, daySummary.totalMs / DAY_MS);
+            btn.style.setProperty('--calendar-load', String(load));
+            btn.title = `${formatDuration(daySummary.totalMs)} · ${daySummary.categories.length} 个一级目录`;
+        }
         const numEl = document.createElement('span');
         numEl.className = 'flow-calendar-day-num';
         numEl.innerText = String(d);
