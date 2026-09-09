@@ -1054,6 +1054,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('edit-start-input').addEventListener('keydown', e => {
         if (e.key === 'Enter') confirmEdit();
     });
+    document.getElementById('edit-end-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') confirmEdit();
+    });
 });
 
 let confirmCallback = null;
@@ -1141,7 +1144,7 @@ function openEdit(index) {
     editOldL2 = log.l2;
     document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration((log.endTime||Date.now())-log.startTime)}`;
     document.getElementById('edit-start-input').value = formatBeijingClockSec(log.startTime);
-    document.getElementById('edit-duration-display').innerText = formatDuration(logDurationMs(log));
+    document.getElementById('edit-end-input').value = formatBeijingClockSec(logEndMs(log));
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -1178,40 +1181,69 @@ function parseEditClock(value, referenceMs) {
     return beijingDateStrToDayStart(date) + (h * 3600 + m * 60 + s) * 1000;
 }
 
-function getStartTimeNeighbor(log) {
+function getEditBoundaryNeighbors(log) {
     const sameDay = logs
         .filter(l => !l.parallel && l.id !== log.id && formatBeijingDate(l.startTime) === formatBeijingDate(log.startTime))
         .sort((a, b) => a.startTime - b.startTime);
-    return [...sameDay].reverse().find(l => l.startTime < log.startTime) || null;
+    return {
+        previous: [...sameDay].reverse().find(l => l.startTime < log.startTime) || null,
+        next: sameDay.find(l => l.startTime > log.startTime) || null
+    };
 }
 
-function applyEditedStart(log, newStart, done) {
+function applyEditedRange(log, newStart, newEnd, done) {
     const oldStart = log.startTime;
-    const end = logEndMs(log);
-    if (newStart === oldStart) { done(); return; }
-    if (newStart >= end) {
+    const oldEnd = logEndMs(log);
+    if (newStart >= newEnd) {
         showConfirm('时间不合法', '开始时间必须早于结束时间。', '知道了', () => {});
         return;
     }
-    const previous = getStartTimeNeighbor(log);
-    if (!previous) {
+    const { previous, next } = getEditBoundaryNeighbors(log);
+    const needsPrevious = newStart !== oldStart;
+    const needsNext = newEnd !== oldEnd;
+    if (needsPrevious && !previous) {
         showConfirm('无法调整开始时间', '上面没有可分配的已结束时间段，不能让时间轴产生空档。', '知道了', () => {});
         return;
     }
-    if (newStart <= previous.startTime) {
-        showConfirm('确认吞并相邻记录', `这次调整会吞并相邻的「${displayName(previous)}」。是否继续？`, '继续', ok => {
+    if (needsNext && !next) {
+        showConfirm('无法调整结束时间', '下面没有可分配的已结束时间段，不能让时间轴产生空档。', '知道了', () => {});
+        return;
+    }
+    const swallowPrevious = needsPrevious && newStart <= previous.startTime;
+    const swallowNext = needsNext && newEnd >= logEndMs(next);
+    const swallowed = [swallowPrevious ? previous : null, swallowNext ? next : null].filter(Boolean);
+    if (swallowed.length) {
+        const names = swallowed.map(displayName).join('、');
+        showConfirm('确认吞并相邻记录', `这次调整会吞并相邻的「${names}」。是否继续？`, '继续', ok => {
             if (!ok) return;
-            log.startTime = previous.startTime;
-            log.duration = Math.round((end - log.startTime) / 60000);
-            logs = logs.filter(l => l.id !== previous.id);
-            done();
+            commitEditedRange(log, newStart, newEnd, previous, next, swallowPrevious, swallowNext, done);
         }, '取消');
         return;
     }
-    previous.endTime = newStart;
-    previous.duration = Math.round((previous.endTime - previous.startTime) / 60000);
+    commitEditedRange(log, newStart, newEnd, previous, next, false, false, done);
+}
+
+function commitEditedRange(log, newStart, newEnd, previous, next, swallowPrevious, swallowNext, done) {
+    if (previous && newStart !== log.startTime) {
+        if (swallowPrevious) {
+            logs = logs.filter(l => l.id !== previous.id);
+        } else {
+            previous.endTime = newStart;
+            previous.duration = Math.round((previous.endTime - previous.startTime) / 60000);
+        }
+    }
+    if (next && newEnd !== logEndMs(log)) {
+        if (swallowNext) {
+            logs = logs.filter(l => l.id !== next.id);
+        } else {
+            const nextEnd = logEndMs(next);
+            next.startTime = newEnd;
+            next.duration = Math.round((nextEnd - next.startTime) / 60000);
+        }
+    }
     log.startTime = newStart;
-    log.duration = Math.round((end - log.startTime) / 60000);
+    log.endTime = newEnd;
+    log.duration = Math.round((newEnd - newStart) / 60000);
     done();
 }
 
@@ -1219,8 +1251,9 @@ function confirmEdit() {
     if (editIndex === null || !logs[editIndex]) return;
     const log = logs[editIndex];
     const newStart = parseEditClock(document.getElementById('edit-start-input').value, log.startTime);
-    if (newStart === null) {
-        showConfirm('开始时间格式不正确', '请输入 HH:MM 或 HH:MM:SS。', '知道了', () => {});
+    const newEnd = parseEditClock(document.getElementById('edit-end-input').value, log.startTime);
+    if (newStart === null || newEnd === null) {
+        showConfirm('时间格式不正确', '请输入 HH:MM 或 HH:MM:SS。', '知道了', () => {});
         return;
     }
     const finish = () => {
@@ -1234,7 +1267,7 @@ function confirmEdit() {
         editOldL1 = null; editOldL2 = null;
         renderAll();
     };
-    applyEditedStart(log, newStart, finish);
+    applyEditedRange(log, newStart, newEnd, finish);
 }
 function closeEdit() {
     document.getElementById('edit-modal').classList.add('hidden');
