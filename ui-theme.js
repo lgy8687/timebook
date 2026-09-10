@@ -22,7 +22,6 @@ const UI_THEME_DEFAULTS = {
     dayRemainLabelSize: 13,
     sectionTitleSize: 12,
     sectionTitleColor: '#64748b',
-    sectionTitleColor: '#64748b',
     mainKeycapBg: '#ffffff',
     mainKeycapBorder: '#d1d5db',
     mainKeycapText: '#334155',

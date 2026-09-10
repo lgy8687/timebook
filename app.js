@@ -5,6 +5,23 @@ function safeJSON(key, fallback) {
         return v ? JSON.parse(v) : fallback;
     } catch(e) { return fallback; }
 }
+function escHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function safeColor(val, fallback) {
+    if (typeof val !== 'string') return fallback || '#94a3b8';
+    const v = val.trim();
+    if (/^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v)) return v;
+    if (/^(rgb|rgba|hsl|hsla)\([\d\s.,%]+\)$/.test(v)) return v;
+    if (v === 'transparent') return v;
+    return fallback || '#94a3b8';
+}
+let _idCounter = 0;
+function genId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return Date.now() * 1000 + (++_idCounter % 1000);
+}
 // --- 数据模型（仅首次无 v9_cats 时注入）---
 const DEFAULT_CATS = [
     { id: 1, name: "工作", icon: "💼", color: "#3b82f6", subs: ["办公", "开会", "沟通", "见客户", "上班"] },
@@ -400,7 +417,7 @@ window.onload = () => {
         renderAll();
         tickLoop();
     } catch(e) {
-        document.body.innerHTML = '<div style="padding:40px;font-size:14px;color:red;"><h2>⚠️ 初始化失败</h2><pre style="margin-top:16px;background:#fee;padding:16px;border-radius:12px;font-size:12px;white-space:pre-wrap;">' + e.stack + '</pre></div>';
+        document.body.innerHTML = '<div style="padding:40px;font-size:14px;color:red;"><h2>⚠️ 初始化失败</h2><pre style="margin-top:16px;background:#fee;padding:16px;border-radius:12px;font-size:12px;white-space:pre-wrap;">' + escHtml(e.stack) + '</pre></div>';
     }
 };
 
@@ -601,7 +618,7 @@ function commitCurrentSlice(endMs, continueSame, parallelOpts) {
     if (!Number.isFinite(current.startTime) || endMs <= current.startTime) return;
     const cat = getCat(current.l1);
     const color = current.color || (cat ? cat.color : '#cbd5e1');
-    const mainLogId = continueSame ? endMs : (Date.now() + Math.random());
+    const mainLogId = continueSame ? endMs : genId();
     const dur = Math.max(1, Math.round((endMs - current.startTime) / 60000));
     const needsClassify = !current.l1 && !!(current.note || current.tag);
     logs.unshift({
@@ -709,7 +726,7 @@ function renderCalendarDaySummary() {
     const total = formatDuration(summary.totalMs);
     const categories = summary.categories.slice(0, 6).map(item => `
         <span class="calendar-summary-chip">
-            <i style="background:${item.color}"></i>${item.name} ${formatDuration(item.ms)}
+            <i style="background:${safeColor(item.color)}"></i>${escHtml(item.name)} ${formatDuration(item.ms)}
         </span>`).join('');
     host.innerHTML = `
         <div class="calendar-summary-top">
@@ -780,7 +797,7 @@ function appendDrawerRecentsBar(l2Box) {
         btn.type = 'button';
         btn.className = 'drawer-recent-btn btn-active';
         const icon = r.l2 ? getSubIcon(r.l2, cat.icon, cat) : cat.icon;
-        btn.innerHTML = `<span class="drawer-recent-icon">${icon}</span><span class="drawer-recent-text">${r.l2 || r.l1}</span>`;
+        btn.innerHTML = `<span class="drawer-recent-icon">${escHtml(icon)}</span><span class="drawer-recent-text">${escHtml(r.l2 || r.l1)}</span>`;
         btn.addEventListener('click', () => drawerPick(r.l1, r.l2 || ''));
         row.appendChild(btn);
     });
@@ -1519,6 +1536,7 @@ function executeEditShortcut(l1, l2) {
 
 let _parallelPending = false;
 let _parallelCallback = null;
+let _cleanupBackfillDrag = null;
 function drawerPick(l1, l2) {
     if (_parallelPending) {
         _parallelPending = false;
@@ -1715,6 +1733,7 @@ function updateParallelStatus() {
     } else {
         badge.classList.add('hidden');
     }
+}
 function openDrawer() {
     pickerMode = 'record';
     document.getElementById('drawer-title').innerText = "记一笔活动";
@@ -1724,7 +1743,6 @@ function openDrawer() {
     document.getElementById('drawer-note').value = "";
     document.getElementById('drawer-footer').classList.remove('hidden');
     renderPicker();
-}
 }
 function openDrawerForRecord() {
     pickerMode = 'record';
@@ -2349,7 +2367,7 @@ function openBackfillDrawer(parentLog) {
             return;
         }
         const entry = {
-            id: Date.now() + Math.random(),
+            id: genId(),
             startTime: clampedStart,
             endTime: e,
             duration: dur,
@@ -2414,11 +2432,11 @@ function executeSplit(parentLog, l1, l2) {
     const note = document.getElementById('drawer-note').value || '';
     const newLogs = [];
     if (splitStart > pStart) {
-        newLogs.push({ ...parentLog, id: Date.now() + Math.random(), startTime: pStart, endTime: splitStart, duration: Math.round((splitStart - pStart) / 60000) });
+        newLogs.push({ ...parentLog, id: genId(), startTime: pStart, endTime: splitStart, duration: Math.round((splitStart - pStart) / 60000) });
     }
-    newLogs.push({ id: Date.now() + Math.random() + 1, startTime: splitStart, endTime: splitEnd, duration: Math.round((splitEnd - splitStart) / 60000), l1, l2: l2 || '', tag: '', note, color });
+    newLogs.push({ id: genId(), startTime: splitStart, endTime: splitEnd, duration: Math.round((splitEnd - splitStart) / 60000), l1, l2: l2 || '', tag: '', note, color });
     if (splitEnd < pEnd) {
-        newLogs.push({ ...parentLog, id: Date.now() + Math.random() + 2, startTime: splitEnd, endTime: pEnd, duration: Math.round((pEnd - splitEnd) / 60000) });
+        newLogs.push({ ...parentLog, id: genId(), startTime: splitEnd, endTime: pEnd, duration: Math.round((pEnd - splitEnd) / 60000) });
     }
     logs.splice(idx, 0, ...newLogs);
     mergeAdjacentSameActivity();
@@ -2508,6 +2526,16 @@ function setupBackfillDrag(parentLog, parentEnd) {
     const newEndH = newTrack.querySelector('#backfill-end-handle');
     if (!newStartH || !newEndH) return;
 
+    const removeDocListeners = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        _cleanupBackfillDrag = null;
+    };
+    if (_cleanupBackfillDrag) _cleanupBackfillDrag();
+    _cleanupBackfillDrag = removeDocListeners;
+
     const onMove = (e) => {
         if (!dragTarget) return;
         e.preventDefault();
@@ -2528,6 +2556,7 @@ function setupBackfillDrag(parentLog, parentEnd) {
             }
         }
         dragTarget = null;
+        removeDocListeners();
     };
 
     const onTrackTap = (clientX) => {
@@ -2861,6 +2890,14 @@ function buildLiveReportDay() {
         .map((r) => ({ l1: r.l1, name: r.name, hours: msToReportHours(r.ms), color: r.color }))
         .sort((a, b) => b.hours - a.hours);
 
+    const hostMs = new Map();
+    paraSegs.forEach((l) => {
+        const host = parallelHostL1(l);
+        const ms = l.clippedEnd - l.clippedStart;
+        hostMs.set(host, (hostMs.get(host) || 0) + ms);
+    });
+    const topHostEntry = [...hostMs.entries()].sort((a, b) => b[1] - a[1])[0];
+
     const timelineSegs = mainSegs.map((l) => {
         const left = ((l.clippedStart - dayStart) / DAY_MS) * 100;
         const width = ((l.clippedEnd - l.clippedStart) / DAY_MS) * 100;
@@ -2907,6 +2944,7 @@ function buildLiveReportDay() {
                 { icon: '⏳', label: '并行总时长', value: String(msToReportHours(paraMs)), sub: '小时' },
                 { icon: '📐', label: '叠在主线比', value: paraRatio, sub: '并行/主线' },
                 { icon: '🔝', label: '最常并行', value: topPara?.name || '—', sub: topPara ? topPara.hours + 'h' : '' },
+                { icon: '🏠', label: '叠加最多时段', value: topHostEntry ? topHostEntry[0] : '—', sub: topHostEntry ? msToReportHours(topHostEntry[1]) + 'h' : '' },
             ],
             l1: paraL1,
             l2: paraL2,
@@ -2956,6 +2994,13 @@ function buildLiveReportPeriod(period) {
     const topL1 = l1[0];
     const focusPct = topL1 && mainHours ? (Math.round((topL1.hours / mainHours) * 1000) / 10) + '%' : '0%';
     const paraRatio = mainHours ? (Math.round((msToReportHours(paraMs) / mainHours) * 1000) / 10) + '%' : '0%';
+    const hostMs = new Map();
+    paraSegs.forEach((l) => {
+        const host = parallelHostL1(l);
+        const ms = l.clippedEnd - l.clippedStart;
+        hostMs.set(host, (hostMs.get(host) || 0) + ms);
+    });
+    const topHostEntry = [...hostMs.entries()].sort((a, b) => b[1] - a[1])[0];
     const bars = [];
     for (let dayStart = range.start; dayStart < Math.min(range.end, now); dayStart += DAY_MS) {
         const dayEnd = Math.min(dayStart + DAY_MS, now);
@@ -2981,6 +3026,7 @@ function buildLiveReportPeriod(period) {
                 { icon: '⏳', label: '并行总时长', value: String(msToReportHours(paraMs)), sub: '小时' },
                 { icon: '📐', label: '叠在主线比', value: paraRatio, sub: '并行/主线' },
                 { icon: '🔝', label: '最常并行', value: paraL1[0]?.name || '—', sub: paraL1[0] ? paraL1[0].hours + 'h' : '' },
+                { icon: '🏠', label: '叠加最多时段', value: topHostEntry ? topHostEntry[0] : '—', sub: topHostEntry ? msToReportHours(topHostEntry[1]) + 'h' : '' },
             ], l1: paraL1, l2: paraL1,
         },
     };
@@ -3094,14 +3140,14 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-2 text-center text-[10px] font-bold shadow-sm";
-                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${c.icon}</div><div class=\"leading-tight\">${c.name}</div>`;
+                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${escHtml(c.icon)}</div><div class=\"leading-tight\">${escHtml(c.name)}</div>`;
                 const already = shortcuts.some(s => s.l1 === c.name && s.l2 === "");
                 if (already) {
                     btn.style.background = '#f1f5f9';
                     btn.style.color = '#94a3b8';
                     btn.style.cursor = 'pointer';
                     btn.style.opacity = '0.6';
-                    btn.style.borderLeft = `4px solid ${c.color || '#6366f1'}`;
+                    btn.style.borderLeft = `4px solid ${safeColor(c.color, '#6366f1')}`;
                     btn.addEventListener('click', () => removeShortcut(c.name, ""));
                 } else {
                     btn.addEventListener('click', () => addShortcut(c.name, "", c.icon));
@@ -3113,14 +3159,14 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-2 text-center text-[10px] font-bold shadow-sm";
-                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${getSubIcon(s, c.icon, c)}</div><div class=\"leading-tight\">${s}</div>`;
+                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${escHtml(getSubIcon(s, c.icon, c))}</div><div class=\"leading-tight\">${escHtml(s)}</div>`;
                 const already = shortcuts.some(sm => sm.l1 === c.name && sm.l2 === s);
                 if (already) {
                     btn.style.background = '#f1f5f9';
                     btn.style.color = '#94a3b8';
                     btn.style.cursor = 'pointer';
                     btn.style.opacity = '0.6';
-                    btn.style.borderLeft = `4px solid ${c.color || '#6366f1'}`;
+                    btn.style.borderLeft = `4px solid ${safeColor(c.color, '#6366f1')}`;
                     btn.addEventListener('click', () => removeShortcut(c.name, s));
                 } else {
                     btn.addEventListener('click', () => addShortcut(c.name, s, getSubIcon(s, c.icon, c)));
@@ -3139,11 +3185,11 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-2 text-center text-[10px] font-bold shadow-sm";
-                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${c.icon}</div><div class=\"leading-tight\">${c.name}</div>`;
+                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${escHtml(c.icon)}</div><div class=\"leading-tight\">${escHtml(c.name)}</div>`;
                 const already = parallelShortcuts.some(s => s.l1 === c.name && s.l2 === "");
                 if (already) {
                     btn.style.background = '#f1f5f9'; btn.style.color = '#94a3b8'; btn.style.cursor = 'pointer'; btn.style.opacity = '0.6';
-                    btn.style.borderLeft = `4px solid ${c.color || '#6366f1'}`;
+                    btn.style.borderLeft = `4px solid ${safeColor(c.color, '#6366f1')}`;
                     btn.addEventListener('click', () => {
                         parallelShortcuts = parallelShortcuts.filter(s => !(s.l1 === c.name && s.l2 === ""));
                         localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
@@ -3159,11 +3205,11 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-2 text-center text-[10px] font-bold shadow-sm";
-                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${getSubIcon(s, c.icon, c)}</div><div class=\"leading-tight\">${s}</div>`;
+                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${escHtml(getSubIcon(s, c.icon, c))}</div><div class=\"leading-tight\">${escHtml(s)}</div>`;
                 const already = parallelShortcuts.some(sm => sm.l1 === c.name && sm.l2 === s);
                 if (already) {
                     btn.style.background = '#f1f5f9'; btn.style.color = '#94a3b8'; btn.style.cursor = 'pointer'; btn.style.opacity = '0.6';
-                    btn.style.borderLeft = `4px solid ${c.color || '#6366f1'}`;
+                    btn.style.borderLeft = `4px solid ${safeColor(c.color, '#6366f1')}`;
                     btn.addEventListener('click', () => {
                         parallelShortcuts = parallelShortcuts.filter(sm => !(sm.l1 === c.name && sm.l2 === s));
                         localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
@@ -3187,7 +3233,7 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
-                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${c.icon}</div><div class="leading-tight">${c.name}</div>`;
+                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${escHtml(c.icon)}</div><div class="leading-tight">${escHtml(c.name)}</div>`;
                 btn.addEventListener('click', () => drawerPick(c.name, ""));
                 l2Box.appendChild(btn);
                 return;
@@ -3196,7 +3242,7 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
-                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${getSubIcon(s, c.icon, c)}</div><div class="leading-tight">${s}</div>`;
+                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${escHtml(getSubIcon(s, c.icon, c))}</div><div class="leading-tight">${escHtml(s)}</div>`;
                 btn.addEventListener('click', () => drawerPick(c.name, s));
                 l2Box.appendChild(btn);
             });
@@ -3211,21 +3257,21 @@ function renderPicker() {
         cats.forEach(c => {
             const header = document.createElement('div');
             header.className = "flex items-center gap-2 mb-2 mt-4 first:mt-0";
-            header.innerHTML = `<span class="text-lg">${c.icon}</span><span class="text-sm font-black text-slate-500 uppercase tracking-wider">${c.name}</span>`;
+            header.innerHTML = `<span class="text-lg">${escHtml(c.icon)}</span><span class="text-sm font-black text-slate-500 uppercase tracking-wider">${escHtml(c.name)}</span>`;
             l2Box.appendChild(header);
             const grid = document.createElement('div');
             grid.className = "grid grid-cols-5 gap-1.5";
             const direct = document.createElement('button');
             direct.type = 'button';
             direct.className = "bg-indigo-600 text-white border border-indigo-600 rounded-xl p-1.5 text-center text-[10px] font-bold shadow-sm active:bg-indigo-700";
-            direct.innerHTML = `<div class="text-base leading-none mb-0.5">${c.icon}</div><div class="leading-tight">${c.name}</div>`;
+            direct.innerHTML = `<div class="text-base leading-none mb-0.5">${escHtml(c.icon)}</div><div class="leading-tight">${escHtml(c.name)}</div>`;
             direct.addEventListener('click', () => drawerPick(c.name, ""));
             grid.appendChild(direct);
             c.subs.forEach(s => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
-                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${getSubIcon(s, c.icon, c)}</div><div class="leading-tight">${s}</div>`;
+                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${escHtml(getSubIcon(s, c.icon, c))}</div><div class="leading-tight">${escHtml(s)}</div>`;
                 btn.addEventListener('click', () => drawerPick(c.name, s));
                 grid.appendChild(btn);
             });
@@ -3681,7 +3727,7 @@ function handleFreeInput() {
         const match = matchCategoryFromInput(val);
         const cat = getCat(match.l1);
         const entry = {
-            id: Date.now() + Math.random(),
+            id: genId(),
             startTime: startMs,
             endTime: endMs,
             duration: Math.round((endMs - startMs) / 60000),
@@ -3704,6 +3750,7 @@ function handleFreeInput() {
 }
 
 function closeDrawer() {
+    if (_cleanupBackfillDrag) { _cleanupBackfillDrag(); }
     const wasClassify = pickerMode === 'classify-log' && _classifyPromptOpen;
     document.getElementById('drawer').classList.add('hidden');
     pickerMode = 'record';

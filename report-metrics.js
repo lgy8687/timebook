@@ -81,7 +81,7 @@ function resolveReportMetric(metricId, periodData, view) {
             return row ? { value: row.value, label: '并行条数' } : { value: '—', label: '并行条数' };
         }
         case 'topHost':
-            return { value: '上班', label: '叠加最多时段' };
+            return fromSummary('🏠', '叠加最多时段') || { value: '—', label: '叠加最多时段' };
         default:
             return { value: '—', label: '—' };
     }
