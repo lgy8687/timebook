@@ -2914,7 +2914,7 @@ function getReportPeriodData(period) {
 }
 
 function ensureReportBillboard() {
-    if (!document.getElementById('summary-main')) return;
+    if (!document.getElementById('sunburst-svg')) return;
     if (!reportBillboardReady && typeof initReportBillboard === 'function') {
         initReportBillboard({ defaultPeriod: 'day', getPeriodData: getReportPeriodData });
         reportBillboardReady = true;

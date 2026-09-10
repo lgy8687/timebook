@@ -3,7 +3,7 @@
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v1.7';
+    const REPORT_VERSION = 'v1.8';
 
     let state = { period: 'day', chartView: 'main', legendMode: 'l1' };
     let getPeriodData = null;
