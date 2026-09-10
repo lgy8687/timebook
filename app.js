@@ -1586,7 +1586,7 @@ function drawerPick(l1, l2) {
             tag: '', note: document.getElementById('drawer-note').value || '',
             color: cat?.color || '#cbd5e1',
             parallel: true,
-            parentId: null
+            parentId: current?.id || null
         };
         logs.unshift(entry);
         localStorage.setItem('v9_logs', JSON.stringify(logs));
@@ -1705,20 +1705,27 @@ function toggleParallel(l1, l2, icon) {
     // 结束当前并行 → 存入 parallelHistory
     if (parallelCurrent) {
         const dur = Math.max(1, Math.round((now - parallelCurrent.startTime) / 60000));
-        parallelHistory.unshift({ ...parallelCurrent, endTime: now, duration: dur, parallel: true, parentId: null, note: parallelCurrent.note || '' });
+        parallelHistory.unshift({
+            ...parallelCurrent,
+            endTime: now,
+            duration: dur,
+            parallel: true,
+            parentId: parallelCurrent.parentId || current?.id || null,
+            note: parallelCurrent.note || ''
+        });
         if (parallelCurrent.l1 === l1 && parallelCurrent.l2 === l2) {
             // 点同一个并行 → 只结束，不开新的
             parallelCurrent = null;
             localStorage.removeItem('v9_parallel');
         } else {
             // 点不同的并行 → 结束旧的，开新的
-            parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '' };
+            parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null };
             localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
         }
         localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
     } else {
         // 没有并行在跑 → 直接开新的
-        parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '' };
+        parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null };
         localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
     }
     renderParallelShortcuts();
@@ -2834,9 +2841,21 @@ function aggregateReportSegments(segments, keyFn) {
 }
 
 function parallelHostL1(paraLog) {
-    if (!paraLog.parentId) return '未分类';
-    const parent = logs.find((l) => l.id === paraLog.parentId);
-    return parent?.l1 || '未分类';
+    if (paraLog.parentId) {
+        const parent = logs.find((l) => l.id === paraLog.parentId && !l.parallel);
+        if (parent?.l1) return parent.l1;
+    }
+    // 兼容旧数据：用并行时段与主线的最大重叠来恢复所属分类。
+    const start = paraLog.clippedStart ?? paraLog.startTime;
+    const end = paraLog.clippedEnd ?? paraLog.endTime ?? start;
+    const fallback = logs
+        .filter((l) => !l.parallel && l.startTime < end && (l.endTime ?? nowSecondMs()) > start)
+        .map((l) => ({
+            l,
+            overlap: Math.max(0, Math.min(l.endTime ?? end, end) - Math.max(l.startTime, start)),
+        }))
+        .sort((a, b) => b.overlap - a.overlap)[0];
+    return fallback?.l?.l1 || '未分类';
 }
 
 function buildLiveReportDay() {

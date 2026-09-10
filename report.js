@@ -70,7 +70,7 @@
             const live = getPeriodData(state.period);
             if (live) return live;
         }
-        return REPORT_DATA[state.period] || null;
+        return typeof REPORT_DATA !== 'undefined' ? REPORT_DATA[state.period] || null : null;
     }
 
     function renderSummaryRow(elId, view, periodData) {
@@ -293,18 +293,41 @@
         });
     }
 
-    window.showTip = function (e, title, val1, val2) {
+    function renderTip(title, sub, val1, val2) {
         const tip = document.getElementById('tip');
+        if (!tip) return null;
+        tip.replaceChildren();
+        const titleEl = document.createElement('div');
+        titleEl.className = 'tip-title';
+        titleEl.textContent = title || '';
+        tip.appendChild(titleEl);
+        if (sub != null && sub !== '') {
+            const subEl = document.createElement('div');
+            subEl.className = 'tip-sub';
+            subEl.textContent = sub;
+            tip.appendChild(subEl);
+        }
+        const row = document.createElement('div');
+        row.className = 'tip-row';
+        const left = document.createElement('span');
+        const right = document.createElement('span');
+        left.textContent = val1 || '';
+        right.textContent = val2 || '';
+        row.append(left, right);
+        tip.appendChild(row);
+        return tip;
+    }
+
+    window.showTip = function (e, title, val1, val2) {
+        const tip = renderTip(title, '', val1, val2);
         if (!tip) return;
-        tip.innerHTML = `<div class="tip-title">${title}</div><div class="tip-row"><span>${val1}</span><span>${val2}</span></div>`;
         tip.className = 'show';
         positionTip(e);
     };
 
     window.showTipOuter = function (e, sub, cat, val1, val2) {
-        const tip = document.getElementById('tip');
+        const tip = renderTip(sub, cat, val1, val2);
         if (!tip) return;
-        tip.innerHTML = `<div class="tip-title">${sub}</div><div class="tip-sub">${cat}</div><div class="tip-row"><span>${val1}</span><span>${val2}</span></div>`;
         tip.className = 'show';
         positionTip(e);
     };
