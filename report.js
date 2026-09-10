@@ -3,7 +3,7 @@
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v1.6';
+    const REPORT_VERSION = 'v1.7';
 
     let state = { period: 'day', chartView: 'main', legendMode: 'l1' };
     let getPeriodData = null;
@@ -78,12 +78,12 @@
         }).join('');
     }
 
-    function renderTimeline(tl) {
-        const card = document.getElementById('timeline-card');
-        const titleEl = document.getElementById('timeline-title');
-        const hintEl = document.getElementById('timeline-hint');
-        const body = document.getElementById('timeline-body');
-        const scaleEl = document.getElementById('timeline-scale');
+    function renderTimelineHalf(tl, suffix, fromPct, toPct, title) {
+        const card = document.getElementById('timeline-card-' + suffix);
+        const titleEl = document.getElementById('timeline-title-' + suffix);
+        const hintEl = document.getElementById('timeline-hint-' + suffix);
+        const body = document.getElementById('timeline-body-' + suffix);
+        const scaleEl = document.getElementById('timeline-scale-' + suffix);
         if (!card || !body) return;
 
         if (!tl) {
@@ -91,20 +91,37 @@
             return;
         }
         card.classList.remove('hidden');
-        titleEl.textContent = tl.title || '时间分布';
+        titleEl.textContent = title || tl.title || '时间分布';
         hintEl.textContent = tl.hint || '';
 
         if (tl.kind === 'day') {
             let segHtml = '';
+            const labels = [];
             (tl.segments || []).forEach((s) => {
-                const w = Math.max(s.width, 0.25);
-                segHtml += `<button type="button" class="timeline-block" style="left:${s.left}%;width:${w}%;background:${s.color}" title="${esc(s.title)}">${s.width > 7 ? esc(s.label) : ''}</button>`;
+                const segStart = Math.max(fromPct, s.left);
+                const segEnd = Math.min(toPct, s.left + s.width);
+                if (segEnd <= segStart) return;
+                const left = ((segStart - fromPct) / (toPct - fromPct)) * 100;
+                const width = ((segEnd - segStart) / (toPct - fromPct)) * 100;
+                const w = Math.max(width, 0.35);
+                segHtml += `<button type="button" class="timeline-block" style="left:${left}%;width:${w}%;background:${s.color}" title="${esc(s.title)}"></button>`;
+                labels.push({ label: s.label, title: s.title, left: left + width / 2 });
             });
-            if (tl.nowPct != null) {
-                segHtml += `<div class="timeline-now" style="left:${tl.nowPct}%"></div>`;
+            if (tl.nowPct != null && tl.nowPct >= fromPct && tl.nowPct <= toPct) {
+                const nowLeft = ((tl.nowPct - fromPct) / (toPct - fromPct)) * 100;
+                segHtml += `<div class="timeline-now" style="left:${nowLeft}%"></div>`;
             }
-            body.innerHTML = `<div class="timeline-track">${segHtml}</div>`;
-            scaleEl.innerHTML = (tl.scale || []).map((t) => `<span>${t}</span>`).join('');
+            labels.sort((a, b) => a.left - b.left);
+            let lastRight = -Infinity;
+            labels.forEach((item) => {
+                const row = item.left - 12 < lastRight ? 1 : 0;
+                item.row = row;
+                lastRight = item.left + 12;
+            });
+            const labelHtml = labels.map((item) => `<span class="timeline-callout timeline-callout-row-${item.row}" style="left:${item.left}%" title="${esc(item.title)}">${esc(item.label)}</span>`).join('');
+            body.innerHTML = `<div class="timeline-stage"><div class="timeline-track">${segHtml}</div><div class="timeline-callouts">${labelHtml}</div></div>`;
+            const labelsForHalf = suffix === 'a' ? ['00:00', '03:00', '06:00', '09:00', '12:00'] : ['12:00', '15:00', '18:00', '21:00', '24:00'];
+            scaleEl.innerHTML = labelsForHalf.map((t) => `<span>${t}</span>`).join('');
             scaleEl.classList.remove('hidden');
         } else if (tl.kind === 'bars') {
             const maxH = Math.max(...(tl.bars || []).map((b) => b.hours), 1);
@@ -122,7 +139,7 @@
     }
 
     function render() {
-        const root = document.getElementById('summary-main');
+        const root = document.getElementById('page-report');
         if (!root) return;
 
         const periodData = resolvePeriodData();
@@ -145,9 +162,8 @@
             sub.innerHTML = `TimeBook · ${esc(mainBundle.meta.title)} · ${periodName} ${badge}`;
         }
 
-        renderSummaryRow('summary-main', 'main', periodData);
-        renderSummaryRow('summary-parallel', 'parallel', periodData);
-        renderTimeline(periodData.timeline);
+        renderTimelineHalf(periodData.timeline, 'a', 0, 50, '00:00–12:00');
+        renderTimelineHalf(periodData.timeline, 'b', 50, 100, '12:00–24:00');
 
         const total = chartBundle.l1.reduce((s, x) => s + x.hours, 0);
         const isMain = state.chartView === 'main';
@@ -324,7 +340,7 @@
     };
 
     document.addEventListener('DOMContentLoaded', () => {
-        if (!document.getElementById('summary-main')) return;
+        if (!document.getElementById('sunburst-svg')) return;
         if (document.body.id === 'report-standalone') {
             state.period = 'month';
             bindEvents();

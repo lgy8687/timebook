@@ -401,7 +401,7 @@ body#report-standalone {
 }
 .timeline-track {
     position: relative;
-    height: 52px;
+    height: 44px;
     border-radius: 18px;
     background: #f1f5f9;
     overflow: hidden;
@@ -432,6 +432,39 @@ body#report-standalone {
     box-shadow: 0 0 0 3px rgba(15,23,42,.08);
     pointer-events: none;
 }
+.timeline-stage { position: relative; padding-bottom: 54px; }
+.timeline-callouts {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 44px;
+    height: 54px;
+    pointer-events: none;
+}
+.timeline-callout {
+    position: absolute;
+    transform: translateX(-50%);
+    max-width: 88px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-top: 12px;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 800;
+    text-align: center;
+}
+.timeline-callout::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1px;
+    height: 9px;
+    background: #cbd5e1;
+}
+.timeline-callout-row-1 { top: 27px; }
+.timeline-callout-row-1::before { height: 8px; }
 .timeline-scale {
     display: flex;
     justify-content: space-between;

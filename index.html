@@ -8,9 +8,9 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.45">
-    <link rel="stylesheet" href="dev-theme.css?v=4.45">
-    <link rel="stylesheet" href="report.css?v=1.7">
+    <link rel="stylesheet" href="style.css?v=4.46">
+    <link rel="stylesheet" href="dev-theme.css?v=4.46">
+    <link rel="stylesheet" href="report.css?v=1.8">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
 
@@ -26,7 +26,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <span id="cache-buster" class="text-xs font-black text-red-500">v4.45</span>
+            <span id="cache-buster" class="text-xs font-black text-red-500">v4.46</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -140,30 +140,6 @@
                     </div>
                 </div>
 
-                <div class="header">
-                    <h1>🧾 时间消费账单 <span class="report-version" id="report-version">v1.6</span></h1>
-                    <div class="period" id="bill-subtitle"></div>
-                </div>
-
-                <section class="summary-block">
-                    <h2 class="summary-block-title summary-block-title--main">主线摘要</h2>
-                    <div class="cards cards-summary" id="summary-main"></div>
-                </section>
-
-                <section class="summary-block">
-                    <h2 class="summary-block-title summary-block-title--parallel">并行摘要</h2>
-                    <div class="cards cards-summary" id="summary-parallel"></div>
-                </section>
-
-                <div class="timeline-card report-card-block" id="timeline-card">
-                    <div class="timeline-head">
-                        <div class="report-block-title" id="timeline-title">24 小时时间轴</div>
-                        <div class="timeline-hint" id="timeline-hint"></div>
-                    </div>
-                    <div id="timeline-body"></div>
-                    <div class="timeline-scale" id="timeline-scale"></div>
-                </div>
-
                 <div class="structure-card">
                     <div class="structure-head">
                         <div class="structure-title" id="structure-title">时间结构</div>
@@ -186,6 +162,24 @@
                             <div class="legend-list" id="legend-l2" style="display:none"></div>
                         </div>
                     </div>
+                </div>
+
+                <div class="timeline-card report-card-block" id="timeline-card-a">
+                    <div class="timeline-head">
+                        <div class="report-block-title" id="timeline-title-a">00:00–12:00</div>
+                        <div class="timeline-hint" id="timeline-hint-a"></div>
+                    </div>
+                    <div id="timeline-body-a"></div>
+                    <div class="timeline-scale" id="timeline-scale-a"></div>
+                </div>
+
+                <div class="timeline-card report-card-block" id="timeline-card-b">
+                    <div class="timeline-head">
+                        <div class="report-block-title" id="timeline-title-b">12:00–24:00</div>
+                        <div class="timeline-hint" id="timeline-hint-b"></div>
+                    </div>
+                    <div id="timeline-body-b"></div>
+                    <div class="timeline-scale" id="timeline-scale-b"></div>
                 </div>
 
                 <div class="insight-placeholder" id="insight-block">
@@ -489,8 +483,8 @@
     <script src="report-metrics.js?v=1.6"></script>
     <script src="report-sample.js?v=1.6"></script>
     <script src="report.js?v=1.6"></script>
-    <script src="ui-theme.js?v=4.45"></script>
-    <script src="app.js?v=4.45"></script>
-    <script src="dev-appearance.js?v=4.45"></script>
+    <script src="ui-theme.js?v=4.46"></script>
+    <script src="app.js?v=4.46"></script>
+    <script src="dev-appearance.js?v=4.46"></script>
 </body>
 </html>
