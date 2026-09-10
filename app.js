@@ -3203,7 +3203,9 @@ function renderPicker() {
     }
 }
 
+const REPORT_REFRESH_MS = 15 * 60 * 1000;
 let lastSecondTs = 0;
+let lastReportRefreshBucket = -1;
 function tick() {
     const now = nowSecondMs();
     const clockNow = getViewAnchorMs(getTodayDateStr());
@@ -3269,6 +3271,13 @@ function tick() {
             if (badge && !badge._pinned) badge.classList.add('hidden');
         }
         renderDayRemain();
+
+        // 进行中的记录纳入日报统计，但报表不必每秒重绘；每 15 分钟更新一次。
+        const reportBucket = Math.floor(now / REPORT_REFRESH_MS);
+        if (reportBucket !== lastReportRefreshBucket) {
+            lastReportRefreshBucket = reportBucket;
+            renderReport();
+        }
 
         if(current) {
             document.getElementById('status-light').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
