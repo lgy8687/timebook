@@ -67,6 +67,9 @@ if (!parallelShortcuts.length) {
     parallelShortcuts = padShortcutsToDefault(parallelShortcuts, DEFAULT_PARALLEL_SHORTCUTS);
     localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
 }
+// 旧版本没有记录“快捷入口图标是否由用户指定”，用已有非占位图标兼容迁移。
+shortcuts = shortcuts.map(s => ({ ...s, customIcon: s.customIcon ?? (s.icon && s.icon !== '📌') }));
+parallelShortcuts = parallelShortcuts.map(s => ({ ...s, customIcon: s.customIcon ?? (s.icon && s.icon !== '📌') }));
 let logs = safeJSON('v9_logs') || [];
 let current = safeJSON('v9_current') || null;
 function toSecondMs(value) {
@@ -123,7 +126,23 @@ const SUB_ICON_MAP = {
     '运动': '🏋️', '健身': '💪', '跑步': '🏃', '散步': '🦶', '瑜伽': '🧘', '冥想': '🕯️',
     '开网约车': '🚕', '写代码': '💻', '早午晚餐': '🍽️'
 };
-function getSubIcon(name, parentIcon) { return SUB_ICON_MAP[name] || parentIcon; }
+function getSubIcon(name, parentIcon, cat) {
+    return cat?.subIcons?.[name] || SUB_ICON_MAP[name] || parentIcon;
+}
+
+function setSubIcon(cat, name, icon) {
+    if (!cat || !name) return;
+    cat.subIcons = cat.subIcons || {};
+    cat.subIcons[name] = icon || '📌';
+}
+
+function moveSubIcon(cat, oldName, newName) {
+    if (!cat?.subIcons || oldName === newName) return;
+    if (Object.prototype.hasOwnProperty.call(cat.subIcons, oldName)) {
+        cat.subIcons[newName] = cat.subIcons[oldName];
+        delete cat.subIcons[oldName];
+    }
+}
 
 const EMOJI_CATS = {
     '所有': ['😊','😀','🥰','😎','😴','🥱','🤗','😅','😂','😁','🤣','😍','😘','😏','😜','🤔','😤','🥺','🤩','🥳','💤','😰','🤒','💼','📝','💻','📱','📖','✏️','🎓','💡','🔧','📊','📈','📋','📁','✉️','📞','🔍','⚙️','🛠️','🧰','📐','💊','🩺','🚗','🚌','🏃','🧘','✈️','🏖️','🚕','🚙','🚲','🛵','🚇','🚆','🚢','🚶','🧎','⛰️','🌊','🌅','🏕️','🚴','🎵','🎮','🎬','🎧','🎤','🎸','🎹','🎨','📸','🎭','🎯','🏆','🥇','🎽','🎿','🛹','📺','📚','🍳','☕','🍵','🍽️','🥗','🍜','🍎','🍊','🍇','🍓','🍑','🥝','🥑','🥦','🥕','🌽','🍞','🧀','🥛','🍺','🍷','🥤','🍰','🍪','🍩','🍿','🍔','🌭','🥟','🍣','🍛','🍝','🧁','🍦','🥘','🛒','🏠','🐱','🐶','❤️','🔥','🛌','🚿','🪥','🧹','🧴','🧤','🧣','👕','👖','👟','👓','💤','🎁','💰','🔑','📦','🧧','💊','🩹','🧽','🧺','🪣','🧵','✂️','📿','🔒','📌','📍'],
@@ -715,8 +734,10 @@ function getCat(name) {
 function resolveShortcutIcon(s) {
     const cat = getCat(s.l1);
     if (!cat) return s.icon || '📌';
-    if (s.l2) return getSubIcon(s.l2, cat.icon);
-    return cat.icon || s.icon || '📌';
+    // 快捷入口允许独立换图标，不能被目录默认图标覆盖。
+    if (s.customIcon && s.icon) return s.icon;
+    if (s.l2) return getSubIcon(s.l2, cat.icon, cat);
+    return cat.icon || '📌';
 }
 
 function syncParallelShortcutRefs(oldL1, newL1, catName, oldL2, newL2) {
@@ -758,7 +779,7 @@ function appendDrawerRecentsBar(l2Box) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'drawer-recent-btn btn-active';
-        const icon = r.l2 ? getSubIcon(r.l2, cat.icon) : cat.icon;
+        const icon = r.l2 ? getSubIcon(r.l2, cat.icon, cat) : cat.icon;
         btn.innerHTML = `<span class="drawer-recent-icon">${icon}</span><span class="drawer-recent-text">${r.l2 || r.l1}</span>`;
         btn.addEventListener('click', () => drawerPick(r.l1, r.l2 || ''));
         row.appendChild(btn);
@@ -788,7 +809,7 @@ function openQuickAddSubCategory() {
         const name = n.trim();
         showCategoryPicker(`为「${name}」选图标`, (icon) => {
             cat.subs.push(name);
-            SUB_ICON_MAP[name] = icon || '📌';
+            setSubIcon(cat, name, icon);
             save();
             renderPicker();
         });
@@ -1481,7 +1502,7 @@ function executeAddShortcut(l1, l2) {
         closeDrawer();
         return;
     }
-    shortcuts.push({ l1, l2, icon: "📌" });
+    shortcuts.push({ l1, l2, icon: "📌", customIcon: false });
     localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
     closeDrawer(); renderAll();
 }
@@ -1724,6 +1745,7 @@ function editShortcut(idx) {
     showPrompt("编辑快捷入口 Emoji", "输入一个 Emoji", s.icon || "📌", (icon) => {
         if (icon === null) return;
         shortcuts[idx].icon = icon.trim() || "📌";
+        shortcuts[idx].customIcon = true;
         localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
         if (confirm("要重新选择这个快捷入口的分类吗？")) {
             editingShortcutIndex = idx;
@@ -1973,7 +1995,7 @@ function renderConfig() {
             card.className = "bg-slate-50 rounded-xl p-1.5 text-center text-xs font-bold relative cursor-pointer";
             const iconEl = document.createElement('div');
             iconEl.className = "text-xs leading-none mb-0.5";
-            iconEl.innerText = getSubIcon(name, c.icon);
+            iconEl.innerText = getSubIcon(name, c.icon, c);
             card.appendChild(iconEl);
             const nameEl = document.createElement('div');
             nameEl.className = "leading-tight";
@@ -2932,7 +2954,7 @@ function openParallelShortcutPicker() {
 
 function addShortcut(l1, l2, icon) {
     if (shortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
-    shortcuts.push({ l1, l2, icon: icon || "📌" });
+    shortcuts.push({ l1, l2, icon: icon || "📌", customIcon: false });
     localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
     renderPicker();
     renderAll();
@@ -2940,7 +2962,7 @@ function addShortcut(l1, l2, icon) {
 function addParallelShortcut(l1, l2, icon) {
     if (parallelShortcuts.some(s => s.l1 === l1 && s.l2 === l2)) return;
     const cat = getCat(l1);
-    parallelShortcuts.push({ l1, l2: l2 || '', icon: getSubIcon(l2 || '', cat?.icon || '📌') });
+    parallelShortcuts.push({ l1, l2: l2 || '', icon: icon || getSubIcon(l2 || '', cat?.icon || '📌', cat), customIcon: false });
     localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
     renderPicker();
     renderAll();
@@ -3018,7 +3040,7 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-2 text-center text-[10px] font-bold shadow-sm";
-                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${getSubIcon(s, c.icon)}</div><div class=\"leading-tight\">${s}</div>`;
+                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${getSubIcon(s, c.icon, c)}</div><div class=\"leading-tight\">${s}</div>`;
                 const already = shortcuts.some(sm => sm.l1 === c.name && sm.l2 === s);
                 if (already) {
                     btn.style.background = '#f1f5f9';
@@ -3028,7 +3050,7 @@ function renderPicker() {
                     btn.style.borderLeft = `4px solid ${c.color || '#6366f1'}`;
                     btn.addEventListener('click', () => removeShortcut(c.name, s));
                 } else {
-                    btn.addEventListener('click', () => addShortcut(c.name, s, getSubIcon(s, c.icon)));
+                    btn.addEventListener('click', () => addShortcut(c.name, s, getSubIcon(s, c.icon, c)));
                 }
                 l2Box.appendChild(btn);
             });
@@ -3055,7 +3077,7 @@ function renderPicker() {
                         renderPicker(); renderAll();
                     });
                 } else {
-                    btn.addEventListener('click', () => addParallelShortcut(c.name, "", getSubIcon("", c.icon)));
+                    btn.addEventListener('click', () => addParallelShortcut(c.name, "", getSubIcon("", c.icon, c)));
                 }
                 l2Box.appendChild(btn);
                 return;
@@ -3064,7 +3086,7 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-2 text-center text-[10px] font-bold shadow-sm";
-                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${getSubIcon(s, c.icon)}</div><div class=\"leading-tight\">${s}</div>`;
+                btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${getSubIcon(s, c.icon, c)}</div><div class=\"leading-tight\">${s}</div>`;
                 const already = parallelShortcuts.some(sm => sm.l1 === c.name && sm.l2 === s);
                 if (already) {
                     btn.style.background = '#f1f5f9'; btn.style.color = '#94a3b8'; btn.style.cursor = 'pointer'; btn.style.opacity = '0.6';
@@ -3075,7 +3097,7 @@ function renderPicker() {
                         renderPicker(); renderAll();
                     });
                 } else {
-                    btn.addEventListener('click', () => addParallelShortcut(c.name, s, getSubIcon(s, c.icon)));
+                    btn.addEventListener('click', () => addParallelShortcut(c.name, s, getSubIcon(s, c.icon, c)));
                 }
                 l2Box.appendChild(btn);
             });
@@ -3101,7 +3123,7 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
-                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${getSubIcon(s, c.icon)}</div><div class="leading-tight">${s}</div>`;
+                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${getSubIcon(s, c.icon, c)}</div><div class="leading-tight">${s}</div>`;
                 btn.addEventListener('click', () => drawerPick(c.name, s));
                 l2Box.appendChild(btn);
             });
@@ -3130,7 +3152,7 @@ function renderPicker() {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
-                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${getSubIcon(s, c.icon)}</div><div class="leading-tight">${s}</div>`;
+                btn.innerHTML = `<div class="text-base leading-none mb-0.5">${getSubIcon(s, c.icon, c)}</div><div class="leading-tight">${s}</div>`;
                 btn.addEventListener('click', () => drawerPick(c.name, s));
                 grid.appendChild(btn);
             });
@@ -3647,7 +3669,7 @@ function addS(id) {
             const name = n.trim();
             showCategoryPicker("为「" + name + "」选图标", (icon) => {
                 cat.subs.push(name);
-                SUB_ICON_MAP[name] = icon || "📌";
+                setSubIcon(cat, name, icon);
                 save();
             });
         }
@@ -3680,19 +3702,16 @@ function editS(id, oldName) {
         if (name === null) return;
         const next = name.trim();
         if (!next) return;
-        if (SUB_ICON_MAP[oldName] != null) {
-            SUB_ICON_MAP[next] = SUB_ICON_MAP[oldName];
-            delete SUB_ICON_MAP[oldName];
-        }
+        moveSubIcon(cat, oldName, next);
         cat.subs = cat.subs.map(s => s === oldName ? next : s);
         shortcuts.forEach(s => { if (s.l1 === cat.name && s.l2 === oldName) s.l2 = next; });
         syncParallelShortcutRefs(null, null, cat.name, oldName, next);
         logs.forEach(l => { if (l.l1 === cat.name && l.l2 === oldName) l.l2 = next; });
         if (current?.l1 === cat.name && current?.l2 === oldName) current.l2 = next;
-        const prevSubIcon = SUB_ICON_MAP[next];
+        const prevSubIcon = cat.subIcons?.[next];
         showCategoryPicker(`为「${next}」选择图标（点空白处可保留原图标）`, (icon) => {
-            if (icon) SUB_ICON_MAP[next] = icon;
-            else if (prevSubIcon) SUB_ICON_MAP[next] = prevSubIcon;
+            if (icon) setSubIcon(cat, next, icon);
+            else if (prevSubIcon) setSubIcon(cat, next, prevSubIcon);
             saveAll();
         });
     });
@@ -3702,6 +3721,7 @@ function delS(id, name) {
     if (!cat) return;
     if (confirm(`删除子类「${name}」？`)) {
         cat.subs = cat.subs.filter(s => s !== name);
+        if (cat.subIcons) delete cat.subIcons[name];
         shortcuts = shortcuts.filter(s => !(s.l1 === cat.name && s.l2 === name));
         parallelShortcuts = parallelShortcuts.filter(s => !(s.l1 === cat.name && s.l2 === name));
         saveAll();
