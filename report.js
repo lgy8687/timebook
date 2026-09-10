@@ -3,11 +3,19 @@
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v1.8';
+    const REPORT_VERSION = 'v1.9';
 
     let state = { period: 'day', chartView: 'main', legendMode: 'l1' };
     let getPeriodData = null;
     let eventsBound = false;
+    const REPORT_COLORS = ['#2563eb', '#f97316', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#eab308', '#ec4899', '#14b8a6', '#f43f5e', '#6366f1', '#84cc16'];
+
+    function colorForKey(key, fallback) {
+        const text = String(key || fallback || '');
+        let hash = 0;
+        for (let i = 0; i < text.length; i++) hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+        return REPORT_COLORS[Math.abs(hash) % REPORT_COLORS.length];
+    }
 
     function polar(cx, cy, r, deg) {
         const rad = ((deg - 90) * Math.PI) / 180;
@@ -35,7 +43,7 @@
         return items.filter((item) => item.hours > 0).map((item) => {
             const sweep = (item.hours / total) * 360;
             const path = arcPath(cx, cy, r0, r1, angle, angle + sweep);
-            const seg = { path, cat: item[keyCat] || item.name, name: item.name, l1: item.l1, hours: item.hours, color: item.color };
+            const seg = { path, cat: item[keyCat] || item.name, name: item.name, l1: item.l1, hours: item.hours, color: colorForKey(`${item.l1 || ''}|${item.name}`, item.color) };
             angle += sweep;
             return seg;
         });
@@ -104,7 +112,7 @@
                 const left = ((segStart - fromPct) / (toPct - fromPct)) * 100;
                 const width = ((segEnd - segStart) / (toPct - fromPct)) * 100;
                 const w = Math.max(width, 0.35);
-                segHtml += `<button type="button" class="timeline-block" style="left:${left}%;width:${w}%;background:${s.color}" title="${esc(s.title)}"></button>`;
+                segHtml += `<button type="button" class="timeline-block" style="left:${left}%;width:${w}%;background:${colorForKey(s.key || s.label, s.color)}" title="${esc(s.title)}"></button>`;
                 labels.push({ label: s.label, title: s.title, left: left + width / 2 });
             });
             if (tl.nowPct != null && tl.nowPct >= fromPct && tl.nowPct <= toPct) {
@@ -129,7 +137,7 @@
                 const w = Math.round((b.hours / maxH) * 100);
                 return `<div class="timeline-bar-row">
                     <span class="timeline-bar-label">${esc(b.label)}</span>
-                    <div class="timeline-bar-track"><div class="timeline-bar-fill" style="width:${w}%;background:${b.color}"></div></div>
+                    <div class="timeline-bar-track"><div class="timeline-bar-fill" style="width:${w}%;background:${colorForKey(b.label, b.color)}"></div></div>
                     <span class="timeline-bar-val">${b.hours}h</span>
                 </div>`;
             }).join('')}</div>`;
@@ -162,8 +170,21 @@
             sub.innerHTML = `TimeBook · ${esc(mainBundle.meta.title)} · ${periodName} ${badge}`;
         }
 
-        renderTimelineHalf(periodData.timeline, 'a', 0, 50, '00:00–12:00');
-        renderTimelineHalf(periodData.timeline, 'b', 50, 100, '12:00–24:00');
+        const periodic = state.period === 'week' || state.period === 'month';
+        document.getElementById('summary-block-main')?.classList.toggle('hidden', !periodic);
+        document.getElementById('summary-block-parallel')?.classList.toggle('hidden', !periodic);
+        if (periodic) {
+            renderSummaryRow('summary-main', 'main', periodData);
+            renderSummaryRow('summary-parallel', 'parallel', periodData);
+        }
+
+        if (periodData.timeline?.kind === 'day') {
+            renderTimelineHalf(periodData.timeline, 'a', 0, 50, '00:00–12:00');
+            renderTimelineHalf(periodData.timeline, 'b', 50, 100, '12:00–24:00');
+        } else {
+            renderTimelineHalf(periodData.timeline, 'a', 0, 100, periodData.timeline?.title || '时间分布');
+            document.getElementById('timeline-card-b')?.classList.add('hidden');
+        }
 
         const total = chartBundle.l1.reduce((s, x) => s + x.hours, 0);
         const isMain = state.chartView === 'main';
@@ -224,8 +245,8 @@
     function renderLegend(l1, l2, total, isMain) {
         const l1Box = document.getElementById('legend-l1');
         const l2Box = document.getElementById('legend-l2');
-        l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.hours, row.color, total, row.name)).join('');
-        l2Box.innerHTML = l2.map((row) => legendRow(row.name, row.l1, row.hours, row.color, total, row.l1)).join('');
+        l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.hours, colorForKey(`l1|${row.name}`, row.color), total, row.name)).join('');
+        l2Box.innerHTML = l2.map((row) => legendRow(row.name, row.l1, row.hours, colorForKey(`l2|${row.l1}|${row.name}`, row.color), total, row.l1)).join('');
         l1Box.style.display = state.legendMode === 'l1' ? 'block' : 'none';
         l2Box.style.display = state.legendMode === 'l2' ? 'block' : 'none';
         document.getElementById('btn-l1').classList.toggle('active', state.legendMode === 'l1');

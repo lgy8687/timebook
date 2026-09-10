@@ -2756,23 +2756,29 @@ function isTimeInParentRange() {
     initTimeField(el, max);
 });
 
-function getTodaySegments() {
-    const now = nowSecondMs();
-    const dayStart = beijingPeriodStart(now, DAY_MS);
-    const dayEnd = dayStart + DAY_MS;
+function getSegmentsInRange(rangeStart, rangeEnd, now = nowSecondMs()) {
     const currentLog = current ? { ...current, endTime: now, live: true } : null;
+    const parallelLive = parallelCurrent ? { ...parallelCurrent, endTime: now, parallel: true, parentId: current?.id || null } : null;
     return logs
         .map(l => ({ ...l, endTime: l.endTime || l.startTime }))
         .concat(currentLog ? [currentLog] : [])
+        .concat(parallelLive ? [parallelLive] : [])
+        .concat(parallelHistory.map(l => ({ ...l, endTime: l.endTime || (l.startTime + (l.duration || 0) * 60000), parallel: true })))
         .filter(Boolean)
-        .filter(l => l.endTime > dayStart && l.startTime < dayEnd)
+        .filter(l => l.endTime > rangeStart && l.startTime < rangeEnd)
         .map(l => ({
             ...l,
-            clippedStart: Math.max(l.startTime, dayStart),
-            clippedEnd: Math.min(l.endTime, dayEnd)
+            clippedStart: Math.max(l.startTime, rangeStart),
+            clippedEnd: Math.min(l.endTime, rangeEnd)
         }))
         .filter(l => l.clippedEnd > l.clippedStart)
         .sort((a, b) => a.clippedStart - b.clippedStart);
+}
+
+function getTodaySegments() {
+    const now = nowSecondMs();
+    const dayStart = beijingPeriodStart(now, DAY_MS);
+    return getSegmentsInRange(dayStart, dayStart + DAY_MS, now);
 }
 
 let reportBillboardReady = false;
@@ -2910,7 +2916,74 @@ function buildLiveReportDay() {
 
 function getReportPeriodData(period) {
     if (period === 'day') return buildLiveReportDay();
-    return REPORT_DATA[period] || null;
+    return buildLiveReportPeriod(period);
+}
+
+function getBeijingReportRange(period, now) {
+    const d = new Date(now + BJ_OFFSET);
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth();
+    const day = d.getUTCDate();
+    const today = Date.UTC(y, m, day) - BJ_OFFSET;
+    if (period === 'week') {
+        const mondayOffset = (d.getUTCDay() + 6) % 7;
+        const start = today - mondayOffset * DAY_MS;
+        return { start, end: start + 7 * DAY_MS };
+    }
+    if (period === 'month') {
+        const start = Date.UTC(y, m, 1) - BJ_OFFSET;
+        return { start, end: Date.UTC(y, m + 1, 1) - BJ_OFFSET };
+    }
+    const start = Date.UTC(y, 0, 1) - BJ_OFFSET;
+    return { start, end: Date.UTC(y + 1, 0, 1) - BJ_OFFSET };
+}
+
+function buildLiveReportPeriod(period) {
+    const now = nowSecondMs();
+    const range = getBeijingReportRange(period, now);
+    const all = getSegmentsInRange(range.start, Math.min(range.end, now), now);
+    const mainSegs = all.filter((l) => !l.parallel);
+    const paraSegs = all.filter((l) => l.parallel);
+    const mainMs = mainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
+    const paraMs = paraSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
+    const l1Agg = aggregateReportSegments(mainSegs, (l) => l.l1 || '未分类');
+    const l2Agg = aggregateReportSegments(mainSegs, displayName);
+    const l1 = l1Agg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
+    const l2 = l2Agg.map((r) => ({ l1: r.l1, name: r.name, hours: msToReportHours(r.ms), color: r.color }));
+    const paraAgg = aggregateReportSegments(paraSegs, displayName);
+    const paraL1 = paraAgg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
+    const mainHours = msToReportHours(mainMs);
+    const topL1 = l1[0];
+    const focusPct = topL1 && mainHours ? (Math.round((topL1.hours / mainHours) * 1000) / 10) + '%' : '0%';
+    const paraRatio = mainHours ? (Math.round((msToReportHours(paraMs) / mainHours) * 1000) / 10) + '%' : '0%';
+    const bars = [];
+    for (let dayStart = range.start; dayStart < Math.min(range.end, now); dayStart += DAY_MS) {
+        const dayEnd = Math.min(dayStart + DAY_MS, now);
+        const daySegs = mainSegs.filter((l) => l.clippedEnd > dayStart && l.clippedStart < dayEnd);
+        const totalMs = daySegs.reduce((sum, l) => sum + Math.max(0, Math.min(l.clippedEnd, dayEnd) - Math.max(l.clippedStart, dayStart)), 0);
+        const dominant = aggregateReportSegments(daySegs, (l) => l.l1 || '未分类')[0];
+        bars.push({ label: formatBeijingDate(dayStart), hours: msToReportHours(totalMs), color: dominant?.color || '#cbd5e1' });
+    }
+    return {
+        _live: true,
+        timeline: { title: period === 'week' ? '本周每日时长' : period === 'month' ? '本月每日时长' : '本年每日时长', hint: '仅主线 · 真实记录', kind: 'bars', bars },
+        main: {
+            meta: { title: formatBeijingDate(now), range: period === 'week' ? '本周主线' : period === 'month' ? '本月主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
+            summary: [
+                { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
+                { icon: '🔀', label: '活动切换', value: String(Math.max(0, mainSegs.length - 1)), sub: '次' },
+                { icon: '📋', label: '流水条数', value: String(mainSegs.length), sub: '条' },
+            ], l1, l2,
+        },
+        parallel: {
+            meta: { title: formatBeijingDate(now), range: '并行活动', footnote: '并行时段可重叠累计。' },
+            summary: [
+                { icon: '⏳', label: '并行总时长', value: String(msToReportHours(paraMs)), sub: '小时' },
+                { icon: '📐', label: '叠在主线比', value: paraRatio, sub: '并行/主线' },
+                { icon: '🔝', label: '最常并行', value: paraL1[0]?.name || '—', sub: paraL1[0] ? paraL1[0].hours + 'h' : '' },
+            ], l1: paraL1, l2: paraL1,
+        },
+    };
 }
 
 function ensureReportBillboard() {
