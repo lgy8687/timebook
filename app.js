@@ -3064,7 +3064,7 @@ function buildLiveReportPeriod(period) {
         const daySegs = mainSegs.filter((l) => l.clippedEnd > dayStart && l.clippedStart < dayEnd);
         const segments = buildDailyMainComposition(daySegs, dayStart, dayEnd);
         const totalMs = segments.reduce((sum, part) => sum + (part.width / 100) * DAY_MS, 0);
-        bars.push({ label: formatBeijingDate(dayStart), hours: msToReportHours(totalMs), segments });
+        bars.push({ label: formatBeijingDate(dayStart).slice(5).replace('-', '/'), hours: msToReportHours(totalMs), segments });
     }
     return {
         _live: true,
