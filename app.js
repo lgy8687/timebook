@@ -500,6 +500,11 @@ function nextBeijingDateStr(dateStr) {
     return formatBeijingDate(beijingDateStrToDayStart(dateStr) + DAY_MS);
 }
 
+function nextBeijingMonthStart(ms) {
+    const d = new Date(ms + BJ_OFFSET);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) - BJ_OFFSET;
+}
+
 function logEndMs(log, liveEndMs) {
     if (!log) return 0;
     if (liveEndMs != null) return liveEndMs;
@@ -2840,21 +2845,21 @@ function aggregateReportSegments(segments, keyFn) {
     return [...map.values()].sort((a, b) => b.ms - a.ms);
 }
 
-function buildDailyMainComposition(segments, dayStart, dayEnd) {
+function buildMainComposition(segments, periodStart, periodEnd) {
     const clipped = segments
-        .filter((l) => l.clippedEnd > dayStart && l.clippedStart < dayEnd)
+        .filter((l) => l.clippedEnd > periodStart && l.clippedStart < periodEnd)
         .map((l) => ({
             log: l,
-            start: Math.max(dayStart, l.clippedStart),
-            end: Math.min(dayEnd, l.clippedEnd),
+            start: Math.max(periodStart, l.clippedStart),
+            end: Math.min(periodEnd, l.clippedEnd),
         }))
         .filter((item) => item.end > item.start)
         .sort((a, b) => a.start - b.start || a.end - b.end);
 
-    let cursor = dayStart;
+    let cursor = periodStart;
     const parts = [];
     clipped.forEach(({ log, start, end }) => {
-        // 主线应当互斥；重叠数据只保留先开始的那一段，避免一天累计超过 24 小时。
+        // 主线应当互斥；重叠数据只保留先开始的那一段，避免累计重复。
         const effectiveStart = Math.max(start, cursor);
         if (effectiveStart >= end) return;
         const name = displayName(log);
@@ -2872,7 +2877,7 @@ function buildDailyMainComposition(segments, dayStart, dayEnd) {
         name: part.name,
         l1: part.l1,
         hours: msToReportHours(part.ms),
-        width: (part.ms / DAY_MS) * 100,
+        width: (part.ms / (periodEnd - periodStart)) * 100,
         color: part.color,
         title: `${part.name} ${formatBeijingClockSec(part.start)}–${formatBeijingClockSec(part.end)}`,
     }));
@@ -3059,16 +3064,21 @@ function buildLiveReportPeriod(period) {
     });
     const topHostEntry = [...hostMs.entries()].sort((a, b) => b[1] - a[1])[0];
     const bars = [];
-    for (let dayStart = range.start; dayStart < Math.min(range.end, now); dayStart += DAY_MS) {
-        const dayEnd = Math.min(dayStart + DAY_MS, now);
-        const daySegs = mainSegs.filter((l) => l.clippedEnd > dayStart && l.clippedStart < dayEnd);
-        const segments = buildDailyMainComposition(daySegs, dayStart, dayEnd);
-        const totalMs = segments.reduce((sum, part) => sum + (part.width / 100) * DAY_MS, 0);
-        bars.push({ label: formatBeijingDate(dayStart).slice(5).replace('-', '/'), hours: msToReportHours(totalMs), segments });
+    const reportEnd = period === 'year' ? range.end : Math.min(range.end, now);
+    for (let periodStart = range.start; periodStart < reportEnd;) {
+        const nextPeriodStart = period === 'year' ? nextBeijingMonthStart(periodStart) : periodStart + DAY_MS;
+        const periodEnd = Math.min(nextPeriodStart, reportEnd);
+        const daySegs = mainSegs.filter((l) => l.clippedEnd > periodStart && l.clippedStart < periodEnd);
+        const segments = buildMainComposition(daySegs, periodStart, periodEnd);
+        const totalMs = segments.reduce((sum, part) => sum + (part.width / 100) * (periodEnd - periodStart), 0);
+        const fullDate = formatBeijingDate(periodStart);
+        const label = period === 'year' ? fullDate.slice(0, 7).replace('-', '/') : fullDate.slice(5).replace('-', '/');
+        bars.push({ label, hours: msToReportHours(totalMs), segments });
+        periodStart = nextPeriodStart;
     }
     return {
         _live: true,
-        timeline: { title: period === 'week' ? '本周每日时间构成' : period === 'month' ? '本月每日时间构成' : '本年每日时间构成', hint: '按天拆分 · 重叠时间自动去重', kind: 'bars', bars },
+        timeline: { title: period === 'week' ? '本周每日时间构成' : period === 'month' ? '本月每日时间构成' : '本年每月时间构成', hint: '按分类分段 · 重叠时间自动去重', kind: 'bars', bars },
         main: {
             meta: { title: formatBeijingDate(now), range: period === 'week' ? '本周主线' : period === 'month' ? '本月主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
             summary: [

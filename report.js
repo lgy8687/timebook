@@ -17,6 +17,13 @@
         return REPORT_COLORS[Math.abs(hash) % REPORT_COLORS.length];
     }
 
+    function reportColor(value, fallback) {
+        const color = String(value || '').trim();
+        if (/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)) return color;
+        if (/^(?:rgb|rgba|hsl|hsla)\([\d\s.,%]+\)$/i.test(color)) return color;
+        return colorForKey(fallback, fallback);
+    }
+
     function polar(cx, cy, r, deg) {
         const rad = ((deg - 90) * Math.PI) / 180;
         return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
@@ -135,7 +142,7 @@
             body.innerHTML = `<div class="timeline-bars">${(tl.bars || []).map((b) => {
                 return `<div class="timeline-bar-row">
                     <span class="timeline-bar-label">${esc(b.label)}</span>
-                    <div class="timeline-bar-track">${(b.segments || []).map((s) => `<span class="timeline-bar-segment" style="width:${Math.max(0, s.width)}%;background:${colorForKey(s.l1 || s.name, s.color)}" title="${esc(s.title || s.name)}"></span>`).join('')}</div>
+                    <div class="timeline-bar-track">${(b.segments || []).map((s) => `<span class="timeline-bar-segment" style="width:${Math.max(0, s.width)}%;background:${reportColor(s.color, s.l1 || s.name)}" title="${esc(s.title || s.name)}"></span>`).join('')}</div>
                     <span class="timeline-bar-val">${esc(String(b.hours))}h</span>
                 </div>`;
             }).join('')}</div>`;
