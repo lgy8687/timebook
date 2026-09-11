@@ -985,3 +985,23 @@ body.compact-wheel-open { overflow: hidden; }
 .calendar-ym-btn--cancel { color: #64748b; }
 .calendar-ym-btn--ok { color: #0d9488; }
 body.calendar-ym-open { overflow: hidden; }
+
+/* 时间编辑按时/分/秒分格，分隔符只是视觉元素，避免手机误触删除。 */
+#parallel-time-row input[type="text"],
+#free-backfill input[type="text"] {
+    width: 2.25rem !important;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    line-height: 2.25rem;
+    text-align: center;
+    touch-action: manipulation;
+}
+#parallel-time-row input + span,
+#free-backfill input + span {
+    display: inline-flex;
+    width: .45rem;
+    justify-content: center;
+    user-select: none;
+    pointer-events: none;
+}
