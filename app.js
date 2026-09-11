@@ -1300,6 +1300,19 @@ function getEditBoundaryNeighbors(log) {
     };
 }
 
+function mainRecordOverlaps(start, end, excludeIds = new Set(), includeCurrent = true) {
+    const conflicts = logs.filter((item) => {
+        if (item.parallel || excludeIds.has(item.id)) return false;
+        const itemEnd = logEndMs(item);
+        return item.startTime < end && itemEnd > start;
+    });
+    if (includeCurrent && current && !excludeIds.has(current.id)) {
+        const currentEnd = nowSecondMs();
+        if (current.startTime < end && currentEnd > start) conflicts.push(current);
+    }
+    return conflicts;
+}
+
 function applyEditedRange(log, newStart, newEnd, done) {
     const oldStart = log.startTime;
     const oldEnd = logEndMs(log);
@@ -1321,6 +1334,12 @@ function applyEditedRange(log, newStart, newEnd, done) {
     }
     if (needsNext && !next) {
         showConfirm('无法调整结束时间', '下面没有可分配的已结束时间段，不能让时间轴产生空档。', '知道了', () => {});
+        return;
+    }
+    const allowedNeighbors = new Set([log.id, previous?.id, next?.id].filter(Boolean));
+    const conflicts = mainRecordOverlaps(effectiveStart, effectiveEnd, allowedNeighbors, next !== current);
+    if (conflicts.length) {
+        showConfirm('时间段发生重叠', `调整后的时间与「${displayName(conflicts[0])}」重叠，请先缩短时间或调整相邻记录。`, '知道了', () => {});
         return;
     }
     const swallowPrevious = needsPrevious && effectiveStart <= previous.startTime;
@@ -3792,6 +3811,11 @@ function handleFreeInput() {
         const endMs = dayStart + feH * 3600000 + feM * 60000 + feS * 1000;
         if (endMs <= startMs) { showConfirm('⏱ 时间不合法', '结束时间必须晚于开始时间。', '知道了', () => {}); return; }
         const match = matchCategoryFromInput(val);
+        const conflicts = mainRecordOverlaps(startMs, endMs);
+        if (conflicts.length) {
+            showConfirm('时间段已被占用', `这段时间与「${displayName(conflicts[0])}」重叠，不能重复补记主线时间。`, '知道了', () => {});
+            return;
+        }
         const cat = getCat(match.l1);
         const entry = {
             id: genId(),
