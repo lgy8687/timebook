@@ -132,13 +132,11 @@
             scaleEl.innerHTML = labelsForHalf.map((t) => `<span>${t}</span>`).join('');
             scaleEl.classList.remove('hidden');
         } else if (tl.kind === 'bars') {
-            const maxH = Math.max(...(tl.bars || []).map((b) => b.hours), 1);
             body.innerHTML = `<div class="timeline-bars">${(tl.bars || []).map((b) => {
-                const w = Math.round((b.hours / maxH) * 100);
                 return `<div class="timeline-bar-row">
                     <span class="timeline-bar-label">${esc(b.label)}</span>
-                    <div class="timeline-bar-track"><div class="timeline-bar-fill" style="width:${w}%;background:${colorForKey(b.label, b.color)}"></div></div>
-                    <span class="timeline-bar-val">${b.hours}h</span>
+                    <div class="timeline-bar-track">${(b.segments || []).map((s) => `<span class="timeline-bar-segment" style="width:${Math.max(0, s.width)}%;background:${colorForKey(s.l1 || s.name, s.color)}" title="${esc(s.title || s.name)}"></span>`).join('')}</div>
+                    <span class="timeline-bar-val">${esc(String(b.hours))}h</span>
                 </div>`;
             }).join('')}</div>`;
             scaleEl.classList.add('hidden');

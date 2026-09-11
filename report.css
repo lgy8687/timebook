@@ -477,18 +477,27 @@ body#report-standalone {
 .timeline-bars { display: flex; flex-direction: column; gap: 8px; }
 .timeline-bar-row {
     display: grid;
-    grid-template-columns: 28px 1fr 44px;
+    grid-template-columns: minmax(78px, 94px) minmax(0, 1fr) 56px;
     align-items: center;
     gap: 8px;
     font-size: 11px;
     font-weight: 700;
+    min-height: 22px;
 }
-.timeline-bar-label { color: #475569; text-align: center; }
+.timeline-bar-label { color: #475569; text-align: left; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .timeline-bar-track {
-    height: 8px;
+    height: 14px;
     background: #f1f5f9;
     border-radius: 4px;
     overflow: hidden;
+    display: flex;
+    min-width: 0;
 }
-.timeline-bar-fill { height: 100%; border-radius: 4px; }
-.timeline-bar-val { color: var(--rp-muted); text-align: right; font-size: 10px; }
+.timeline-bar-segment { height: 100%; min-width: 1px; border-right: 1px solid rgba(255,255,255,.75); }
+.timeline-bar-segment:last-child { border-right: none; }
+.timeline-bar-val { color: var(--rp-muted); text-align: right; font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) {
+    .timeline-bar-row { grid-template-columns: 78px minmax(0, 1fr) 50px; gap: 6px; }
+    .timeline-bar-label { font-size: 10px; }
+    .timeline-bar-val { font-size: 10px; }
+}

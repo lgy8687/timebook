@@ -2840,6 +2840,44 @@ function aggregateReportSegments(segments, keyFn) {
     return [...map.values()].sort((a, b) => b.ms - a.ms);
 }
 
+function buildDailyMainComposition(segments, dayStart, dayEnd) {
+    const clipped = segments
+        .filter((l) => l.clippedEnd > dayStart && l.clippedStart < dayEnd)
+        .map((l) => ({
+            log: l,
+            start: Math.max(dayStart, l.clippedStart),
+            end: Math.min(dayEnd, l.clippedEnd),
+        }))
+        .filter((item) => item.end > item.start)
+        .sort((a, b) => a.start - b.start || a.end - b.end);
+
+    let cursor = dayStart;
+    const parts = [];
+    clipped.forEach(({ log, start, end }) => {
+        // 主线应当互斥；重叠数据只保留先开始的那一段，避免一天累计超过 24 小时。
+        const effectiveStart = Math.max(start, cursor);
+        if (effectiveStart >= end) return;
+        const name = displayName(log);
+        const l1 = log.l1 || '未分类';
+        const last = parts[parts.length - 1];
+        if (last && last.name === name && last.l1 === l1 && last.end === effectiveStart) {
+            last.end = end;
+            last.ms += end - effectiveStart;
+        } else {
+            parts.push({ name, l1, start: effectiveStart, end, ms: end - effectiveStart, color: getCat(log.l1)?.color || '#94a3b8' });
+        }
+        cursor = end;
+    });
+    return parts.map((part) => ({
+        name: part.name,
+        l1: part.l1,
+        hours: msToReportHours(part.ms),
+        width: (part.ms / DAY_MS) * 100,
+        color: part.color,
+        title: `${part.name} ${formatBeijingClockSec(part.start)}–${formatBeijingClockSec(part.end)}`,
+    }));
+}
+
 function parallelHostL1(paraLog) {
     if (paraLog.parentId) {
         const parent = logs.find((l) => l.id === paraLog.parentId && !l.parallel);
@@ -3024,13 +3062,13 @@ function buildLiveReportPeriod(period) {
     for (let dayStart = range.start; dayStart < Math.min(range.end, now); dayStart += DAY_MS) {
         const dayEnd = Math.min(dayStart + DAY_MS, now);
         const daySegs = mainSegs.filter((l) => l.clippedEnd > dayStart && l.clippedStart < dayEnd);
-        const totalMs = daySegs.reduce((sum, l) => sum + Math.max(0, Math.min(l.clippedEnd, dayEnd) - Math.max(l.clippedStart, dayStart)), 0);
-        const dominant = aggregateReportSegments(daySegs, (l) => l.l1 || '未分类')[0];
-        bars.push({ label: formatBeijingDate(dayStart), hours: msToReportHours(totalMs), color: dominant?.color || '#cbd5e1' });
+        const segments = buildDailyMainComposition(daySegs, dayStart, dayEnd);
+        const totalMs = segments.reduce((sum, part) => sum + (part.width / 100) * DAY_MS, 0);
+        bars.push({ label: formatBeijingDate(dayStart), hours: msToReportHours(totalMs), segments });
     }
     return {
         _live: true,
-        timeline: { title: period === 'week' ? '本周每日时长' : period === 'month' ? '本月每日时长' : '本年每日时长', hint: '仅主线 · 真实记录', kind: 'bars', bars },
+        timeline: { title: period === 'week' ? '本周每日时间构成' : period === 'month' ? '本月每日时间构成' : '本年每日时间构成', hint: '按天拆分 · 重叠时间自动去重', kind: 'bars', bars },
         main: {
             meta: { title: formatBeijingDate(now), range: period === 'week' ? '本周主线' : period === 'month' ? '本月主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
             summary: [
