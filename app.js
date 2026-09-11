@@ -1158,11 +1158,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('edit-note-input').addEventListener('keydown', e => {
         if (e.key === 'Enter') confirmEdit();
     });
-    document.getElementById('edit-start-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') confirmEdit();
-    });
-    document.getElementById('edit-end-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') confirmEdit();
+    ['es-h','es-m','es-s','ee-h','ee-m','ee-s'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+            if (e.key === 'Enter') confirmEdit();
+        });
     });
 });
 
@@ -1247,11 +1246,12 @@ function openEdit(index) {
     editIndex = index;
     const log = logs[index];
     if (!log) return;
+    _backfillRange = null;
     editOldL1 = log.l1;
     editOldL2 = log.l2;
     document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration((log.endTime||nowSecondMs())-log.startTime)}`;
-    document.getElementById('edit-start-input').value = formatBeijingClockSec(log.startTime);
-    document.getElementById('edit-end-input').value = formatBeijingClockSec(logEndMs(log));
+    setTimeInFields('es', new Date(log.startTime));
+    setTimeInFields('ee', new Date(logEndMs(log)));
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -1387,8 +1387,8 @@ function commitEditedRange(log, newStart, newEnd, previous, next, swallowPreviou
 function confirmEdit() {
     if (editIndex === null || !logs[editIndex]) return;
     const log = logs[editIndex];
-    const newStart = parseEditClock(document.getElementById('edit-start-input').value, log.startTime);
-    const newEnd = parseEditClock(document.getElementById('edit-end-input').value, log.startTime);
+    const newStart = parseTimeFromInput('es', log.startTime);
+    const newEnd = parseTimeFromInput('ee', log.startTime);
     if (newStart === null || newEnd === null) {
         showConfirm('时间格式不正确', '请输入 HH:MM 或 HH:MM:SS。', '知道了', () => {});
         return;
@@ -1408,6 +1408,7 @@ function confirmEdit() {
 }
 function closeEdit() {
     document.getElementById('edit-modal').classList.add('hidden');
+    _backfillRange = null;
     editIndex = null;
     editOldL1 = null; editOldL2 = null;
 }
@@ -2803,7 +2804,7 @@ function isTimeInParentRange() {
     const pe = parseTimeFromInput('pe', prStart);
     return ps >= prStart && ps < pe && pe <= prEnd;
 }
-['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s'].forEach(id => {
+['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s','es-h','es-m','es-s','ee-h','ee-m','ee-s'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const max = id.endsWith('-h') ? 23 : 59;

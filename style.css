@@ -988,7 +988,8 @@ body.calendar-ym-open { overflow: hidden; }
 
 /* 时间编辑按时/分/秒分格，分隔符只是视觉元素，避免手机误触删除。 */
 #parallel-time-row input[type="text"],
-#free-backfill input[type="text"] {
+#free-backfill input[type="text"],
+#edit-modal .time-edit-part {
     width: 2.25rem !important;
     min-width: 2.25rem;
     height: 2.25rem;
@@ -998,10 +999,12 @@ body.calendar-ym-open { overflow: hidden; }
     touch-action: manipulation;
 }
 #parallel-time-row input + span,
-#free-backfill input + span {
+#free-backfill input + span,
+#edit-modal .time-edit-part + span {
     display: inline-flex;
     width: .45rem;
     justify-content: center;
     user-select: none;
     pointer-events: none;
 }
+.time-edit-group { gap: .15rem; }

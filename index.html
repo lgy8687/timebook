@@ -8,8 +8,8 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.56">
-    <link rel="stylesheet" href="dev-theme.css?v=4.56">
+    <link rel="stylesheet" href="style.css?v=4.57">
+    <link rel="stylesheet" href="dev-theme.css?v=4.57">
     <link rel="stylesheet" href="report.css?v=2.0">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -26,7 +26,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-    <span id="cache-buster" class="text-xs font-black text-red-500">v4.56</span>
+    <span id="cache-buster" class="text-xs font-black text-red-500">v4.57</span>
             <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
     </header>
@@ -461,13 +461,21 @@
                     <span id="edit-cat-display">选择分类</span>
                     <span class="text-slate-300">›</span>
                 </div>
-                <div class="flex items-center bg-slate-50 rounded-2xl px-4 py-2">
+                <div class="time-edit-group flex items-center bg-slate-50 rounded-2xl px-4 py-2">
                     <span class="text-[10px] font-bold text-slate-400 mr-2">开始</span>
-                    <input id="edit-start-input" type="text" inputmode="text" class="flex-1 min-w-0 bg-transparent text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded px-1" placeholder="HH:MM:SS">
+                    <input id="es-h" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="时" autocomplete="off">
+                    <span class="time-edit-separator" aria-hidden="true">:</span>
+                    <input id="es-m" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="分" autocomplete="off">
+                    <span class="time-edit-separator" aria-hidden="true">:</span>
+                    <input id="es-s" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="秒" autocomplete="off">
                 </div>
-                <div class="flex items-center bg-slate-50 rounded-2xl px-4 py-2">
+                <div class="time-edit-group flex items-center bg-slate-50 rounded-2xl px-4 py-2">
                     <span class="text-[10px] font-bold text-slate-400 mr-2">结束</span>
-                    <input id="edit-end-input" type="text" inputmode="text" class="flex-1 min-w-0 bg-transparent text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded px-1" placeholder="HH:MM:SS">
+                    <input id="ee-h" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="时" autocomplete="off">
+                    <span class="time-edit-separator" aria-hidden="true">:</span>
+                    <input id="ee-m" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="分" autocomplete="off">
+                    <span class="time-edit-separator" aria-hidden="true">:</span>
+                    <input id="ee-s" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="秒" autocomplete="off">
                 </div>
                 <input type="text" id="edit-note-input" class="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="备注" autocomplete="off">
             </div>
@@ -492,8 +500,8 @@
 
     <script src="report-metrics.js?v=1.6"></script>
     <script src="report.js?v=1.9"></script>
-    <script src="ui-theme.js?v=4.56"></script>
-    <script src="app.js?v=4.56"></script>
-    <script src="dev-appearance.js?v=4.56"></script>
+    <script src="ui-theme.js?v=4.57"></script>
+    <script src="app.js?v=4.57"></script>
+    <script src="dev-appearance.js?v=4.57"></script>
 </body>
 </html>
