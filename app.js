@@ -123,6 +123,43 @@ parallelHistory = parallelHistory.map(normalizeTimeRecord);
 if (current) localStorage.setItem('v9_current', JSON.stringify(current));
 if (parallelCurrent) localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
 if (parallelHistory.length) localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+
+function repairOrphanedParallelParents() {
+    const mainLogs = logs.filter((item) => !item.parallel);
+    const findParent = (parallelLog) => {
+        const start = parallelLog.startTime;
+        const end = logEndMs(parallelLog);
+        return mainLogs
+            .map((main) => ({
+                main,
+                overlap: Math.max(0, Math.min(logEndMs(main), end) - Math.max(main.startTime, start)),
+            }))
+            .filter((item) => item.overlap > 0)
+            .sort((a, b) => b.overlap - a.overlap)[0]?.main;
+    };
+    let changed = false;
+    logs.forEach((item) => {
+        if (!item.parallel || mainLogs.some((main) => main.id === item.parentId)) return;
+        const parent = findParent(item);
+        if (parent) {
+            item.parentId = parent.id;
+            changed = true;
+        }
+    });
+    parallelHistory.forEach((item) => {
+        if (!item.parentId || mainLogs.some((main) => main.id === item.parentId)) return;
+        const parent = findParent(item);
+        if (parent) {
+            item.parentId = parent.id;
+            changed = true;
+        }
+    });
+    if (changed) {
+        localStorage.setItem('v9_logs', JSON.stringify(logs));
+        localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+    }
+}
+repairOrphanedParallelParents();
 let labelFontSize = safeJSON('v9_labelFontSize') || 13;
 /** 自由输入短语 → 分类，如「火锅」→ 餐饮（由编辑流水或历史记录学习） */
 let inputAliases = safeJSON('v9_input_aliases') || {};
