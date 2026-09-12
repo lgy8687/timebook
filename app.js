@@ -2486,9 +2486,37 @@ function executeSplit(parentLog, l1, l2) {
     if (splitEnd < pEnd) {
         newLogs.push({ ...parentLog, id: genId(), startTime: splitEnd, endTime: pEnd, duration: Math.round((pEnd - splitEnd) / 60000) });
     }
+    // 主线切割后旧 parentId 会失效；把原有并行记录按重叠范围重新挂到新片段。
+    const replacementMain = newLogs.filter((item) => !item.parallel).sort((a, b) => a.startTime - b.startTime);
+    const oldParallel = [
+        ...logs.filter((item) => item.parallel && item.parentId === splitParentId),
+        ...parallelHistory.filter((item) => item.parentId === splitParentId),
+    ];
+    if (oldParallel.length) {
+        logs = logs.filter((item) => !(item.parallel && item.parentId === splitParentId));
+        parallelHistory = parallelHistory.filter((item) => item.parentId !== splitParentId);
+        oldParallel.forEach((parallelLog) => {
+            const parallelEnd = logEndMs(parallelLog);
+            replacementMain.forEach((mainPart) => {
+                const start = Math.max(parallelLog.startTime, mainPart.startTime);
+                const end = Math.min(parallelEnd, mainPart.endTime);
+                if (end <= start) return;
+                logs.push({
+                    ...parallelLog,
+                    id: genId(),
+                    startTime: start,
+                    endTime: end,
+                    duration: Math.max(1, Math.round((end - start) / 60000)),
+                    parentId: mainPart.id,
+                    parallel: true,
+                });
+            });
+        });
+    }
     logs.splice(idx, 0, ...newLogs);
     mergeAdjacentSameActivity();
     localStorage.setItem('v9_logs', JSON.stringify(logs));
+    localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
     closeDrawer();
     renderAll();
 }
