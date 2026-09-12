@@ -1325,6 +1325,22 @@ function applyEditedRange(log, newStart, newEnd, done) {
         showConfirm('时间不合法', '开始时间必须早于结束时间。', '知道了', () => {});
         return;
     }
+    if (log.parallel) {
+        const parallelConflict = logs.some((item) => {
+            if (!item.parallel || item.id === log.id) return false;
+            const itemEnd = logEndMs(item);
+            return item.startTime < effectiveEnd && itemEnd > effectiveStart;
+        });
+        if (parallelConflict) {
+            showConfirm('并行时间发生重叠', '调整后的时间与另一条并行记录重叠，请调整后重试。', '知道了', () => {});
+            return;
+        }
+        log.startTime = effectiveStart;
+        log.endTime = effectiveEnd;
+        log.duration = Math.round((effectiveEnd - effectiveStart) / 60000);
+        done();
+        return;
+    }
     const { previous, next } = getEditBoundaryNeighbors(log);
     const needsPrevious = startChanged;
     const needsNext = endChanged;
