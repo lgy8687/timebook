@@ -467,7 +467,7 @@ function tickLoop() {
 function renderAll() {
     renderShortcuts();
     renderParallelShortcuts();
-    renderLogs('log-list', getTodayDateStr());
+    renderHomeHistory();
     renderLogs('calendar-log-list', viewDate);
     renderConfig();
     renderReport();
@@ -726,8 +726,48 @@ function setViewDate(dateStr) {
 function renderRecordPage() {
     applyClockLayout();
     renderFlow();
-    renderLogs('log-list', getTodayDateStr());
+    renderHomeHistory();
     renderDayRemain();
+}
+
+/** 首页流水：今天的实时记录之后，继续显示所有历史日期，编辑入口沿用同一套流水卡片手势。 */
+function renderHomeHistory() {
+    const list = document.getElementById('log-list');
+    if (!list) return;
+    renderLogs('log-list', getTodayDateStr());
+
+    const today = getTodayDateStr();
+    const historicalDays = [...collectLogCalendarDays()]
+        .filter((dateStr) => dateStr < today)
+        .sort((a, b) => b.localeCompare(a));
+
+    historicalDays.forEach((dateStr) => {
+        const dayLogs = logs.filter((log) => logTouchesDate(log, dateStr));
+        if (!dayLogs.length) return;
+
+        const header = document.createElement('div');
+        header.className = 'log-day-header log-day-header--history';
+        header.innerText = formatDateHeaderLabel(dateStr);
+        list.appendChild(header);
+
+        const normalLogs = dayLogs
+            .filter((log) => !log.parallel)
+            .sort((a, b) => b.startTime - a.startTime);
+        const parallelLogs = dayLogs.filter((log) => log.parallel);
+        normalLogs.forEach((log) => {
+            const realIdx = logs.indexOf(log);
+            createLogRow(list, log, realIdx);
+            parallelLogs
+                .filter((child) => child.parentId === log.id)
+                .sort((a, b) => a.startTime - b.startTime)
+                .forEach((child) => {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'log-flow-nest mt-1 mb-1';
+                    createLogRow(wrap, child, logs.indexOf(child));
+                    list.appendChild(wrap);
+                });
+        });
+    });
 }
 
 function renderCalendarPage() {
