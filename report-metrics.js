@@ -13,6 +13,7 @@ const REPORT_METRIC_POOL = {
         { id: 'records', label: '流水条数' },
         { id: 'mainHours', label: '主线总时长' },
         { id: 'topCat', label: '占比最高分类' },
+        { id: 'categoryAverage', label: '类别平均' },
     ],
     parallel: [
         { id: 'paraHours', label: '并行总时长' },
@@ -20,6 +21,7 @@ const REPORT_METRIC_POOL = {
         { id: 'topPara', label: '最常并行' },
         { id: 'paraRecords', label: '并行条数' },
         { id: 'topHost', label: '叠加最多时段' },
+        { id: 'categoryAverage', label: '类别平均' },
     ],
 };
 
@@ -28,17 +30,21 @@ function getReportSummarySlots(view) {
     try {
         const raw = localStorage.getItem(key);
         const arr = raw ? JSON.parse(raw) : null;
-        if (Array.isArray(arr) && arr.length === 3) return arr;
+        if (Array.isArray(arr) && arr.length === 3) {
+            return arr.map((slot) => typeof slot === 'string' ? { id: slot } : { ...slot, id: slot?.id || '' });
+        }
     } catch (e) { /* ignore */ }
-    return [...REPORT_SUMMARY_DEFAULTS[view]];
+    return REPORT_SUMMARY_DEFAULTS[view].map((id) => ({ id }));
 }
 
 function saveReportSummarySlots(view, slots) {
     const key = view === 'parallel' ? 'v9_report_summary_parallel' : 'v9_report_summary_main';
-    localStorage.setItem(key, JSON.stringify(slots.slice(0, 3)));
+    localStorage.setItem(key, JSON.stringify(slots.slice(0, 3).map((slot) => typeof slot === 'string' ? { id: slot } : slot)));
 }
 
-function resolveReportMetric(metricId, periodData, view) {
+function resolveReportMetric(metricSlot, periodData, view) {
+    const slot = typeof metricSlot === 'string' ? { id: metricSlot } : (metricSlot || {});
+    const metricId = slot.id;
     const main = periodData.main;
     const parallel = periodData.parallel;
     const b = view === 'main' ? main : parallel;
@@ -82,6 +88,10 @@ function resolveReportMetric(metricId, periodData, view) {
         }
         case 'topHost':
             return fromSummary('🏠', '叠加最多时段') || { value: '—', label: '叠加最多时段' };
+        case 'categoryAverage':
+            return typeof resolveReportCategoryAverage === 'function'
+                ? resolveReportCategoryAverage(slot, periodData, view)
+                : { value: '—', label: '类别平均' };
         default:
             return { value: '—', label: '—' };
     }

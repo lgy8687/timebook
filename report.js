@@ -3,7 +3,7 @@
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v1.9';
+    const REPORT_VERSION = 'v2.0';
 
     let state = { period: 'day', chartView: 'main', legendMode: 'l1' };
     let getPeriodData = null;
@@ -84,8 +84,8 @@
         const slots = getReportSummarySlots(view);
         const box = document.getElementById(elId);
         if (!box) return;
-        box.innerHTML = slots.map((id) => {
-            const m = resolveReportMetric(id, periodData, view);
+        box.innerHTML = slots.map((slot) => {
+            const m = resolveReportMetric(slot, periodData, view);
             return `<div class="stat-indigo">
                 <div class="stat-indigo-value">${esc(m.value)}</div>
                 <div class="stat-indigo-label">${esc(m.label)}</div>

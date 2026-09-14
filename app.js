@@ -2209,33 +2209,94 @@ function renderReportSummarySettings() {
         h.innerText = title;
         wrap.appendChild(h);
         const slots = getReportSummarySlots(view);
-        const used = new Set();
-        slots.forEach((slotId, idx) => {
+        slots.forEach((slot, idx) => {
             const row = document.createElement('div');
             row.className = 'summary-slot-row';
             const lab = document.createElement('span');
             lab.className = 'text-[10px] font-bold text-slate-400 w-8 shrink-0';
             lab.innerText = `格${idx + 1}`;
-            const current = REPORT_METRIC_POOL[view].find((m) => m.id === slotId);
-            const items = REPORT_METRIC_POOL[view].map((m) => ({ value: m.id, label: m.label }));
-            const trigger = createPickerTrigger(current?.label || '—', () => {
-                openCompactWheel({
-                    title: (view === 'main' ? '主线' : '并行') + ` · 格${idx + 1}`,
-                    items,
-                    value: slotId,
-                    onSelect: (id) => {
-                        const next = getReportSummarySlots(view);
-                        next[idx] = id;
-                        saveReportSummarySlots(view, next);
-                        renderReportSummarySettings();
-                        if (typeof renderReportBillboard === "function") renderReportBillboard();
-                    },
-                });
-            });
+            const trigger = createPickerTrigger(getReportSummarySlotLabel(slot, view), () => openReportSummarySlotPicker(view, idx));
             row.append(lab, trigger);
             wrap.appendChild(row);
         });
         box.appendChild(wrap);
+    });
+}
+
+function getReportSummarySlotLabel(slot, view) {
+    const normalized = typeof slot === 'string' ? { id: slot } : (slot || {});
+    const metric = REPORT_METRIC_POOL[view]?.find((item) => item.id === normalized.id);
+    if (normalized.id !== 'categoryAverage') return metric?.label || '—';
+    if (!normalized.category) return '类别平均 · 请选择';
+    return `类别平均 · ${normalized.category} · ${normalized.carry === 'previous' ? '上一周期' : '本周期'}`;
+}
+
+function openReportChoiceGrid(title, choices, selected, onSelect) {
+    document.getElementById('report-choice-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'report-choice-overlay';
+    overlay.className = 'report-choice-overlay';
+    const panel = document.createElement('div');
+    panel.className = 'report-choice-panel';
+    const head = document.createElement('div');
+    head.className = 'report-choice-head';
+    const titleEl = document.createElement('span');
+    titleEl.innerText = title;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'report-choice-close';
+    close.innerText = '×';
+    close.addEventListener('click', () => overlay.remove());
+    head.append(titleEl, close);
+    const grid = document.createElement('div');
+    grid.className = 'report-choice-grid';
+    choices.forEach((choice) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'report-choice-item' + (choice.value === selected ? ' is-selected' : '');
+        if (choice.color) {
+            btn.style.borderColor = choice.color;
+            btn.style.color = choice.color;
+            btn.style.background = colorWithAlpha(choice.color, .08);
+        }
+        btn.innerText = choice.label;
+        btn.addEventListener('click', () => {
+            overlay.remove();
+            onSelect(choice.value);
+        });
+        grid.appendChild(btn);
+    });
+    panel.append(head, grid);
+    overlay.appendChild(panel);
+    overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+}
+
+function saveReportSummarySlot(view, index, slot) {
+    const next = getReportSummarySlots(view);
+    next[index] = slot;
+    saveReportSummarySlots(view, next);
+    renderReportSummarySettings();
+    if (typeof renderReportBillboard === 'function') renderReportBillboard();
+}
+
+function openReportSummarySlotPicker(view, index) {
+    const current = getReportSummarySlots(view)[index] || {};
+    const choices = (REPORT_METRIC_POOL[view] || []).map((item) => ({ value: item.id, label: item.label }));
+    openReportChoiceGrid(`${view === 'main' ? '主线' : '并行'} · 选择摘要`, choices, current.id, (metricId) => {
+        if (metricId !== 'categoryAverage') {
+            saveReportSummarySlot(view, index, { id: metricId });
+            return;
+        }
+        const categoryChoices = cats.map((cat) => ({ value: cat.name, label: cat.name, color: cat.color }));
+        openReportChoiceGrid('选择类别', categoryChoices, current.category, (category) => {
+            openReportChoiceGrid('结转归属', [
+                { value: 'current', label: '归属本周期' },
+                { value: 'previous', label: '归属上一周期' },
+            ], current.carry || 'current', (carry) => {
+                saveReportSummarySlot(view, index, { id: 'categoryAverage', category, carry });
+            });
+        });
     });
 }
 
@@ -3565,6 +3626,51 @@ function getBeijingReportRange(period, now) {
     return { start, end: Date.UTC(y + 1, 0, 1) - BJ_OFFSET };
 }
 
+function resolveReportCategoryAverage(slot, periodData, view) {
+    const category = String(slot?.category || '').trim();
+    const period = periodData?._period;
+    const range = periodData?._range;
+    if (!category || !range || !['week', 'month'].includes(period)) {
+        return { value: '—', label: '类别平均' };
+    }
+    const now = nowSecondMs();
+    const observedEnd = Math.min(range.end, now);
+    const records = getSegmentsInRange(range.start, observedEnd, now)
+        .filter((record) => !!record.parallel === (view === 'parallel'))
+        .filter((record) => record.l1 === category);
+    let totalMs = 0;
+    records.forEach((record) => {
+        const crossesIntoPeriod = record.startTime < range.start && record.endTime > range.start;
+        if (crossesIntoPeriod && slot.carry === 'previous') return;
+        totalMs += crossesIntoPeriod ? record.endTime - record.startTime : record.clippedEnd - record.clippedStart;
+    });
+    const days = Math.max(1, Math.ceil((observedEnd - range.start) / DAY_MS));
+    return {
+        value: formatDuration(Math.round(totalMs / days / 1000) * 1000),
+        label: `${category}平均`,
+    };
+}
+
+function buildYearCategoryComposition(segments, periodStart, periodEnd) {
+    const grouped = new Map();
+    buildMainComposition(segments, periodStart, periodEnd).forEach((part) => {
+        const key = part.l1 || '未分类';
+        const old = grouped.get(key) || { name: key, l1: key, ms: 0, color: part.color };
+        old.ms += part.ms || (part.width / 100) * (periodEnd - periodStart);
+        grouped.set(key, old);
+    });
+    return [...grouped.values()]
+        .sort((a, b) => a.ms - b.ms || a.name.localeCompare(b.name, 'zh-CN'))
+        .map((part) => ({
+            name: part.name,
+            l1: part.l1,
+            hours: msToReportHours(part.ms),
+            width: (part.ms / (periodEnd - periodStart)) * 100,
+            color: part.color,
+            title: `${part.name} ${msToReportHours(part.ms)}h`,
+        }));
+}
+
 function buildLiveReportPeriod(period) {
     const now = nowSecondMs();
     const range = getBeijingReportRange(period, now);
@@ -3596,7 +3702,9 @@ function buildLiveReportPeriod(period) {
         const nextPeriodStart = period === 'year' ? nextBeijingMonthStart(periodStart) : periodStart + DAY_MS;
         const periodEnd = Math.min(nextPeriodStart, reportEnd);
         const daySegs = mainSegs.filter((l) => l.clippedEnd > periodStart && l.clippedStart < periodEnd);
-        const segments = buildMainComposition(daySegs, periodStart, periodEnd);
+        const segments = period === 'year'
+            ? buildYearCategoryComposition(daySegs, periodStart, periodEnd)
+            : buildMainComposition(daySegs, periodStart, periodEnd);
         const totalMs = segments.reduce((sum, part) => sum + (part.width / 100) * (periodEnd - periodStart), 0);
         const fullDate = formatBeijingDate(periodStart);
         const label = period === 'year' ? fullDate.slice(0, 7).replace('-', '/') : fullDate.slice(5).replace('-', '/');
@@ -3605,7 +3713,9 @@ function buildLiveReportPeriod(period) {
     }
     return {
         _live: true,
-        timeline: { title: period === 'week' ? '本周每日时间构成' : period === 'month' ? '本月每日时间构成' : '本年每月时间构成', hint: '按分类分段 · 重叠时间自动去重', kind: 'bars', bars },
+        _period: period,
+        _range: { start: range.start, end: range.end },
+        timeline: { title: period === 'week' ? '本周每日时间构成' : period === 'month' ? '本月每日时间构成' : '本年每月分类构成', hint: period === 'year' ? '按一级目录合并 · 每月从少到多排列' : '按分类分段 · 重叠时间自动去重', kind: 'bars', bars },
         main: {
             meta: { title: formatBeijingDate(now), range: period === 'week' ? '本周主线' : period === 'month' ? '本月主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
             summary: [
