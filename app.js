@@ -1909,10 +1909,8 @@ function drawerPick(l1, l2) {
         _reportSummaryCategoryPicker = null;
         closeDrawer();
         if (!pending) return;
-        openReportChoiceGrid('结转归属', [
-            { value: 'current', label: '归属本周期' },
-            { value: 'previous', label: '归属上一周期' },
-        ], pending.carry || 'current', (carry) => {
+        const carryChoice = getReportCarryChoices(pending.periodKey);
+        openReportChoiceGrid(carryChoice.title, carryChoice.choices, pending.carry || 'current', (carry) => {
             saveReportSummarySlot(pending.view, pending.index, {
                 id: 'categoryAverage', l1, l2: l2 || l1, carry,
             }, pending.periodKey);
@@ -2283,7 +2281,7 @@ function renderReportSummarySettings() {
             const lab = document.createElement('span');
             lab.className = 'text-[10px] font-bold text-slate-400 w-8 shrink-0';
             lab.innerText = `格${idx + 1}`;
-            const trigger = createPickerTrigger(getReportSummarySlotLabel(slot, view), () => openReportSummarySlotPicker(view, idx, periodKey));
+            const trigger = createPickerTrigger(getReportSummarySlotLabel(slot, view, periodKey), () => openReportSummarySlotPicker(view, idx, periodKey));
             row.append(lab, trigger);
             wrap.appendChild(row);
         });
@@ -2291,7 +2289,33 @@ function renderReportSummarySettings() {
     });
 }
 
-function getReportSummarySlotLabel(slot, view) {
+function getReportCarryCopy(carry, periodKey) {
+    const previous = carry === 'previous';
+    if (periodKey === 'week') return previous ? '算上周' : '算本周';
+    if (periodKey === 'month') return previous ? '算上月' : '算本月';
+    return previous ? '周上周 / 月上月' : '周本周 / 月本月';
+}
+
+function getReportCarryChoices(periodKey) {
+    if (periodKey === 'week') {
+        return { title: '跨周时间算到哪一周？', choices: [
+            { value: 'current', label: '算本周' },
+            { value: 'previous', label: '算上周' },
+        ] };
+    }
+    if (periodKey === 'month') {
+        return { title: '跨月时间算到哪一月？', choices: [
+            { value: 'current', label: '算本月' },
+            { value: 'previous', label: '算上月' },
+        ] };
+    }
+    return { title: '跨周期时间归属', choices: [
+        { value: 'current', label: '周报算本周 / 月报算本月' },
+        { value: 'previous', label: '周报算上周 / 月报算上月' },
+    ] };
+}
+
+function getReportSummarySlotLabel(slot, view, periodKey) {
     const normalized = typeof slot === 'string' ? { id: slot } : (slot || {});
     const metric = REPORT_METRIC_POOL[view]?.find((item) => item.id === normalized.id);
     if (normalized.id !== 'categoryAverage') return metric?.label || '—';
@@ -2299,7 +2323,7 @@ function getReportSummarySlotLabel(slot, view) {
         ? `${normalized.l1} / ${normalized.l2}`
         : normalized.category;
     if (!categoryLabel) return '类别平均 · 请选择';
-    return `类别平均 · ${categoryLabel} · ${normalized.carry === 'previous' ? '上一周期' : '本周期'}`;
+    return `类别平均 · ${categoryLabel} · ${getReportCarryCopy(normalized.carry, periodKey)}`;
 }
 
 function openReportChoiceGrid(title, choices, selected, onSelect) {

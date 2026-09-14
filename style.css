@@ -683,6 +683,7 @@
 .picker-trigger-chevron { font-size: 9px; color: #94a3b8; flex-shrink: 0; }
 .summary-slot-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .summary-slot-row .picker-trigger { max-width: none; }
+.report-summary-settings-ui { display: grid; gap: 8px; }
 .summary-control-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 3px 0; }
 .summary-control-label { color: #64748b; font-size: 11px; font-weight: 900; letter-spacing: .02em; }
 .summary-segmented { display: inline-flex; padding: 4px; border: 1px solid #dbe3ee; border-radius: 999px; background: #f8fafc; box-shadow: inset 0 1px 2px rgba(15, 23, 42, .04); }
@@ -759,8 +760,8 @@
 .compact-wheel-item.is-active { color: #4338ca; font-size: 13px; font-weight: 900; }
 .compact-wheel-pad { pointer-events: none; visibility: hidden; }
 body.compact-wheel-open { overflow: hidden; }
-.summary-settings-group { margin-bottom: 6px; }
-.summary-settings-group > div:first-child { margin-bottom: 4px; }
+.summary-settings-group { margin: 2px 0 0; padding-top: 10px; border-top: 1px solid #eef2f7; }
+.summary-settings-group > div:first-child { margin-bottom: 6px; }
 
 .app-header {
     padding-top: max(1rem, env(safe-area-inset-top, 0px));
