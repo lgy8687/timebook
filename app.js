@@ -187,22 +187,6 @@ function closeScenePopover() {
     popover.setAttribute('aria-hidden', 'true');
 }
 
-function positionScenePopover() {
-    const popover = document.getElementById('scene-popover');
-    const trigger = document.getElementById('scene-entry-btn');
-    if (!popover || !trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    const width = Math.min(300, window.innerWidth - 24);
-    const height = popover.offsetHeight || 180;
-    let top = rect.bottom + 8;
-    if (top + height > window.innerHeight - 8) {
-        top = Math.max(8, rect.top - height - 8);
-    }
-    popover.style.width = `${width}px`;
-    popover.style.left = `${Math.max(12, Math.min(window.innerWidth - width - 12, rect.right - width))}px`;
-    popover.style.top = `${top}px`;
-}
-
 function scenePopoverButton(label, className, handler) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -245,7 +229,6 @@ function renderSceneChoiceGrid(mode) {
     } else {
         content.appendChild(grid);
     }
-    requestAnimationFrame(positionScenePopover);
 }
 
 function renderLifeMainGrid() {
@@ -276,7 +259,6 @@ function renderLifeMainGrid() {
         });
     });
     content.appendChild(grid);
-    requestAnimationFrame(positionScenePopover);
 }
 
 function renderSceneActions() {
@@ -289,7 +271,6 @@ function renderSceneActions() {
         scenePopoverButton('切换场景', 'scene-action-btn scene-action-btn--switch', () => renderSceneChoiceGrid('switch')),
         scenePopoverButton('结束场景', 'scene-action-btn scene-action-btn--end', renderLifeMainGrid)
     );
-    requestAnimationFrame(positionScenePopover);
 }
 
 function openScenePopover(mode) {
@@ -1419,16 +1400,6 @@ document.addEventListener('click', (e) => {
         picker.classList.add('hidden');
         if (catEmojiPickerCb) { catEmojiPickerCb(null); catEmojiPickerCb = null; }
     }
-});
-document.addEventListener('click', (e) => {
-    const popover = document.getElementById('scene-popover');
-    const trigger = document.getElementById('scene-entry-btn');
-    if (!popover || popover.classList.contains('hidden')) return;
-    if (!popover.contains(e.target) && !trigger?.contains(e.target)) closeScenePopover();
-});
-window.addEventListener('resize', () => {
-    const popover = document.getElementById('scene-popover');
-    if (popover && !popover.classList.contains('hidden')) positionScenePopover();
 });
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('scene-entry-btn')?.addEventListener('click', enterScene);

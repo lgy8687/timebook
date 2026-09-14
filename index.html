@@ -8,30 +8,30 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.64">
-    <link rel="stylesheet" href="dev-theme.css?v=4.64">
+    <link rel="stylesheet" href="style.css?v=4.65">
+    <link rel="stylesheet" href="dev-theme.css?v=4.65">
     <link rel="stylesheet" href="report.css?v=2.0">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
 
-    <header class="app-header bg-white p-4 border-b border-slate-100 shrink-0 z-10 flex justify-between items-center shadow-sm">
-        <div class="flex items-center space-x-3">
-            <div id="status-light" class="w-2.5 h-2.5 rounded-full bg-slate-300"></div>
-            <div>
-                <div class="flex items-center space-x-1"><span class="text-[9px] text-indigo-500 font-black uppercase tracking-widest">Active</span></div>
-                <div class="flex items-center space-x-2 text-sm font-black text-slate-700">
-                    <span id="header-l2">等待开启...</span>
-                    <span id="header-memo" class="text-[10px] text-slate-300 font-normal italic truncate max-w-[100px]"></span>
+    <header class="app-header bg-white p-4 border-b border-slate-100 shrink-0 z-10 shadow-sm">
+        <div class="header-main-status">
+            <div class="flex items-center space-x-3 min-w-0">
+                <div id="status-light" class="w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0"></div>
+                <div class="min-w-0">
+                    <div class="flex items-center space-x-1"><span class="text-[9px] text-indigo-500 font-black uppercase tracking-widest">Active</span></div>
+                    <div class="flex items-center space-x-2 text-sm font-black text-slate-700">
+                        <span id="header-l2">等待开启...</span>
+                        <span id="header-memo" class="text-[10px] text-slate-300 font-normal italic truncate max-w-[100px]"></span>
+                    </div>
                 </div>
             </div>
+            <div id="header-timer" class="header-main-timer text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
-        <div class="flex items-center gap-2">
-            <button id="scene-entry-btn" type="button" class="scene-zone-tile" title="切换区域">
-                <span id="scene-entry-icon" class="scene-zone-tile-icon">⌂</span>
-                <span id="scene-entry-label" class="scene-zone-tile-label">生活区</span>
-            </button>
-            <div id="header-timer" class="text-2xl font-mono font-black text-indigo-600">00:00:00</div>
-        </div>
+        <button id="scene-entry-btn" type="button" class="scene-zone-tile" title="切换区域">
+            <span id="scene-entry-icon" class="scene-zone-tile-icon">⌂</span>
+            <span id="scene-entry-label" class="scene-zone-tile-label">生活区</span>
+        </button>
     </header>
 
     <main class="flex-1 overflow-y-auto p-4 pb-52">
@@ -41,7 +41,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v4.64</div>
+            <div id="cache-buster" class="version-below-daybar">v4.65</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -500,8 +500,8 @@
         </div>
     </div>
 
-    <div id="scene-popover" class="scene-popover hidden" aria-hidden="true">
-        <div class="scene-popover-card">
+    <div id="scene-popover" class="scene-popover hidden" aria-hidden="true" onclick="if(event.target===this)closeScenePopover()">
+        <div class="scene-popover-card" onclick="event.stopPropagation()">
             <div class="scene-popover-head">
                 <span id="scene-popover-title">选择场景</span>
                 <button type="button" class="scene-popover-close" onclick="closeScenePopover()" aria-label="关闭">×</button>
@@ -514,8 +514,8 @@
 
     <script src="report-metrics.js?v=1.6"></script>
     <script src="report.js?v=1.9"></script>
-    <script src="ui-theme.js?v=4.64"></script>
-    <script src="app.js?v=4.64"></script>
-    <script src="dev-appearance.js?v=4.64"></script>
+    <script src="ui-theme.js?v=4.65"></script>
+    <script src="app.js?v=4.65"></script>
+    <script src="dev-appearance.js?v=4.65"></script>
 </body>
 </html>
