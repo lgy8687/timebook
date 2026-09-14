@@ -160,6 +160,56 @@ function repairOrphanedParallelParents() {
     }
 }
 repairOrphanedParallelParents();
+
+function isSceneActive() {
+    return !!current?.scene;
+}
+
+function updateSceneEntryButton() {
+    const btn = document.getElementById('scene-entry-btn');
+    if (!btn) return;
+    btn.classList.toggle('is-active', isSceneActive());
+    btn.innerText = isSceneActive() ? `场景：${current.l2 || current.l1}` : '进入场景';
+    btn.title = isSceneActive() ? '结束当前场景' : '进入一个新的场景';
+}
+
+function enterScene() {
+    if (isSceneActive()) {
+        showConfirm('结束场景', `结束「${displayName(current)}」？结束后恢复普通主线。`, '结束', (ok) => {
+            if (ok) endScene();
+        });
+        return;
+    }
+    showPrompt('进入场景', '例如：出差、旅行、聚会', '', (name) => {
+        const sceneName = String(name || '').trim();
+        if (!sceneName) return;
+        const now = nowSecondMs();
+        ensureDayRolloversBefore(now);
+        if (current) commitCurrentSlice(now, false, { endParallel: true });
+        current = {
+            id: genId(),
+            startTime: now,
+            l1: '场景',
+            l2: sceneName,
+            tag: '',
+            note: '',
+            color: '#0f9f8c',
+            scene: true
+        };
+        localStorage.setItem('v9_current', JSON.stringify(current));
+        renderAll();
+    });
+}
+
+function endScene() {
+    if (!isSceneActive()) return;
+    const now = nowSecondMs();
+    ensureDayRolloversBefore(now);
+    commitCurrentSlice(now, false, { endParallel: !!parallelCurrent });
+    current = null;
+    localStorage.removeItem('v9_current');
+    renderAll();
+}
 let labelFontSize = safeJSON('v9_labelFontSize') || 13;
 /** 自由输入短语 → 分类，如「火锅」→ 餐饮（由编辑流水或历史记录学习） */
 let inputAliases = safeJSON('v9_input_aliases') || {};
@@ -467,6 +517,7 @@ function tickLoop() {
 function renderAll() {
     renderShortcuts();
     renderParallelShortcuts();
+    updateSceneEntryButton();
     renderHomeHistory();
     renderLogs('calendar-log-list', viewDate);
     renderConfig();
@@ -1229,6 +1280,7 @@ document.addEventListener('click', (e) => {
     }
 });
 document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('scene-entry-btn')?.addEventListener('click', enterScene);
     document.getElementById('prompt-input').addEventListener('keydown', e => {
         if (e.key === 'Enter') confirmPrompt();
     });
@@ -1602,6 +1654,10 @@ function requestDeleteLogEntry(id) {
 }
 
 function executeRecord(l1, l2, tag, note) {
+    if (isSceneActive()) {
+        toggleParallel(l1, l2, resolveShortcutIcon({ l1, l2 }));
+        return;
+    }
     if (parallelCurrent) {
         const pName = displayName(parallelCurrent);
         showConfirm("⏎ 并行还在运行", `「${pName}」还在跑，是结束它还是结转到下一条主线？`, "一起结束", (ok) => {
@@ -1728,6 +1784,8 @@ function drawerPick(l1, l2) {
 
 function renderShortcuts() {
     const container = document.getElementById('home-shortcuts');
+    const section = document.getElementById('main-shortcut-section');
+    if (section) section.classList.toggle('hidden', isSceneActive());
     container.innerHTML = "";
     const addBtn = document.createElement('button');
     addBtn.type = 'button';

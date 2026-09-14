@@ -283,6 +283,9 @@
 .day-remain-fill { height: 100%; border-radius: 999px; background: linear-gradient(180deg, #e0c8a0 0%, #D4B88C 100%); transition: width .35s linear; position: absolute; left: 0; top: 0; z-index: 2; }
 .day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); z-index: 2; }
 #match-flame { position: absolute; top: 50%; font-size: 14px; z-index: 3; pointer-events: none; transition: left .35s linear; filter: drop-shadow(0 0 5px rgba(255,120,0,0.6)); animation: fireDance 0.7s ease-in-out infinite; }
+.version-below-daybar { margin: -3px 4px 0; font-size: 9px; line-height: 1; font-weight: 900; letter-spacing: .08em; color: #ef4444; }
+.scene-entry-btn { margin-top: 3px; padding: 2px 7px; border: 1px solid #dbeafe; border-radius: 999px; background: #f8fafc; color: #64748b; font-size: 9px; font-weight: 900; line-height: 1.4; }
+.scene-entry-btn.is-active { border-color: #99f6e4; background: #ecfdf5; color: #0f9f8c; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes fireDance {
     0%, 100% { transform: translateY(-50%) scale(1) rotate(0deg); }
     20% { transform: translateY(-52%) scale(1.12, 1.06) rotate(-4deg); }
