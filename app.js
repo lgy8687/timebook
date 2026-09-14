@@ -60,6 +60,10 @@ if (!cats || !Array.isArray(cats) || !cats.length) {
     cats = JSON.parse(JSON.stringify(DEFAULT_CATS));
     localStorage.setItem('v9_cats', JSON.stringify(cats));
 }
+if (!cats.some((cat) => cat.name === '场景')) {
+    cats.push({ id: genId(), name: '场景', icon: '🧳', color: '#0f9f8c', subs: ['出差', '旅行', '聚会'] });
+    localStorage.setItem('v9_cats', JSON.stringify(cats));
+}
 let shortcuts = safeJSON('v9_shorts') || [];
 function padShortcutsToDefault(list, defaults) {
     const next = [...list];
@@ -173,6 +177,36 @@ function updateSceneEntryButton() {
     btn.title = isSceneActive() ? '结束当前场景' : '进入一个新的场景';
 }
 
+function startScene(sceneName) {
+    const name = String(sceneName || '').trim();
+    if (!name) return;
+    const now = nowSecondMs();
+    ensureDayRolloversBefore(now);
+    if (current) commitCurrentSlice(now, false, { endParallel: true });
+    current = {
+        id: genId(),
+        startTime: now,
+        l1: '场景',
+        l2: name,
+        tag: '',
+        note: '',
+        color: getCat('场景')?.color || '#0f9f8c',
+        scene: true
+    };
+    localStorage.setItem('v9_current', JSON.stringify(current));
+    renderAll();
+}
+
+function openScenePicker() {
+    pickerMode = 'scene-record';
+    document.getElementById('drawer-title').innerText = '选择场景';
+    document.getElementById('parallel-time-row').classList.add('hidden');
+    document.getElementById('drawer-footer').classList.add('hidden');
+    showDrawer();
+    renderDrawerToggle();
+    renderPicker();
+}
+
 function enterScene() {
     if (isSceneActive()) {
         showConfirm('结束场景', `结束「${displayName(current)}」？结束后恢复普通主线。`, '结束', (ok) => {
@@ -180,25 +214,7 @@ function enterScene() {
         });
         return;
     }
-    showPrompt('进入场景', '例如：出差、旅行、聚会', '', (name) => {
-        const sceneName = String(name || '').trim();
-        if (!sceneName) return;
-        const now = nowSecondMs();
-        ensureDayRolloversBefore(now);
-        if (current) commitCurrentSlice(now, false, { endParallel: true });
-        current = {
-            id: genId(),
-            startTime: now,
-            l1: '场景',
-            l2: sceneName,
-            tag: '',
-            note: '',
-            color: '#0f9f8c',
-            scene: true
-        };
-        localStorage.setItem('v9_current', JSON.stringify(current));
-        renderAll();
-    });
+    openScenePicker();
 }
 
 function endScene() {
@@ -1717,6 +1733,16 @@ function drawerPick(l1, l2) {
         const cat = getCat(l1);
         closeDrawer();
         toggleParallel(l1, l2 || '', resolveShortcutIcon({ l1, l2: l2 || '' }));
+        return;
+    }
+    if (l1 === '场景' && pickerMode === 'record') {
+        closeDrawer();
+        showConfirm('请从场景入口进入', '“场景”不能作为普通主线启动，请点击首页顶部的“进入场景”。', '知道了', () => {});
+        return;
+    }
+    if (pickerMode === 'scene-record') {
+        closeDrawer();
+        if (l1 === '场景') startScene(l2 || l1);
         return;
     }
     if (pickerMode !== 'shortcut' && pickerMode !== 'shortcut-edit' && pickerMode !== 'parallel-shortcut') {
@@ -3487,6 +3513,27 @@ function renderPicker() {
                 l2Box.appendChild(btn);
             });
         });
+        return;
+    }
+
+    if (pickerMode === 'scene-record') {
+        const sceneCat = cats.find((cat) => cat.name === '场景');
+        l1Box.style.display = 'none';
+        l2Box.className = 'w-full flex-1 min-h-0 p-4 overflow-y-auto grid grid-cols-2 content-start gap-3';
+        (sceneCat?.subs || []).forEach((sceneName) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'bg-white border border-slate-100 rounded-2xl p-4 text-center text-sm font-black text-slate-700 shadow-sm active:bg-emerald-50';
+            btn.innerHTML = `<div class="text-2xl leading-none mb-1">${escHtml(getSubIcon(sceneName, sceneCat.icon, sceneCat))}</div><div>${escHtml(sceneName)}</div>`;
+            btn.addEventListener('click', () => drawerPick('场景', sceneName));
+            l2Box.appendChild(btn);
+        });
+        if (!sceneCat?.subs?.length) {
+            const hint = document.createElement('div');
+            hint.className = 'col-span-2 text-sm text-slate-400 font-bold p-4';
+            hint.innerText = '请先在类别管理的“场景”下面添加子类。';
+            l2Box.appendChild(hint);
+        }
         return;
     }
 
