@@ -70,7 +70,8 @@ let sceneSettings = safeJSON('v9_scene_settings', {}) || {};
 sceneSettings = {
     homeLabel: typeof sceneSettings.homeLabel === 'string' && sceneSettings.homeLabel.trim() ? sceneSettings.homeLabel.trim() : '生活区',
     homeColor: safeColor(sceneSettings.homeColor, '#f59e0b'),
-    colors: sceneSettings.colors && typeof sceneSettings.colors === 'object' ? sceneSettings.colors : {}
+    colors: sceneSettings.colors && typeof sceneSettings.colors === 'object' ? sceneSettings.colors : {},
+    showSceneColor: sceneSettings.showSceneColor !== false
 };
 function saveSceneSettings() {
     localStorage.setItem('v9_scene_settings', JSON.stringify(sceneSettings));
@@ -216,9 +217,14 @@ function getActiveZone() {
 function applyZoneTheme() {
     const zone = getActiveZone();
     const frame = document.getElementById('zone-frame');
-    if (frame) frame.style.borderColor = zone.color;
+    const showColor = isSceneActive() && sceneSettings.showSceneColor;
+    if (frame) {
+        frame.style.borderColor = showColor ? zone.color : 'transparent';
+        frame.style.borderWidth = showColor ? '3px' : '0';
+    }
     document.documentElement.style.setProperty('--zone-color', zone.color);
     document.documentElement.style.setProperty('--zone-soft', colorWithAlpha(zone.color, .12));
+    document.getElementById('scene-entry-btn')?.classList.toggle('is-colored', showColor);
 }
 
 function updateSceneEntryButton() {
@@ -265,12 +271,9 @@ function renderSceneChoiceGrid(mode) {
         btn.style.borderColor = colorWithAlpha(sceneColor, .36);
         btn.style.backgroundColor = colorWithAlpha(sceneColor, .08);
         btn.style.color = sceneColor;
-        const icon = document.createElement('span');
-        icon.className = 'scene-choice-icon';
-        icon.innerText = getSubIcon(sceneName, sceneCat.icon, sceneCat);
         const label = document.createElement('span');
         label.innerText = sceneName;
-        btn.append(icon, label);
+        btn.append(label);
         btn.addEventListener('click', () => {
             closeScenePopover();
             startScene(sceneName, { askParallel: mode === 'switch' });
@@ -301,12 +304,9 @@ function renderLifeMainGrid() {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'scene-choice-item';
-            const icon = document.createElement('span');
-            icon.className = 'scene-choice-icon';
-            icon.innerText = getSubIcon(sub, cat.icon, cat);
             const label = document.createElement('span');
             label.innerText = sub || cat.name;
-            btn.append(icon, label);
+            btn.append(label);
             btn.addEventListener('click', () => {
                 closeScenePopover();
                 transitionSceneToMain(cat.name, sub);
@@ -2309,6 +2309,26 @@ function renderSceneSettings() {
         }),
         true
     );
+
+    const toggleRow = document.createElement('div');
+    toggleRow.className = 'scene-settings-row';
+    const toggleText = document.createElement('span');
+    toggleText.className = 'scene-settings-name';
+    toggleText.innerText = '场景辨识色';
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'scene-color-toggle' + (sceneSettings.showSceneColor ? ' is-on' : '');
+    toggle.setAttribute('role', 'switch');
+    toggle.setAttribute('aria-checked', String(sceneSettings.showSceneColor));
+    toggle.title = sceneSettings.showSceneColor ? '进入场景时显示颜色边框' : '进入场景时不显示颜色边框';
+    toggle.appendChild(document.createElement('i'));
+    toggle.addEventListener('click', () => {
+        sceneSettings.showSceneColor = !sceneSettings.showSceneColor;
+        saveSceneSettings();
+        renderAll();
+    });
+    toggleRow.append(toggleText, toggle);
+    host.appendChild(toggleRow);
 
     (sceneCat.subs || []).forEach((sceneName) => {
         ensureSceneColor(sceneName);
