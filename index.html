@@ -8,11 +8,12 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.66">
-    <link rel="stylesheet" href="dev-theme.css?v=4.66">
+    <link rel="stylesheet" href="style.css?v=4.67">
+    <link rel="stylesheet" href="dev-theme.css?v=4.67">
     <link rel="stylesheet" href="report.css?v=2.0">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
+    <div id="zone-frame" aria-hidden="true"></div>
 
     <header class="app-header bg-slate-50 p-3 shrink-0 z-10">
         <div class="header-main-status">
@@ -29,7 +30,6 @@
             <div id="header-timer" class="header-main-timer text-2xl font-mono font-black text-indigo-600">00:00:00</div>
         </div>
         <button id="scene-entry-btn" type="button" class="scene-zone-tile" title="切换区域">
-            <span id="scene-entry-icon" class="scene-zone-tile-icon">⌂</span>
             <span id="scene-entry-label" class="scene-zone-tile-label">生活区</span>
         </button>
     </header>
@@ -41,7 +41,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v4.66</div>
+            <div id="cache-buster" class="version-below-daybar">v4.67</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -233,6 +233,10 @@
                     <span class="config-tile-icon">📂</span>
                     <span class="config-tile-label">分类管理</span>
                 </button>
+                <button type="button" class="config-tile" data-config-section="scene" onclick="openConfigSection('scene')">
+                    <span class="config-tile-icon">◐</span>
+                    <span class="config-tile-label">区域管理</span>
+                </button>
                 <button type="button" class="config-tile" onclick="openDevAppearance()">
                     <span class="config-tile-icon">🛠</span>
                     <span class="config-tile-label">开发外观</span>
@@ -241,7 +245,6 @@
                     <span class="config-tile-icon">⋯</span>
                     <span class="config-tile-label">更多设置</span>
                 </button>
-                <div class="config-tile config-tile--empty" aria-hidden="true"></div>
             </div>
             </div>
 
@@ -282,6 +285,11 @@
                     <h3 class="config-panel-title">分类管理</h3>
                     <p class="config-panel-hint">点颜色圆点改色；点活动名编辑；✕ 删除。下方可添加分类与活动。</p>
                     <div id="full-cat-list" class="space-y-4 mt-3"></div>
+                </div>
+                <div id="config-panel-scene" class="config-panel hidden">
+                    <h3 class="config-panel-title">区域管理</h3>
+                    <p class="config-panel-hint">生活区是固定主区域，只能修改显示名称和颜色；其他场景可在这里编辑、改色或添加。</p>
+                    <div id="scene-settings-ui" class="space-y-3 mt-3"></div>
                 </div>
                 <div id="config-panel-more" class="config-panel hidden space-y-3">
                     <h3 class="config-panel-title">更多</h3>
@@ -515,7 +523,7 @@
     <script src="report-metrics.js?v=1.6"></script>
     <script src="report.js?v=1.9"></script>
     <script src="ui-theme.js?v=4.66"></script>
-    <script src="app.js?v=4.66"></script>
+    <script src="app.js?v=4.67"></script>
     <script src="dev-appearance.js?v=4.66"></script>
 </body>
 </html>

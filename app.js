@@ -64,6 +64,33 @@ if (!cats.some((cat) => cat.name === '场景')) {
     cats.push({ id: genId(), name: '场景', icon: '🧳', color: '#0f9f8c', subs: ['出差', '旅行', '聚会'] });
     localStorage.setItem('v9_cats', JSON.stringify(cats));
 }
+const SCENE_COLOR_PALETTE = ['#0ea5e9', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444', '#f59e0b', '#6366f1', '#22c55e'];
+const DEFAULT_SCENE_COLORS = { '出差': '#0ea5e9', '旅行': '#8b5cf6', '聚会': '#ec4899' };
+let sceneSettings = safeJSON('v9_scene_settings', {}) || {};
+sceneSettings = {
+    homeLabel: typeof sceneSettings.homeLabel === 'string' && sceneSettings.homeLabel.trim() ? sceneSettings.homeLabel.trim() : '生活区',
+    homeColor: safeColor(sceneSettings.homeColor, '#f59e0b'),
+    colors: sceneSettings.colors && typeof sceneSettings.colors === 'object' ? sceneSettings.colors : {}
+};
+function saveSceneSettings() {
+    localStorage.setItem('v9_scene_settings', JSON.stringify(sceneSettings));
+}
+function getSceneColor(name) {
+    const key = String(name || '').trim();
+    if (!key) return '#0f9f8c';
+    const saved = sceneSettings.colors[key];
+    if (typeof saved === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(saved.trim())) return saved.trim();
+    const sceneNames = getCat('场景')?.subs || [];
+    return DEFAULT_SCENE_COLORS[key] || SCENE_COLOR_PALETTE[Math.max(0, sceneNames.indexOf(key)) % SCENE_COLOR_PALETTE.length];
+}
+function ensureSceneColor(name) {
+    const key = String(name || '').trim();
+    if (!key || sceneSettings.colors[key]) return;
+    sceneSettings.colors[key] = getSceneColor(key);
+    saveSceneSettings();
+}
+(getCat('场景')?.subs || []).forEach(ensureSceneColor);
+saveSceneSettings();
 let shortcuts = safeJSON('v9_shorts') || [];
 function padShortcutsToDefault(list, defaults) {
     const next = [...list];
@@ -169,15 +196,39 @@ function isSceneActive() {
     return !!current?.scene;
 }
 
+function colorWithAlpha(color, alpha) {
+    const hex = safeColor(color, '#f59e0b');
+    if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return '#fff7ed';
+    const value = parseInt(hex.slice(1), 16);
+    const r = (value >> 16) & 255;
+    const g = (value >> 8) & 255;
+    const b = value & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function getActiveZone() {
+    if (isSceneActive()) {
+        return { label: current.l2 || current.l1 || '场景', color: getSceneColor(current.l2) };
+    }
+    return { label: sceneSettings.homeLabel, color: sceneSettings.homeColor };
+}
+
+function applyZoneTheme() {
+    const zone = getActiveZone();
+    const frame = document.getElementById('zone-frame');
+    if (frame) frame.style.borderColor = zone.color;
+    document.documentElement.style.setProperty('--zone-color', zone.color);
+    document.documentElement.style.setProperty('--zone-soft', colorWithAlpha(zone.color, .12));
+}
+
 function updateSceneEntryButton() {
     const btn = document.getElementById('scene-entry-btn');
     if (!btn) return;
-    const icon = document.getElementById('scene-entry-icon');
     const label = document.getElementById('scene-entry-label');
-    btn.classList.toggle('is-active', isSceneActive());
-    if (icon) icon.innerText = isSceneActive() ? '◈' : '⌂';
-    if (label) label.innerText = isSceneActive() ? (current.l2 || current.l1) : '生活区';
-    btn.title = isSceneActive() ? `当前场景：${current.l2 || current.l1}` : '当前区域：生活区';
+    const zone = getActiveZone();
+    if (label) label.innerText = zone.label;
+    btn.title = isSceneActive() ? `当前场景：${zone.label}` : `当前区域：${zone.label}`;
+    applyZoneTheme();
 }
 
 function closeScenePopover() {
@@ -206,9 +257,14 @@ function renderSceneChoiceGrid(mode) {
     const grid = document.createElement('div');
     grid.className = 'scene-choice-grid';
     (sceneCat?.subs || []).forEach((sceneName) => {
+        ensureSceneColor(sceneName);
+        const sceneColor = getSceneColor(sceneName);
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'scene-choice-item';
+        btn.style.borderColor = colorWithAlpha(sceneColor, .36);
+        btn.style.backgroundColor = colorWithAlpha(sceneColor, .08);
+        btn.style.color = sceneColor;
         const icon = document.createElement('span');
         icon.className = 'scene-choice-icon';
         icon.innerText = getSubIcon(sceneName, sceneCat.icon, sceneCat);
@@ -235,7 +291,7 @@ function renderLifeMainGrid() {
     const title = document.getElementById('scene-popover-title');
     const content = document.getElementById('scene-popover-content');
     if (!title || !content) return;
-    title.innerText = '选择生活区主线';
+    title.innerText = `选择${sceneSettings.homeLabel}主线`;
     content.innerHTML = '';
     const grid = document.createElement('div');
     grid.className = 'scene-choice-grid';
@@ -315,7 +371,7 @@ function startScene(sceneName, options) {
         l2: name,
         tag: '',
         note: '',
-        color: getCat('场景')?.color || '#0f9f8c',
+        color: getSceneColor(name),
         scene: true
     }, !!options?.askParallel);
 }
@@ -1228,6 +1284,7 @@ function renderClockMarks(marksG, rangeStart, rangeEnd) {
 }
 
 function logSegmentColor(log) {
+    if (log?.scene || log?.l1 === '场景') return getSceneColor(log.l2);
     return log.color || getCat(log.l1)?.color || '#cbd5e1';
 }
 
@@ -2094,7 +2151,7 @@ function syncConfigSectionUI() {
     });
     const expand = document.getElementById('config-expand');
     if (expand) expand.classList.toggle('hidden', !configSectionOpen);
-    ['clock', 'shortcut', 'parallel', 'report', 'cats', 'more'].forEach((id) => {
+    ['clock', 'shortcut', 'parallel', 'report', 'cats', 'scene', 'more'].forEach((id) => {
         const panel = document.getElementById('config-panel-' + id);
         if (panel) panel.classList.toggle('hidden', configSectionOpen !== id);
     });
@@ -2179,10 +2236,107 @@ function renderReportSummarySettings() {
     });
 }
 
+const COLOR_PRESETS = ['#f59e0b', '#0ea5e9', '#14b8a6', '#22c55e', '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#334155'];
+
+function openZoneColorPicker(currentColor, onSelect) {
+    document.querySelector('.zone-color-picker-overlay')?.remove();
+    document.querySelector('.zone-color-picker-popup')?.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'zone-color-picker-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9998;background:transparent;';
+    const popup = document.createElement('div');
+    popup.className = 'zone-color-picker-popup';
+    popup.style.cssText = 'position:fixed;z-index:9999;background:#fff;border-radius:12px;padding:14px;box-shadow:0 12px 36px rgba(15,23,42,.18);top:50%;left:50%;transform:translate(-50%,-50%);';
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(5, 36px);gap:9px;';
+    COLOR_PRESETS.forEach((color) => {
+        const swatch = document.createElement('button');
+        swatch.type = 'button';
+        swatch.style.cssText = `width:36px;height:36px;border-radius:50%;background:${color};border:2px solid ${currentColor === color ? '#0f172a' : '#e2e8f0'};`;
+        swatch.addEventListener('click', (event) => {
+            event.stopPropagation();
+            onSelect(color);
+            popup.remove();
+            overlay.remove();
+        });
+        grid.appendChild(swatch);
+    });
+    overlay.addEventListener('click', () => { popup.remove(); overlay.remove(); });
+    popup.appendChild(grid);
+    document.body.append(overlay, popup);
+}
+
+function renderSceneSettings() {
+    const host = document.getElementById('scene-settings-ui');
+    const sceneCat = getCat('场景');
+    if (!host || !sceneCat) return;
+    host.innerHTML = '';
+
+    const addRow = (label, color, editName, editColor, fixed) => {
+        const row = document.createElement('div');
+        row.className = 'scene-settings-row';
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'scene-settings-dot';
+        dot.style.background = color;
+        dot.title = '修改颜色';
+        dot.addEventListener('click', editColor);
+        const name = document.createElement('span');
+        name.className = 'scene-settings-name';
+        name.innerText = label;
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'scene-settings-edit';
+        edit.innerText = '编辑';
+        edit.title = fixed ? '生活区不可删除，可修改名称和颜色' : '修改名称';
+        edit.addEventListener('click', editName);
+        row.append(dot, name, edit);
+        host.appendChild(row);
+    };
+
+    addRow(sceneSettings.homeLabel, sceneSettings.homeColor,
+        () => showPrompt('编辑生活区名称', '这个名称只用于顶部区域显示。', sceneSettings.homeLabel, (name) => {
+            const next = String(name || '').trim();
+            if (!next) return;
+            sceneSettings.homeLabel = next;
+            saveSceneSettings();
+            renderAll();
+        }),
+        () => openZoneColorPicker(sceneSettings.homeColor, (color) => {
+            sceneSettings.homeColor = color;
+            saveSceneSettings();
+            renderAll();
+        }),
+        true
+    );
+
+    (sceneCat.subs || []).forEach((sceneName) => {
+        ensureSceneColor(sceneName);
+        addRow(sceneName, getSceneColor(sceneName),
+            () => editS(sceneCat.id, sceneName),
+            () => openZoneColorPicker(getSceneColor(sceneName), (color) => {
+                sceneSettings.colors[sceneName] = color;
+                saveSceneSettings();
+                if (current?.scene && current.l2 === sceneName) current.color = color;
+                if (current) localStorage.setItem('v9_current', JSON.stringify(current));
+                renderAll();
+            }),
+            false
+        );
+    });
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'w-full py-2.5 text-[11px] font-black text-slate-500 bg-slate-50 border border-dashed border-slate-300 rounded-lg';
+    add.innerText = '＋ 添加场景';
+    add.addEventListener('click', () => addS(sceneCat.id));
+    host.appendChild(add);
+}
+
 function renderConfig() {
     syncConfigSectionUI();
     renderClockSettings();
     renderReportSummarySettings();
+    renderSceneSettings();
     const shortcutList = document.getElementById('shortcut-list');
     shortcutList.innerHTML = "";
     shortcuts.forEach((s, idx) => {
@@ -2417,7 +2571,7 @@ function renderLogs(listId, dateStr) {
         liveCard.className = logFlowCardClass('main-live');
         const inner = document.createElement('div');
         inner.className = "log-flow-inner";
-        const bar = buildLogFlowBar((cats.find(c => c.name === current.l1)?.color) || '#6366f1', false);
+        const bar = buildLogFlowBar(logSegmentColor(current), false);
         const body = document.createElement('div');
         body.className = 'log-flow-body';
         body.appendChild(buildLogFlowMainRow({
@@ -2460,8 +2614,7 @@ function renderLogs(listId, dateStr) {
         card.addEventListener('touchend',()=>{card.classList.remove('swiping');card.style.transform='';if(swiping){if(dx>55){if(isActive){showConfirm('关闭并行','关闭「'+displayName(parallel)+'」？不会记入日志。','关闭',ok=>{if(ok){parallelCurrent=null;localStorage.removeItem('v9_parallel');renderAll();}})}else{showConfirm('删除并行','删除已结束的「'+displayName(parallel)+'」？','删除',ok=>{if(ok){parallelHistory.splice(idx,1);localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}})}}else if(dx<-55){const cb=(l1,l2)=>{if(isActive){_parallelPending=true;toggleParallel(l1,l2||'',(getCat(l1)?.icon)||'📌');_parallelPending=false;}else{const p=parallelHistory[idx];if(p){p.l1=l1;p.l2=l2||'';const cat=getCat(l1);p.color=cat?.color||'#cbd5e1';localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}}};pickerMode='edit';document.getElementById('drawer-title').innerText=isActive?'切换并行':'修改并行';document.getElementById('drawer-footer').classList.add('hidden');_parallelCallback=cb;showDrawer();renderPicker();renderDrawerToggle();}swiping=false;dx=0;}},{passive:true});
         const inner = document.createElement('div');
         inner.className = "log-flow-inner";
-        const barColor = (cats.find(c => c.name === parallel.l1)?.color) || '#cbd5e1';
-        const bar = buildLogFlowBar(barColor, false);
+        const bar = buildLogFlowBar(logSegmentColor(parallel), false);
         const body = document.createElement('div');
         body.className = 'log-flow-body';
         const durMs = logDurationMs(parallel, isActive ? nowSecondMs() : null);
@@ -2624,7 +2777,7 @@ function createLogRow(list, log, idx) {
     const inner = document.createElement('div');
     inner.className = "log-flow-inner";
 
-    const bar = buildLogFlowBar((cats.find(c => c.name === log.l1)?.color) || '#cbd5e1', false);
+    const bar = buildLogFlowBar(logSegmentColor(log), false);
 
     const body = document.createElement('div');
     body.className = "log-flow-body";
@@ -4197,6 +4350,7 @@ function addS(id) {
             showCategoryPicker("为「" + name + "」选图标", (icon) => {
                 cat.subs.push(name);
                 setSubIcon(cat, name, icon);
+                if (cat.name === '场景') ensureSceneColor(name);
                 save();
             });
         }
@@ -4205,6 +4359,10 @@ function addS(id) {
 function editL1(id) {
     const cat = cats.find(c => c.id == id);
     if (!cat) return;
+    if (cat.name === '场景') {
+        showConfirm('场景分类固定', '场景的名称固定，用于保存场景记录；请在“区域管理”中修改生活区显示名称或场景名称。', '知道了', () => {});
+        return;
+    }
     const oldName = cat.name;
     const prevIcon = cat.icon;
     showPrompt("编辑一级分类名称", "输入大类名称", cat.name, (name) => {
@@ -4230,6 +4388,13 @@ function editS(id, oldName) {
         const next = name.trim();
         if (!next) return;
         moveSubIcon(cat, oldName, next);
+        if (cat.name === '场景' && oldName !== next) {
+            const oldColor = sceneSettings.colors[oldName];
+            if (oldColor) sceneSettings.colors[next] = oldColor;
+            else ensureSceneColor(next);
+            delete sceneSettings.colors[oldName];
+            saveSceneSettings();
+        }
         cat.subs = cat.subs.map(s => s === oldName ? next : s);
         shortcuts.forEach(s => { if (s.l1 === cat.name && s.l2 === oldName) s.l2 = next; });
         syncParallelShortcutRefs(null, null, cat.name, oldName, next);
@@ -4246,9 +4411,17 @@ function editS(id, oldName) {
 function delS(id, name) {
     const cat = cats.find(c => c.id == id);
     if (!cat) return;
+    if (cat.name === '场景' && current?.scene && current.l2 === name) {
+        showConfirm('场景正在进行中', '请先结束或切换当前场景，再删除它。', '知道了', () => {});
+        return;
+    }
     if (confirm(`删除子类「${name}」？`)) {
         cat.subs = cat.subs.filter(s => s !== name);
         if (cat.subIcons) delete cat.subIcons[name];
+        if (cat.name === '场景') {
+            delete sceneSettings.colors[name];
+            saveSceneSettings();
+        }
         shortcuts = shortcuts.filter(s => !(s.l1 === cat.name && s.l2 === name));
         parallelShortcuts = parallelShortcuts.filter(s => !(s.l1 === cat.name && s.l2 === name));
         saveAll();
@@ -4256,6 +4429,10 @@ function delS(id, name) {
 }
 function delL1(id) {
     const cat = cats.find(c => c.id === id);
+    if (cat?.name === '场景') {
+        showConfirm('场景分类不可删除', '场景用于保存出差、旅行等区域记录，不能删除。', '知道了', () => {});
+        return;
+    }
     if(confirm("删除？")) {
         cats = cats.filter(c=>c.id!==id);
         if (cat) {
