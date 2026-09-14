@@ -2272,7 +2272,7 @@ function renderSceneSettings() {
     if (!host || !sceneCat) return;
     host.innerHTML = '';
 
-    const addRow = (label, color, editName, editColor, fixed) => {
+    const addRow = (label, color, editName, editColor, fixed, remove) => {
         const row = document.createElement('div');
         row.className = 'scene-settings-row';
         const dot = document.createElement('button');
@@ -2291,6 +2291,17 @@ function renderSceneSettings() {
         edit.title = fixed ? '生活区不可删除，可修改名称和颜色' : '修改名称';
         edit.addEventListener('click', editName);
         row.append(dot, name, edit);
+        if (remove) {
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'scene-settings-edit';
+            del.style.background = '#fef2f2';
+            del.style.color = '#ef4444';
+            del.innerText = '✕';
+            del.title = '删除场景';
+            del.addEventListener('click', remove);
+            row.appendChild(del);
+        }
         host.appendChild(row);
     };
 
@@ -2341,7 +2352,8 @@ function renderSceneSettings() {
                 if (current) localStorage.setItem('v9_current', JSON.stringify(current));
                 renderAll();
             }),
-            false
+            false,
+            () => delS(sceneCat.id, sceneName)
         );
     });
     const add = document.createElement('button');
@@ -2422,7 +2434,7 @@ function renderConfig() {
 
     const catList = document.getElementById('full-cat-list');
     catList.innerHTML = "";
-    cats.forEach(c => {
+    cats.filter(c => c.name !== '场景').forEach(c => {
         const wrap = document.createElement('div');
         wrap.className = "space-y-2 border-b border-slate-50 pb-3";
 
@@ -2435,8 +2447,10 @@ function renderConfig() {
         colorDot.type = 'button';
         colorDot.className = "w-3.5 h-3.5 rounded-full shrink-0 cursor-pointer";
         colorDot.style.background = c.color || '#6366f1';
-        colorDot.title = "点击修改颜色";
-        colorDot.addEventListener('click', (e) => {
+        colorDot.title = configEditMode ? "点击修改颜色" : "分类颜色";
+        colorDot.disabled = !configEditMode;
+        if (!configEditMode) colorDot.style.cursor = 'default';
+        if (configEditMode) colorDot.addEventListener('click', (e) => {
             e.stopPropagation();
             const old = document.querySelector('.color-picker-popup');
             if (old) { document.querySelector('.color-picker-overlay')?.remove(); old.remove(); return; }
@@ -2472,20 +2486,18 @@ function renderConfig() {
         title.innerText = `${c.icon} ${c.name}`;
         titleGroup.append(colorDot, title);
         head.appendChild(titleGroup);
-        {
+        if (configEditMode) {
             const actions = document.createElement('div');
-            actions.className = "flex space-x-2";
-            const edit = document.createElement('button');
-            edit.type = 'button';
-            edit.className = "text-slate-400 text-[11px] font-black";
-            edit.innerText = "编辑";
-            edit.addEventListener('click', () => editL1(c.id));
+            actions.className = "flex space-x-2 items-center";
+            titleGroup.classList.add('cursor-pointer');
+            titleGroup.title = '点击编辑分类名称';
+            titleGroup.addEventListener('click', () => editL1(c.id));
             const del = document.createElement('button');
             del.type = 'button';
             del.className = "text-red-400 text-[11px] font-black";
             del.innerText = "✕";
             del.addEventListener('click', () => delL1(c.id));
-            actions.append(edit, del);
+            actions.append(del);
             head.appendChild(actions);
         }
         wrap.appendChild(head);
@@ -2503,8 +2515,8 @@ function renderConfig() {
             nameEl.className = "leading-tight";
             nameEl.innerText = name;
             card.appendChild(nameEl);
-            card.addEventListener('click', () => editS(c.id, name));
-            {
+            if (configEditMode) card.addEventListener('click', () => editS(c.id, name));
+            if (configEditMode) {
                 const del = document.createElement('button');
                 del.type = 'button';
                 del.className = "absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-400 text-white rounded-full text-[8px] flex items-center justify-center shadow-sm";
@@ -2514,22 +2526,26 @@ function renderConfig() {
             }
             subs.appendChild(card);
         });
-        const addBtn = document.createElement('button');
-        addBtn.type = 'button';
-        addBtn.className = "bg-slate-100 border border-dashed border-slate-300 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-400 cursor-pointer";
-        addBtn.innerHTML = '<div class="text-base leading-none mb-0.5">＋</div><div class="leading-tight">添加</div>';
-        addBtn.addEventListener('click', () => addS(c.id));
-        subs.appendChild(addBtn);
+        if (configEditMode) {
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = "bg-slate-100 border border-dashed border-slate-300 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-400 cursor-pointer";
+            addBtn.innerHTML = '<div class="text-base leading-none mb-0.5">＋</div><div class="leading-tight">添加</div>';
+            addBtn.addEventListener('click', () => addS(c.id));
+            subs.appendChild(addBtn);
+        }
 
         wrap.append(head, subs);
         catList.appendChild(wrap);
     });
-    const addL1Btn = document.createElement('button');
-    addL1Btn.type = 'button';
-    addL1Btn.className = "w-full py-3 text-center text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-300";
-    addL1Btn.innerText = "＋ 添加一级分类";
-    addL1Btn.addEventListener('click', () => addL1());
-    catList.appendChild(addL1Btn);
+    if (configEditMode) {
+        const addL1Btn = document.createElement('button');
+        addL1Btn.type = 'button';
+        addL1Btn.className = "w-full py-3 text-center text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-300";
+        addL1Btn.innerText = "＋ 添加一级分类";
+        addL1Btn.addEventListener('click', () => addL1());
+        catList.appendChild(addL1Btn);
+    }
 }
 
 function buildLogFlowBar(color, muted) {
@@ -4380,7 +4396,7 @@ function editL1(id) {
     const cat = cats.find(c => c.id == id);
     if (!cat) return;
     if (cat.name === '场景') {
-        showConfirm('场景分类固定', '场景的名称固定，用于保存场景记录；请在“区域管理”中修改生活区显示名称或场景名称。', '知道了', () => {});
+        showConfirm('场景分类固定', '场景的名称固定，用于保存场景记录；请在“场景管理”中修改生活区显示名称或场景名称。', '知道了', () => {});
         return;
     }
     const oldName = cat.name;
