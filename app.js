@@ -1890,6 +1890,7 @@ function executeEditShortcut(l1, l2) {
 let _parallelPending = false;
 let _parallelCallback = null;
 let _cleanupBackfillDrag = null;
+let _reportSummaryCategoryPicker = null;
 function drawerPick(l1, l2) {
     if (_parallelPending) {
         _parallelPending = false;
@@ -1901,6 +1902,21 @@ function drawerPick(l1, l2) {
     if (l1 === '场景' && pickerMode === 'record') {
         closeDrawer();
         showConfirm('请从场景入口进入', '“场景”不能作为普通主线启动，请点击首页顶部的“进入场景”。', '知道了', () => {});
+        return;
+    }
+    if (pickerMode === 'report-summary-category') {
+        const pending = _reportSummaryCategoryPicker;
+        _reportSummaryCategoryPicker = null;
+        closeDrawer();
+        if (!pending) return;
+        openReportChoiceGrid('结转归属', [
+            { value: 'current', label: '归属本周期' },
+            { value: 'previous', label: '归属上一周期' },
+        ], pending.carry || 'current', (carry) => {
+            saveReportSummarySlot(pending.view, pending.index, {
+                id: 'categoryAverage', l1, l2: l2 || l1, carry,
+            }, pending.periodKey);
+        });
         return;
     }
     if (pickerMode !== 'shortcut' && pickerMode !== 'shortcut-edit' && pickerMode !== 'parallel-shortcut') {
@@ -2343,24 +2359,20 @@ function openReportSummarySlotPicker(view, index, periodKey) {
             saveReportSummarySlot(view, index, { id: metricId }, periodKey);
             return;
         }
-        const categoryChoices = cats.flatMap((cat) => (cat.subs?.length ? cat.subs : ['']).map((sub) => ({
-            value: `${cat.name}\u0000${sub || cat.name}`,
-            label: `${cat.name} / ${sub || cat.name}`,
-            color: cat.color,
-        })));
-        const currentCategoryValue = current.l1 && current.l2
-            ? `${current.l1}\u0000${current.l2}`
-            : '';
-        openReportChoiceGrid('选择二级目录', categoryChoices, currentCategoryValue, (categoryValue) => {
-            const [l1, l2] = String(categoryValue).split('\u0000');
-            openReportChoiceGrid('结转归属', [
-                { value: 'current', label: '归属本周期' },
-                { value: 'previous', label: '归属上一周期' },
-            ], current.carry || 'current', (carry) => {
-                saveReportSummarySlot(view, index, { id: 'categoryAverage', l1, l2, carry }, periodKey);
-            });
-        });
+        openReportSummaryCategoryDrawer(view, index, periodKey, current);
     });
+}
+
+function openReportSummaryCategoryDrawer(view, index, periodKey, current) {
+    _reportSummaryCategoryPicker = { view, index, periodKey, carry: current?.carry || 'current' };
+    const preferredL1 = current?.l1;
+    if (preferredL1 && cats.some((cat) => cat.name === preferredL1)) selL1 = preferredL1;
+    pickerMode = 'report-summary-category';
+    document.getElementById('drawer-title').innerText = '选择二级目录';
+    document.getElementById('drawer-footer').classList.add('hidden');
+    showDrawer();
+    renderPicker();
+    renderDrawerToggle();
 }
 
 const COLOR_PRESETS = ['#f59e0b', '#0ea5e9', '#14b8a6', '#22c55e', '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#334155'];
@@ -4068,12 +4080,15 @@ function renderPicker() {
 
     const selected = cats.find(c => c.name === selL1);
     if (!selected) return;
-    const direct = document.createElement('button');
-    direct.type = 'button';
-    direct.className = "bg-indigo-600 text-white border border-indigo-600 p-4 rounded-2xl text-sm font-black shadow-sm active:bg-indigo-700";
-    direct.innerText = `${selected.name}`;
-    direct.addEventListener('click', () => drawerPick(selected.name, ""));
-    l2Box.appendChild(direct);
+    const reportCategoryPicker = pickerMode === 'report-summary-category';
+    if (!reportCategoryPicker) {
+        const direct = document.createElement('button');
+        direct.type = 'button';
+        direct.className = "bg-indigo-600 text-white border border-indigo-600 p-4 rounded-2xl text-sm font-black shadow-sm active:bg-indigo-700";
+        direct.innerText = `${selected.name}`;
+        direct.addEventListener('click', () => drawerPick(selected.name, ""));
+        l2Box.appendChild(direct);
+    }
 
     selected.subs.forEach(s => {
         const btn = document.createElement('button');
@@ -4086,7 +4101,9 @@ function renderPicker() {
     if (!selected.subs.length) {
         const hint = document.createElement('div');
         hint.className = "col-span-2 text-sm text-slate-300 font-bold px-2";
-        hint.innerText = "这个一级分类还没有子类，也可以直接记录。";
+        hint.innerText = reportCategoryPicker
+            ? "这个分类还没有二级目录，暂时不能用于类别统计。"
+            : "这个一级分类还没有子类，也可以直接记录。";
         l2Box.appendChild(hint);
     }
 }
