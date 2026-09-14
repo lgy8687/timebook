@@ -172,59 +172,184 @@ function isSceneActive() {
 function updateSceneEntryButton() {
     const btn = document.getElementById('scene-entry-btn');
     if (!btn) return;
+    const icon = document.getElementById('scene-entry-icon');
+    const label = document.getElementById('scene-entry-label');
     btn.classList.toggle('is-active', isSceneActive());
-    btn.innerText = isSceneActive() ? `场景：${current.l2 || current.l1}` : '进入场景';
-    btn.title = isSceneActive() ? '结束当前场景' : '进入一个新的场景';
+    if (icon) icon.innerText = isSceneActive() ? '◈' : '⌂';
+    if (label) label.innerText = isSceneActive() ? (current.l2 || current.l1) : '生活区';
+    btn.title = isSceneActive() ? `当前场景：${current.l2 || current.l1}` : '当前区域：生活区';
 }
 
-function startScene(sceneName) {
+function closeScenePopover() {
+    const popover = document.getElementById('scene-popover');
+    if (!popover) return;
+    popover.classList.add('hidden');
+    popover.setAttribute('aria-hidden', 'true');
+}
+
+function positionScenePopover() {
+    const popover = document.getElementById('scene-popover');
+    const trigger = document.getElementById('scene-entry-btn');
+    if (!popover || !trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.min(300, window.innerWidth - 24);
+    const height = popover.offsetHeight || 180;
+    let top = rect.bottom + 8;
+    if (top + height > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - height - 8);
+    }
+    popover.style.width = `${width}px`;
+    popover.style.left = `${Math.max(12, Math.min(window.innerWidth - width - 12, rect.right - width))}px`;
+    popover.style.top = `${top}px`;
+}
+
+function scenePopoverButton(label, className, handler) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = className;
+    btn.innerText = label;
+    btn.addEventListener('click', handler);
+    return btn;
+}
+
+function renderSceneChoiceGrid(mode) {
+    const title = document.getElementById('scene-popover-title');
+    const content = document.getElementById('scene-popover-content');
+    const sceneCat = getCat('场景');
+    if (!title || !content) return;
+    title.innerText = mode === 'switch' ? '切换场景' : '选择场景';
+    content.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'scene-choice-grid';
+    (sceneCat?.subs || []).forEach((sceneName) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'scene-choice-item';
+        const icon = document.createElement('span');
+        icon.className = 'scene-choice-icon';
+        icon.innerText = getSubIcon(sceneName, sceneCat.icon, sceneCat);
+        const label = document.createElement('span');
+        label.innerText = sceneName;
+        btn.append(icon, label);
+        btn.addEventListener('click', () => {
+            closeScenePopover();
+            startScene(sceneName, { askParallel: mode === 'switch' });
+        });
+        grid.appendChild(btn);
+    });
+    if (!sceneCat?.subs?.length) {
+        const hint = document.createElement('div');
+        hint.className = 'scene-popover-hint';
+        hint.innerText = '请先在类别管理的“场景”下面添加子类。';
+        content.appendChild(hint);
+    } else {
+        content.appendChild(grid);
+    }
+    requestAnimationFrame(positionScenePopover);
+}
+
+function renderLifeMainGrid() {
+    const title = document.getElementById('scene-popover-title');
+    const content = document.getElementById('scene-popover-content');
+    if (!title || !content) return;
+    title.innerText = '选择生活区主线';
+    content.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'scene-choice-grid';
+    cats.filter((cat) => cat.name !== '场景').forEach((cat) => {
+        const entries = cat.subs?.length ? cat.subs : [''];
+        entries.forEach((sub) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'scene-choice-item';
+            const icon = document.createElement('span');
+            icon.className = 'scene-choice-icon';
+            icon.innerText = getSubIcon(sub, cat.icon, cat);
+            const label = document.createElement('span');
+            label.innerText = sub || cat.name;
+            btn.append(icon, label);
+            btn.addEventListener('click', () => {
+                closeScenePopover();
+                transitionSceneToMain(cat.name, sub);
+            });
+            grid.appendChild(btn);
+        });
+    });
+    content.appendChild(grid);
+    requestAnimationFrame(positionScenePopover);
+}
+
+function renderSceneActions() {
+    const title = document.getElementById('scene-popover-title');
+    const content = document.getElementById('scene-popover-content');
+    if (!title || !content || !current) return;
+    title.innerText = `场景：${current.l2 || current.l1}`;
+    content.innerHTML = '';
+    content.append(
+        scenePopoverButton('切换场景', 'scene-action-btn scene-action-btn--switch', () => renderSceneChoiceGrid('switch')),
+        scenePopoverButton('结束场景', 'scene-action-btn scene-action-btn--end', renderLifeMainGrid)
+    );
+    requestAnimationFrame(positionScenePopover);
+}
+
+function openScenePopover(mode) {
+    const popover = document.getElementById('scene-popover');
+    if (!popover) return;
+    popover.classList.remove('hidden');
+    popover.setAttribute('aria-hidden', 'false');
+    if (mode === 'actions') renderSceneActions();
+    else renderSceneChoiceGrid('start');
+}
+
+function enterScene() {
+    openScenePopover(isSceneActive() ? 'actions' : 'start');
+}
+
+function transitionCurrentTo(next, askParallel) {
+    const apply = (endParallel) => {
+        const now = nowSecondMs();
+        ensureDayRolloversBefore(now);
+        const nextId = genId();
+        if (current) commitCurrentSlice(now, false, { endParallel: !!endParallel, rollover: !endParallel });
+        current = { id: nextId, startTime: now, ...next };
+        if (parallelCurrent && !endParallel) {
+            parallelCurrent.parentId = nextId;
+            localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+        }
+        localStorage.setItem('v9_current', JSON.stringify(current));
+        renderAll();
+    };
+    if (parallelCurrent && askParallel) {
+        showConfirm('并行仍在运行', `「${displayName(parallelCurrent)}」要结束，还是结转到下一条主线？`, '一起结束', (endParallel) => apply(endParallel), '结转');
+        return;
+    }
+    apply(true);
+}
+
+function startScene(sceneName, options) {
     const name = String(sceneName || '').trim();
     if (!name) return;
-    const now = nowSecondMs();
-    ensureDayRolloversBefore(now);
-    if (current) commitCurrentSlice(now, false, { endParallel: true });
-    current = {
-        id: genId(),
-        startTime: now,
+    transitionCurrentTo({
         l1: '场景',
         l2: name,
         tag: '',
         note: '',
         color: getCat('场景')?.color || '#0f9f8c',
         scene: true
-    };
-    localStorage.setItem('v9_current', JSON.stringify(current));
-    renderAll();
+    }, !!options?.askParallel);
 }
 
-function openScenePicker() {
-    pickerMode = 'scene-record';
-    document.getElementById('drawer-title').innerText = '选择场景';
-    document.getElementById('parallel-time-row').classList.add('hidden');
-    document.getElementById('drawer-footer').classList.add('hidden');
-    showDrawer();
-    renderDrawerToggle();
-    renderPicker();
-}
-
-function enterScene() {
-    if (isSceneActive()) {
-        showConfirm('结束场景', `结束「${displayName(current)}」？结束后恢复普通主线。`, '结束', (ok) => {
-            if (ok) endScene();
-        });
-        return;
-    }
-    openScenePicker();
-}
-
-function endScene() {
+function transitionSceneToMain(l1, l2) {
     if (!isSceneActive()) return;
-    const now = nowSecondMs();
-    ensureDayRolloversBefore(now);
-    commitCurrentSlice(now, false, { endParallel: !!parallelCurrent });
-    current = null;
-    localStorage.removeItem('v9_current');
-    renderAll();
+    const cat = getCat(l1);
+    transitionCurrentTo({
+        l1,
+        l2: l2 || '',
+        tag: '',
+        note: '',
+        color: cat?.color || '#cbd5e1',
+        scene: false
+    }, true);
 }
 let labelFontSize = safeJSON('v9_labelFontSize') || 13;
 /** 自由输入短语 → 分类，如「火锅」→ 餐饮（由编辑流水或历史记录学习） */
@@ -1295,6 +1420,16 @@ document.addEventListener('click', (e) => {
         if (catEmojiPickerCb) { catEmojiPickerCb(null); catEmojiPickerCb = null; }
     }
 });
+document.addEventListener('click', (e) => {
+    const popover = document.getElementById('scene-popover');
+    const trigger = document.getElementById('scene-entry-btn');
+    if (!popover || popover.classList.contains('hidden')) return;
+    if (!popover.contains(e.target) && !trigger?.contains(e.target)) closeScenePopover();
+});
+window.addEventListener('resize', () => {
+    const popover = document.getElementById('scene-popover');
+    if (popover && !popover.classList.contains('hidden')) positionScenePopover();
+});
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('scene-entry-btn')?.addEventListener('click', enterScene);
     document.getElementById('prompt-input').addEventListener('keydown', e => {
@@ -1738,11 +1873,6 @@ function drawerPick(l1, l2) {
     if (l1 === '场景' && pickerMode === 'record') {
         closeDrawer();
         showConfirm('请从场景入口进入', '“场景”不能作为普通主线启动，请点击首页顶部的“进入场景”。', '知道了', () => {});
-        return;
-    }
-    if (pickerMode === 'scene-record') {
-        closeDrawer();
-        if (l1 === '场景') startScene(l2 || l1);
         return;
     }
     if (pickerMode !== 'shortcut' && pickerMode !== 'shortcut-edit' && pickerMode !== 'parallel-shortcut') {
@@ -3513,27 +3643,6 @@ function renderPicker() {
                 l2Box.appendChild(btn);
             });
         });
-        return;
-    }
-
-    if (pickerMode === 'scene-record') {
-        const sceneCat = cats.find((cat) => cat.name === '场景');
-        l1Box.style.display = 'none';
-        l2Box.className = 'w-full flex-1 min-h-0 p-4 overflow-y-auto grid grid-cols-2 content-start gap-3';
-        (sceneCat?.subs || []).forEach((sceneName) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'bg-white border border-slate-100 rounded-2xl p-4 text-center text-sm font-black text-slate-700 shadow-sm active:bg-emerald-50';
-            btn.innerHTML = `<div class="text-2xl leading-none mb-1">${escHtml(getSubIcon(sceneName, sceneCat.icon, sceneCat))}</div><div>${escHtml(sceneName)}</div>`;
-            btn.addEventListener('click', () => drawerPick('场景', sceneName));
-            l2Box.appendChild(btn);
-        });
-        if (!sceneCat?.subs?.length) {
-            const hint = document.createElement('div');
-            hint.className = 'col-span-2 text-sm text-slate-400 font-bold p-4';
-            hint.innerText = '请先在类别管理的“场景”下面添加子类。';
-            l2Box.appendChild(hint);
-        }
         return;
     }
 
