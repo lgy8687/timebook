@@ -3,7 +3,7 @@
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.0';
+    const REPORT_VERSION = 'v2.1';
 
     let state = { period: 'day', chartView: 'main', legendMode: 'l1' };
     let getPeriodData = null;
@@ -81,7 +81,7 @@
     }
 
     function renderSummaryRow(elId, view, periodData) {
-        const slots = getReportSummarySlots(view);
+        const slots = getReportSummarySlots(view, state.period);
         const box = document.getElementById(elId);
         if (!box) return;
         box.innerHTML = slots.map((slot) => {

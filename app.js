@@ -2200,7 +2200,38 @@ function renderReportSummarySettings() {
     if (!box || typeof REPORT_METRIC_POOL === 'undefined') return;
     box.innerHTML = '';
 
-    ['main', 'parallel'].forEach((view) => {
+    const mode = localStorage.getItem('v9_report_summary_mode') === 'separate' ? 'separate' : 'shared';
+    const modeRow = document.createElement('div');
+    modeRow.className = 'summary-mode-row';
+    const modeLabel = document.createElement('span');
+    modeLabel.className = 'text-[11px] font-black text-slate-600';
+    modeLabel.innerText = '周报 / 月报摘要';
+    const modeButtons = document.createElement('div');
+    modeButtons.className = 'summary-mode-buttons';
+    [['shared', '共用'], ['separate', '分别设置']].forEach(([value, label]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'summary-mode-button' + (mode === value ? ' is-selected' : '');
+        button.innerText = label;
+        button.addEventListener('click', () => {
+            localStorage.setItem('v9_report_summary_mode', value);
+            renderReportSummarySettings();
+            if (typeof renderReportBillboard === 'function') renderReportBillboard();
+        });
+        modeButtons.appendChild(button);
+    });
+    modeRow.append(modeLabel, modeButtons);
+    box.appendChild(modeRow);
+
+    const periods = mode === 'separate' ? ['week', 'month'] : ['shared'];
+    periods.forEach((periodKey) => {
+        if (mode === 'separate') {
+            const periodTitle = document.createElement('div');
+            periodTitle.className = 'summary-period-title';
+            periodTitle.innerText = periodKey === 'week' ? '周报摘要' : '月报摘要';
+            box.appendChild(periodTitle);
+        }
+        ['main', 'parallel'].forEach((view) => {
         const title = view === 'main' ? '主线摘要（3 格）' : '并行摘要（3 格）';
         const wrap = document.createElement('div');
         wrap.className = 'summary-settings-group border-b border-slate-50 pb-2 last:border-0';
@@ -2208,18 +2239,19 @@ function renderReportSummarySettings() {
         h.className = 'text-[11px] font-black text-slate-600';
         h.innerText = title;
         wrap.appendChild(h);
-        const slots = getReportSummarySlots(view);
+        const slots = getReportSummarySlots(view, periodKey);
         slots.forEach((slot, idx) => {
             const row = document.createElement('div');
             row.className = 'summary-slot-row';
             const lab = document.createElement('span');
             lab.className = 'text-[10px] font-bold text-slate-400 w-8 shrink-0';
             lab.innerText = `格${idx + 1}`;
-            const trigger = createPickerTrigger(getReportSummarySlotLabel(slot, view), () => openReportSummarySlotPicker(view, idx));
+            const trigger = createPickerTrigger(getReportSummarySlotLabel(slot, view), () => openReportSummarySlotPicker(view, idx, periodKey));
             row.append(lab, trigger);
             wrap.appendChild(row);
         });
         box.appendChild(wrap);
+        });
     });
 }
 
@@ -2227,8 +2259,11 @@ function getReportSummarySlotLabel(slot, view) {
     const normalized = typeof slot === 'string' ? { id: slot } : (slot || {});
     const metric = REPORT_METRIC_POOL[view]?.find((item) => item.id === normalized.id);
     if (normalized.id !== 'categoryAverage') return metric?.label || '—';
-    if (!normalized.category) return '类别平均 · 请选择';
-    return `类别平均 · ${normalized.category} · ${normalized.carry === 'previous' ? '上一周期' : '本周期'}`;
+    const categoryLabel = normalized.l1 && normalized.l2
+        ? `${normalized.l1} / ${normalized.l2}`
+        : normalized.category;
+    if (!categoryLabel) return '类别平均 · 请选择';
+    return `类别平均 · ${categoryLabel} · ${normalized.carry === 'previous' ? '上一周期' : '本周期'}`;
 }
 
 function openReportChoiceGrid(title, choices, selected, onSelect) {
@@ -2272,29 +2307,37 @@ function openReportChoiceGrid(title, choices, selected, onSelect) {
     document.body.appendChild(overlay);
 }
 
-function saveReportSummarySlot(view, index, slot) {
-    const next = getReportSummarySlots(view);
+function saveReportSummarySlot(view, index, slot, periodKey) {
+    const next = getReportSummarySlots(view, periodKey);
     next[index] = slot;
-    saveReportSummarySlots(view, next);
+    saveReportSummarySlots(view, next, periodKey);
     renderReportSummarySettings();
     if (typeof renderReportBillboard === 'function') renderReportBillboard();
 }
 
-function openReportSummarySlotPicker(view, index) {
-    const current = getReportSummarySlots(view)[index] || {};
+function openReportSummarySlotPicker(view, index, periodKey) {
+    const current = getReportSummarySlots(view, periodKey)[index] || {};
     const choices = (REPORT_METRIC_POOL[view] || []).map((item) => ({ value: item.id, label: item.label }));
     openReportChoiceGrid(`${view === 'main' ? '主线' : '并行'} · 选择摘要`, choices, current.id, (metricId) => {
         if (metricId !== 'categoryAverage') {
-            saveReportSummarySlot(view, index, { id: metricId });
+            saveReportSummarySlot(view, index, { id: metricId }, periodKey);
             return;
         }
-        const categoryChoices = cats.map((cat) => ({ value: cat.name, label: cat.name, color: cat.color }));
-        openReportChoiceGrid('选择类别', categoryChoices, current.category, (category) => {
+        const categoryChoices = cats.flatMap((cat) => (cat.subs?.length ? cat.subs : ['']).map((sub) => ({
+            value: `${cat.name}\u0000${sub || cat.name}`,
+            label: `${cat.name} / ${sub || cat.name}`,
+            color: cat.color,
+        })));
+        const currentCategoryValue = current.l1 && current.l2
+            ? `${current.l1}\u0000${current.l2}`
+            : '';
+        openReportChoiceGrid('选择二级目录', categoryChoices, currentCategoryValue, (categoryValue) => {
+            const [l1, l2] = String(categoryValue).split('\u0000');
             openReportChoiceGrid('结转归属', [
                 { value: 'current', label: '归属本周期' },
                 { value: 'previous', label: '归属上一周期' },
             ], current.carry || 'current', (carry) => {
-                saveReportSummarySlot(view, index, { id: 'categoryAverage', category, carry });
+                saveReportSummarySlot(view, index, { id: 'categoryAverage', l1, l2, carry }, periodKey);
             });
         });
     });
@@ -2350,14 +2393,14 @@ function renderSceneSettings() {
         const name = document.createElement('span');
         name.className = 'scene-settings-name';
         name.innerText = label;
-        const edit = document.createElement('button');
-        edit.type = 'button';
-        edit.className = 'scene-settings-edit';
-        edit.innerText = '编辑';
-        edit.title = fixed ? '生活区不可删除，可修改名称和颜色' : '修改名称';
-        if (configEditMode) edit.addEventListener('click', editName);
         row.append(dot, name);
-        if (configEditMode) row.appendChild(edit);
+        if (configEditMode) {
+            row.classList.add('cursor-pointer');
+            row.addEventListener('click', (event) => {
+                if (event.target.closest('button')) return;
+                editName();
+            });
+        }
         if (configEditMode && remove) {
             const del = document.createElement('button');
             del.type = 'button';
@@ -3627,7 +3670,9 @@ function getBeijingReportRange(period, now) {
 }
 
 function resolveReportCategoryAverage(slot, periodData, view) {
-    const category = String(slot?.category || '').trim();
+    const l1 = String(slot?.l1 || '').trim();
+    const l2 = String(slot?.l2 || '').trim();
+    const category = l2 || String(slot?.category || '').trim();
     const period = periodData?._period;
     const range = periodData?._range;
     if (!category || !range || !['week', 'month'].includes(period)) {
@@ -3637,7 +3682,7 @@ function resolveReportCategoryAverage(slot, periodData, view) {
     const observedEnd = Math.min(range.end, now);
     const records = getSegmentsInRange(range.start, observedEnd, now)
         .filter((record) => !!record.parallel === (view === 'parallel'))
-        .filter((record) => record.l1 === category);
+        .filter((record) => l1 ? record.l1 === l1 && (!l2 || record.l2 === l2) : record.l1 === category);
     let totalMs = 0;
     records.forEach((record) => {
         const crossesIntoPeriod = record.startTime < range.start && record.endTime > range.start;

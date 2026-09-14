@@ -26,7 +26,12 @@ const REPORT_METRIC_POOL = {
 };
 
 function getReportSummarySlots(view) {
-    const key = view === 'parallel' ? 'v9_report_summary_parallel' : 'v9_report_summary_main';
+    const requestedPeriod = arguments[1];
+    const separate = localStorage.getItem('v9_report_summary_mode') === 'separate';
+    const period = separate && (requestedPeriod === 'week' || requestedPeriod === 'month') ? requestedPeriod : 'shared';
+    const key = period !== 'shared'
+        ? `v9_report_summary_${period}_${view}`
+        : (view === 'parallel' ? 'v9_report_summary_parallel' : 'v9_report_summary_main');
     try {
         const raw = localStorage.getItem(key);
         const arr = raw ? JSON.parse(raw) : null;
@@ -38,7 +43,12 @@ function getReportSummarySlots(view) {
 }
 
 function saveReportSummarySlots(view, slots) {
-    const key = view === 'parallel' ? 'v9_report_summary_parallel' : 'v9_report_summary_main';
+    const requestedPeriod = arguments[2];
+    const separate = localStorage.getItem('v9_report_summary_mode') === 'separate';
+    const period = separate && (requestedPeriod === 'week' || requestedPeriod === 'month') ? requestedPeriod : 'shared';
+    const key = period && period !== 'shared'
+        ? `v9_report_summary_${period}_${view}`
+        : (view === 'parallel' ? 'v9_report_summary_parallel' : 'v9_report_summary_main');
     localStorage.setItem(key, JSON.stringify(slots.slice(0, 3).map((slot) => typeof slot === 'string' ? { id: slot } : slot)));
 }
 
