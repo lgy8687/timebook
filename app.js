@@ -2201,7 +2201,6 @@ function renderReportSummarySettings() {
     box.innerHTML = '';
 
     const mode = localStorage.getItem('v9_report_summary_mode') === 'separate' ? 'separate' : 'shared';
-    const selectedView = localStorage.getItem('v9_report_summary_view') === 'parallel' ? 'parallel' : 'main';
     const selectedPeriod = localStorage.getItem('v9_report_summary_period') === 'month' ? 'month' : 'week';
 
     const makeSegmented = (label, options, selected, onChange) => {
@@ -2243,10 +2242,6 @@ function renderReportSummarySettings() {
     });
     modeRow.append(modeLabel, modeSwitch);
     box.appendChild(modeRow);
-    box.appendChild(makeSegmented('摘要内容', [['main', '主线'], ['parallel', '并行']], selectedView, (value) => {
-        localStorage.setItem('v9_report_summary_view', value);
-        renderReportSummarySettings();
-    }));
     if (mode === 'separate') {
         box.appendChild(makeSegmented('报表周期', [['week', '周报'], ['month', '月报']], selectedPeriod, (value) => {
             localStorage.setItem('v9_report_summary_period', value);
@@ -2255,8 +2250,8 @@ function renderReportSummarySettings() {
     }
 
     const periodKey = mode === 'separate' ? selectedPeriod : 'shared';
-    const view = selectedView;
-    const title = view === 'main' ? '主线摘要（3 格）' : '并行摘要（3 格）';
+    ['main', 'parallel'].forEach((view) => {
+        const title = view === 'main' ? '主线摘要（3 格）' : '并行摘要（3 格）';
         const wrap = document.createElement('div');
         wrap.className = 'summary-settings-group';
         const h = document.createElement('div');
@@ -2277,6 +2272,7 @@ function renderReportSummarySettings() {
             wrap.appendChild(row);
         });
         box.appendChild(wrap);
+    });
 }
 
 function getReportSummarySlotLabel(slot, view) {
