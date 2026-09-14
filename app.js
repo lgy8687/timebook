@@ -2201,43 +2201,69 @@ function renderReportSummarySettings() {
     box.innerHTML = '';
 
     const mode = localStorage.getItem('v9_report_summary_mode') === 'separate' ? 'separate' : 'shared';
-    const modeRow = document.createElement('div');
-    modeRow.className = 'summary-mode-row';
-    const modeLabel = document.createElement('span');
-    modeLabel.className = 'text-[11px] font-black text-slate-600';
-    modeLabel.innerText = '周报 / 月报摘要';
-    const modeButtons = document.createElement('div');
-    modeButtons.className = 'summary-mode-buttons';
-    [['shared', '共用'], ['separate', '分别设置']].forEach(([value, label]) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'summary-mode-button' + (mode === value ? ' is-selected' : '');
-        button.innerText = label;
-        button.addEventListener('click', () => {
-            localStorage.setItem('v9_report_summary_mode', value);
-            renderReportSummarySettings();
-            if (typeof renderReportBillboard === 'function') renderReportBillboard();
-        });
-        modeButtons.appendChild(button);
-    });
-    modeRow.append(modeLabel, modeButtons);
-    box.appendChild(modeRow);
+    const selectedView = localStorage.getItem('v9_report_summary_view') === 'parallel' ? 'parallel' : 'main';
+    const selectedPeriod = localStorage.getItem('v9_report_summary_period') === 'month' ? 'month' : 'week';
 
-    const periods = mode === 'separate' ? ['week', 'month'] : ['shared'];
-    periods.forEach((periodKey) => {
-        if (mode === 'separate') {
-            const periodTitle = document.createElement('div');
-            periodTitle.className = 'summary-period-title';
-            periodTitle.innerText = periodKey === 'week' ? '周报摘要' : '月报摘要';
-            box.appendChild(periodTitle);
-        }
-        ['main', 'parallel'].forEach((view) => {
-        const title = view === 'main' ? '主线摘要（3 格）' : '并行摘要（3 格）';
+    const makeSegmented = (label, options, selected, onChange) => {
+        const row = document.createElement('div');
+        row.className = 'summary-control-row';
+        const text = document.createElement('span');
+        text.className = 'summary-control-label';
+        text.innerText = label;
+        const group = document.createElement('div');
+        group.className = 'summary-segmented';
+        options.forEach(([value, optionLabel]) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'summary-segment' + (selected === value ? ' is-selected' : '');
+            button.innerText = optionLabel;
+            button.addEventListener('click', () => onChange(value));
+            group.appendChild(button);
+        });
+        row.append(text, group);
+        return row;
+    };
+
+    const modeRow = document.createElement('div');
+    modeRow.className = 'summary-control-row';
+    const modeLabel = document.createElement('span');
+    modeLabel.className = 'summary-control-label';
+    modeLabel.innerText = '摘要是否共用';
+    const modeSwitch = document.createElement('button');
+    modeSwitch.type = 'button';
+    modeSwitch.className = 'summary-share-switch' + (mode === 'shared' ? ' is-on' : '');
+    modeSwitch.setAttribute('role', 'switch');
+    modeSwitch.setAttribute('aria-checked', String(mode === 'shared'));
+    modeSwitch.title = mode === 'shared' ? '周报和月报共用一套摘要' : '周报和月报分别设置摘要';
+    modeSwitch.innerHTML = '<span></span>';
+    modeSwitch.addEventListener('click', () => {
+        localStorage.setItem('v9_report_summary_mode', mode === 'shared' ? 'separate' : 'shared');
+        renderReportSummarySettings();
+        if (typeof renderReportBillboard === 'function') renderReportBillboard();
+    });
+    modeRow.append(modeLabel, modeSwitch);
+    box.appendChild(modeRow);
+    box.appendChild(makeSegmented('摘要内容', [['main', '主线'], ['parallel', '并行']], selectedView, (value) => {
+        localStorage.setItem('v9_report_summary_view', value);
+        renderReportSummarySettings();
+    }));
+    if (mode === 'separate') {
+        box.appendChild(makeSegmented('报表周期', [['week', '周报'], ['month', '月报']], selectedPeriod, (value) => {
+            localStorage.setItem('v9_report_summary_period', value);
+            renderReportSummarySettings();
+        }));
+    }
+
+    const periodKey = mode === 'separate' ? selectedPeriod : 'shared';
+    const view = selectedView;
+    const title = view === 'main' ? '主线摘要（3 格）' : '并行摘要（3 格）';
         const wrap = document.createElement('div');
-        wrap.className = 'summary-settings-group border-b border-slate-50 pb-2 last:border-0';
+        wrap.className = 'summary-settings-group';
         const h = document.createElement('div');
         h.className = 'text-[11px] font-black text-slate-600';
-        h.innerText = title;
+        h.innerText = mode === 'separate'
+            ? `${selectedPeriod === 'week' ? '周报' : '月报'} · ${title}`
+            : title;
         wrap.appendChild(h);
         const slots = getReportSummarySlots(view, periodKey);
         slots.forEach((slot, idx) => {
@@ -2251,8 +2277,6 @@ function renderReportSummarySettings() {
             wrap.appendChild(row);
         });
         box.appendChild(wrap);
-        });
-    });
 }
 
 function getReportSummarySlotLabel(slot, view) {
