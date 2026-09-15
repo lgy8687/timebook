@@ -4059,7 +4059,6 @@ function resolveReportCategoryAverage(slot, periodData, view) {
     const now = nowSecondMs();
     const observedEnd = Math.min(range.end, now);
     const records = getSegmentsInRange(range.start, observedEnd, now)
-        .filter((record) => !!record.parallel === (view === 'parallel'))
         .filter((record) => l1 ? record.l1 === l1 && (!l2 || record.l2 === l2) : record.l1 === category);
     let totalMs = 0;
     records.forEach((record) => {
@@ -4067,7 +4066,9 @@ function resolveReportCategoryAverage(slot, periodData, view) {
         if (crossesIntoPeriod && slot.carry === 'previous') return;
         totalMs += crossesIntoPeriod ? record.endTime - record.startTime : record.clippedEnd - record.clippedStart;
     });
-    const days = Math.max(1, Math.ceil((observedEnd - range.start) / DAY_MS));
+    // 未结束的本周/本月按实际已经经过的时长折算，周三刚过零点不会被提前当成完整第三天。
+    // 类别平均用于观察某个行为本身，主线、场景和并行中的同类记录都应计入。
+    const days = Math.max(1, (observedEnd - range.start) / DAY_MS);
     return {
         value: formatDuration(Math.round(totalMs / days / 1000) * 1000),
         label: `${category}平均`,
