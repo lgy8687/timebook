@@ -2439,27 +2439,27 @@ function renderReportSummarySettings() {
 
 function getReportCarryCopy(carry, periodKey) {
     const previous = carry === 'previous';
-    if (periodKey === 'week') return previous ? '算上周' : '算本周';
-    if (periodKey === 'month') return previous ? '算上月' : '算本月';
-    return previous ? '周上周 / 月上月' : '周本周 / 月本月';
+    if (periodKey === 'week') return previous ? '归入周日结束的上一周' : '归入周一开始的新一周';
+    if (periodKey === 'month') return previous ? '归入上一个月' : '归入新开始的这个月';
+    return previous ? '周归上周 / 月归上月' : '周归新周 / 月归新月';
 }
 
 function getReportCarryChoices(periodKey) {
     if (periodKey === 'week') {
-        return { title: '跨周时间算到哪一周？', choices: [
-            { value: 'current', label: '算本周' },
-            { value: 'previous', label: '算上周' },
+        return { title: '跨周记录归到哪份周报？', choices: [
+            { value: 'current', label: '归入周一开始的新一周' },
+            { value: 'previous', label: '归入周日结束的上一周' },
         ] };
     }
     if (periodKey === 'month') {
-        return { title: '跨月时间算到哪一月？', choices: [
-            { value: 'current', label: '算本月' },
-            { value: 'previous', label: '算上月' },
+        return { title: '跨月记录归到哪份月报？', choices: [
+            { value: 'current', label: '归入新开始的这个月' },
+            { value: 'previous', label: '归入上一个月' },
         ] };
     }
     return { title: '跨周期时间归属', choices: [
-        { value: 'current', label: '周报算本周 / 月报算本月' },
-        { value: 'previous', label: '周报算上周 / 月报算上月' },
+        { value: 'current', label: '归入新开始的周期' },
+        { value: 'previous', label: '归入上一个周期' },
     ] };
 }
 
