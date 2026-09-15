@@ -3,7 +3,7 @@
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.1';
+    const REPORT_VERSION = 'v2.2';
 
     let state = {
         period: 'day',
@@ -13,6 +13,7 @@
             main: localStorage.getItem('v9_report_summary_view_main') || 'live',
             parallel: localStorage.getItem('v9_report_summary_view_parallel') || 'live',
         },
+        eventMode: localStorage.getItem('v9_report_event_mode') || 'count',
     };
     let getPeriodData = null;
     let eventsBound = false;
@@ -117,6 +118,36 @@
         }).join('');
     }
 
+    function formatEventClock(ms) {
+        const date = new Date(ms + 8 * 60 * 60 * 1000);
+        return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+    }
+
+    function renderEventReport(eventData) {
+        const block = document.getElementById('event-report-block');
+        const box = document.getElementById('event-report-content');
+        if (!block || !box) return;
+        const data = eventData || { total: 0, activeDays: 0, entries: [] };
+        document.querySelectorAll('.event-mode-btn').forEach((button) => {
+            const active = button.dataset.eventMode === state.eventMode;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', String(active));
+        });
+        if (!data.entries.length) {
+            box.innerHTML = '<div class="event-report-empty">这个周期还没有事件记录</div>';
+            return;
+        }
+        const mode = state.eventMode;
+        const label = mode === 'days' ? '发生天数' : '记录次数';
+        const total = mode === 'days' ? data.activeDays : data.total;
+        box.innerHTML = `<div class="event-report-summary"><span>${esc(label)}</span><strong>${esc(String(total))}</strong></div><div class="event-report-list">${data.entries.map((item) => {
+            const value = mode === 'days' ? item.days : item.count;
+            const suffix = mode === 'days' ? '天' : '次';
+            const detail = data.period === 'day' && item.latest ? `最近 ${formatEventClock(item.latest)}` : `${item.count} 次 · ${item.days} 天`;
+            return `<div class="event-report-row"><span class="event-report-dot" style="background:${esc(reportColor(item.color, item.name))}"></span><span class="event-report-icon">${esc(item.icon)}</span><span class="event-report-name">${esc(item.name)}</span><span class="event-report-detail">${esc(detail)}</span><strong>${esc(String(value))}${suffix}</strong></div>`;
+        }).join('')}</div>`;
+    }
+
     function renderTimelineHalf(tl, suffix, fromPct, toPct, title) {
         const card = document.getElementById('timeline-card-' + suffix);
         const titleEl = document.getElementById('timeline-title-' + suffix);
@@ -207,6 +238,7 @@
             renderSummaryRow('summary-parallel', 'parallel', resolveSummaryPeriodData('parallel', periodData));
             syncSummaryModeButtons();
         }
+        renderEventReport(periodData.events);
 
         if (periodData.timeline?.kind === 'day') {
             renderTimelineHalf(periodData.timeline, 'a', 0, 50, '00:00–12:00');
@@ -328,6 +360,15 @@
                 if (!view || !mode || state.summaryModes[view] === mode) return;
                 state.summaryModes[view] = mode;
                 localStorage.setItem(`v9_report_summary_view_${view}`, mode);
+                render();
+            });
+        });
+        document.querySelectorAll('.event-mode-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.eventMode;
+                if (!mode || state.eventMode === mode) return;
+                state.eventMode = mode;
+                localStorage.setItem('v9_report_event_mode', mode);
                 render();
             });
         });

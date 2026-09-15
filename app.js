@@ -187,6 +187,24 @@ let parallelCurrent = safeJSON('v9_parallel') || null;
 let parallelHistory = safeJSON('v9_parallel_history') || [];
 parallelCurrent = normalizeTimeRecord(parallelCurrent);
 parallelHistory = parallelHistory.map(normalizeTimeRecord);
+let eventTypes = safeJSON('v9_event_types', []) || [];
+let eventRecords = safeJSON('v9_event_records', []) || [];
+const EVENT_RESERVED_NAMES = new Set(['睡觉']);
+const EVENT_COLORS = ['#0ea5e9', '#14b8a6', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444', '#22c55e', '#64748b'];
+
+eventTypes = eventTypes
+    .filter((item) => item && typeof item.name === 'string' && item.name.trim())
+    .map((item, index) => ({
+        id: item.id || genId(),
+        name: item.name.trim(),
+        icon: item.icon || '•',
+        color: safeColor(item.color, EVENT_COLORS[index % EVENT_COLORS.length]),
+    }));
+eventRecords = eventRecords
+    .filter((item) => item && item.typeId && Number.isFinite(Number(item.occurredAt)))
+    .map((item) => ({ ...item, occurredAt: Number(item.occurredAt), parentId: item.parentId || null }));
+if (eventTypes.length) localStorage.setItem('v9_event_types', JSON.stringify(eventTypes));
+if (eventRecords.length) localStorage.setItem('v9_event_records', JSON.stringify(eventRecords));
 if (current) localStorage.setItem('v9_current', JSON.stringify(current));
 if (parallelCurrent) localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
 if (parallelHistory.length) localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
@@ -207,9 +225,13 @@ function repairOrphanedParallelParents() {
     let changed = false;
     logs.forEach((item) => {
         if (!item.parallel) return;
-        const parent = findParent(item);
-        // 主线时间轴本身不重叠，因此按真实重叠时间找父级比沿用旧 id 更可靠。
-        // 场景跨日、补录改日期后，旧 id 可能仍存在却指向了错误的主线。
+        const parent = item.sceneName
+            ? mainLogs.filter((main) => main.scene && main.l2 === item.sceneName)
+                .map((main) => ({ main, overlap: Math.max(0, Math.min(logEndMs(main), logEndMs(item)) - Math.max(main.startTime, item.startTime)) }))
+                .filter((candidate) => candidate.overlap > 0)
+                .sort((a, b) => b.overlap - a.overlap)[0]?.main
+            : (!item.parentId || !mainLogs.some((main) => main.id === item.parentId) ? findParent(item) : null);
+        // 已有有效父级绝不重挂；场景并行只允许回到同名场景主线。
         if (parent && item.parentId !== parent.id) {
             item.parentId = parent.id;
             changed = true;
@@ -398,6 +420,7 @@ function transitionCurrentTo(next, askParallel) {
         current = { id: nextId, startTime: now, ...next };
         if (parallelCurrent && !endParallel) {
             parallelCurrent.parentId = nextId;
+            parallelCurrent.sceneName = current.scene ? current.l2 : '';
             localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
         }
         localStorage.setItem('v9_current', JSON.stringify(current));
@@ -1829,7 +1852,10 @@ function confirmEdit() {
         if (editOldL1) { log.l1 = editOldL1; log.l2 = editOldL2; }
         log.note = document.getElementById('edit-note-input').value;
         if (log.l1) rememberInputAlias(log.note, log.l1, log.l2);
-        if (sceneTarget) log.parentId = sceneTarget.parent.id || sceneTarget.parent.startTime;
+        if (sceneTarget) {
+            log.parentId = sceneTarget.parent.id || sceneTarget.parent.startTime;
+            log.sceneName = sceneName;
+        }
 
         // parallelHistory 只用于今天仍挂在进行中主线上的并行；跨日期后必须搬入对应日期的正式流水。
         const moveToCompletedScene = log.parallel && editTarget.source === 'parallelHistory'
@@ -1890,10 +1916,13 @@ function confirmActiveParallelEdit() {
         const keepRunning = editedDate === getTodayDateStr()
             && Math.floor(newEnd / 1000) === Math.floor(target.liveEnd / 1000);
         if (keepRunning) {
-            parallelCurrent = { ...log, l1: draft.l1, l2: draft.l2, note: draft.note, startTime: draft.startTime };
+            parallelCurrent = { ...log, l1: draft.l1, l2: draft.l2, note: draft.note, startTime: draft.startTime, sceneName: current?.scene ? current.l2 : '' };
             localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
         } else {
-            if (sceneTarget) draft.parentId = sceneTarget.parent.id || sceneTarget.parent.startTime;
+            if (sceneTarget) {
+                draft.parentId = sceneTarget.parent.id || sceneTarget.parent.startTime;
+                draft.sceneName = current?.scene ? current.l2 : '';
+            }
             const finished = { ...draft, endTime: draft.endTime, duration: Math.round((draft.endTime - draft.startTime) / 60000), parallel: true };
             if (sceneTarget && !sceneTarget.liveParent) {
                 logs.unshift(finished);
@@ -2276,13 +2305,13 @@ function toggleParallel(l1, l2, icon) {
             localStorage.removeItem('v9_parallel');
         } else {
             // 点不同的并行 → 结束旧的，开新的
-            parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null };
+            parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null, sceneName: current?.scene ? current.l2 : '' };
             localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
         }
         localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
     } else {
         // 没有并行在跑 → 直接开新的
-        parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null };
+        parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null, sceneName: current?.scene ? current.l2 : '' };
         localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
     }
     renderParallelShortcuts();
@@ -2356,7 +2385,7 @@ function syncConfigSectionUI() {
             ? 'text-[10px] bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-full font-black'
             : 'text-[10px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-black';
     });
-    ['clock', 'shortcut', 'parallel', 'report', 'cats', 'scene', 'more'].forEach((id) => {
+    ['clock', 'shortcut', 'parallel', 'report', 'cats', 'scene', 'event', 'more'].forEach((id) => {
         const panel = document.getElementById('config-panel-' + id);
         if (panel) panel.classList.toggle('hidden', configSectionOpen !== id);
     });
@@ -2713,11 +2742,112 @@ function renderSceneSettings() {
     host.appendChild(add);
 }
 
+function saveEventTypes() {
+    localStorage.setItem('v9_event_types', JSON.stringify(eventTypes));
+}
+
+function saveEventRecords() {
+    localStorage.setItem('v9_event_records', JSON.stringify(eventRecords));
+}
+
+function eventNameAvailable(name, exceptId) {
+    const normalized = String(name || '').trim();
+    return normalized && !EVENT_RESERVED_NAMES.has(normalized)
+        && !eventTypes.some((item) => item.id !== exceptId && item.name === normalized);
+}
+
+function addEventType() {
+    showPrompt('新增事件', '例如：上厕所、吃饭、喝水', '', (name) => {
+        const next = String(name || '').trim();
+        if (!next) return;
+        if (!eventNameAvailable(next)) {
+            showConfirm('名称不能使用', EVENT_RESERVED_NAMES.has(next) ? '“睡觉”已被系统时间类别占用。' : '事件名称不能重复。', '知道了', () => {});
+            return;
+        }
+        showCategoryPicker('选择事件图标', (icon) => {
+            if (!icon) return;
+            eventTypes.push({ id: genId(), name: next, icon, color: EVENT_COLORS[eventTypes.length % EVENT_COLORS.length] });
+            saveEventTypes();
+            renderAll();
+        });
+    });
+}
+window.addEventType = addEventType;
+
+function renderEventSettings() {
+    const host = document.getElementById('event-settings-ui');
+    if (!host) return;
+    host.innerHTML = '';
+    if (!eventTypes.length) {
+        const empty = document.createElement('div');
+        empty.className = 'text-center text-[11px] text-slate-400 py-4';
+        empty.innerText = '还没有事件，点击“新增”开始。';
+        host.appendChild(empty);
+        return;
+    }
+    eventTypes.forEach((eventType) => {
+        const row = document.createElement('div');
+        row.className = 'scene-settings-row event-settings-row';
+        const color = document.createElement('button');
+        color.type = 'button';
+        color.className = 'scene-settings-dot';
+        color.style.background = eventType.color;
+        color.title = '修改颜色';
+        color.addEventListener('click', () => openZoneColorPicker(eventType.color, (next) => {
+            eventType.color = next;
+            saveEventTypes();
+            renderAll();
+        }));
+        const icon = document.createElement('button');
+        icon.type = 'button';
+        icon.className = 'event-settings-icon';
+        icon.innerText = eventType.icon;
+        icon.title = '修改图标';
+        icon.addEventListener('click', () => showCategoryPicker('选择事件图标', (next) => {
+            if (!next) return;
+            eventType.icon = next;
+            saveEventTypes();
+            renderAll();
+        }));
+        const name = document.createElement('span');
+        name.className = 'scene-settings-name cursor-pointer';
+        name.innerText = eventType.name;
+        name.title = '点击修改名称';
+        name.addEventListener('click', () => showPrompt('修改事件名称', '输入事件名称', eventType.name, (next) => {
+            const value = String(next || '').trim();
+            if (!value || value === eventType.name) return;
+            if (!eventNameAvailable(value, eventType.id)) {
+                showConfirm('名称不能使用', EVENT_RESERVED_NAMES.has(value) ? '“睡觉”已被系统时间类别占用。' : '事件名称不能重复。', '知道了', () => {});
+                return;
+            }
+            eventType.name = value;
+            saveEventTypes();
+            renderAll();
+        }));
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'scene-settings-edit';
+        del.style.background = '#fef2f2';
+        del.style.color = '#ef4444';
+        del.innerText = '✕';
+        del.title = '删除事件类别';
+        del.addEventListener('click', () => showConfirm('删除事件类别', `删除“${eventType.name}”后，历史事件会保留但不再可新增。`, '删除', (ok) => {
+            if (!ok) return;
+            eventTypes = eventTypes.filter((item) => item.id !== eventType.id);
+            saveEventTypes();
+            renderAll();
+        }));
+        row.append(color, icon, name, del);
+        host.appendChild(row);
+    });
+}
+
 function renderConfig() {
     syncConfigSectionUI();
     renderClockSettings();
     renderReportSummarySettings();
     renderSceneSettings();
+    renderEventSettings();
     const shortcutList = document.getElementById('shortcut-list');
     shortcutList.innerHTML = "";
     shortcuts.forEach((s, idx) => {
@@ -2910,8 +3040,165 @@ function buildLogFlowBar(color, muted) {
     return bar;
 }
 
+let eventDraft = null;
+let eventParentSelecting = false;
+
+function eventTypeById(id) {
+    return eventTypes.find((item) => item.id === id) || null;
+}
+
+function setEventStage(stage) {
+    ['choose', 'confirm', 'supplement', 'time'].forEach((name) => {
+        document.getElementById('event-stage-' + name)?.classList.toggle('hidden', name !== stage);
+    });
+}
+
+function openEventModal() {
+    eventParentSelecting = false;
+    eventDraft = null;
+    renderEventChoiceGrid();
+    setEventStage('choose');
+    document.getElementById('event-modal')?.classList.remove('hidden');
+}
+window.openEventModal = openEventModal;
+
+function closeEventModal() {
+    document.getElementById('event-modal')?.classList.add('hidden');
+    eventDraft = null;
+    if (eventParentSelecting) {
+        eventParentSelecting = false;
+        renderAll();
+    }
+}
+window.closeEventModal = closeEventModal;
+
+function renderEventChoiceGrid() {
+    const grid = document.getElementById('event-choice-grid');
+    const empty = document.getElementById('event-empty-hint');
+    if (!grid || !empty) return;
+    grid.innerHTML = '';
+    empty.classList.toggle('hidden', eventTypes.length > 0);
+    eventTypes.forEach((type) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'event-choice-item';
+        button.style.setProperty('--event-color', type.color);
+        button.innerHTML = `<span>${escHtml(type.icon)}</span><b>${escHtml(type.name)}</b>`;
+        button.addEventListener('click', () => chooseEventType(type.id));
+        grid.appendChild(button);
+    });
+}
+
+function chooseEventType(typeId) {
+    const type = eventTypeById(typeId);
+    if (!type) return;
+    eventDraft = { typeId, parentId: current?.id || null, occurredAt: nowSecondMs() };
+    document.getElementById('event-confirm-preview').innerText = `记录「${type.icon} ${type.name}」\n归属：当前主线 ${current ? '· ' + displayName(current) : '· 未开启主线'}`;
+    setEventStage('confirm');
+}
+
+function saveEventRecord({ typeId, occurredAt, parentId }) {
+    const type = eventTypeById(typeId);
+    if (!type || !Number.isFinite(occurredAt)) return false;
+    eventRecords.unshift({
+        id: genId(),
+        typeId: type.id,
+        typeName: type.name,
+        icon: type.icon,
+        color: type.color,
+        occurredAt: toSecondMs(occurredAt),
+        parentId: parentId || null,
+        createdAt: nowSecondMs(),
+    });
+    saveEventRecords();
+    return true;
+}
+
+function confirmCurrentEvent() {
+    if (!eventDraft) return;
+    if (saveEventRecord(eventDraft)) {
+        closeEventModal();
+        renderAll();
+    }
+}
+window.confirmCurrentEvent = confirmCurrentEvent;
+
+function openEventSupplement() {
+    if (!eventDraft) return;
+    setEventStage('supplement');
+}
+window.openEventSupplement = openEventSupplement;
+
+function fillEventTimeInputs(ms) {
+    const time = toSecondMs(ms || nowSecondMs());
+    document.getElementById('event-date-input').value = formatBeijingDate(time);
+    document.getElementById('event-time-input').value = formatBeijingClockSec(time);
+}
+
+function openIndependentEventTime() {
+    if (!eventDraft) return;
+    eventDraft.parentId = null;
+    eventDraft.occurredAt = nowSecondMs();
+    document.getElementById('event-time-parent').innerText = '独立事件 · 不归属任何主线';
+    fillEventTimeInputs(eventDraft.occurredAt);
+    setEventStage('time');
+}
+window.openIndependentEventTime = openIndependentEventTime;
+
+function beginEventParentSelection() {
+    if (!eventDraft) return;
+    eventParentSelecting = true;
+    document.getElementById('event-modal')?.classList.add('hidden');
+    renderAll();
+}
+window.beginEventParentSelection = beginEventParentSelection;
+
+function cancelEventParentSelection() {
+    eventParentSelecting = false;
+    eventDraft = null;
+    renderAll();
+}
+window.cancelEventParentSelection = cancelEventParentSelection;
+
+function selectEventParent(parent) {
+    if (!eventParentSelecting || !eventDraft || !parent || parent.parallel) return false;
+    eventParentSelecting = false;
+    eventDraft.parentId = parent.id;
+    eventDraft.occurredAt = parent.startTime;
+    document.getElementById('event-time-parent').innerText = `归属主线 · ${displayName(parent)}`;
+    fillEventTimeInputs(parent.startTime);
+    document.getElementById('event-modal')?.classList.remove('hidden');
+    setEventStage('time');
+    renderAll();
+    return true;
+}
+
+function saveTimedEvent() {
+    if (!eventDraft) return;
+    const date = document.getElementById('event-date-input').value;
+    const time = document.getElementById('event-time-input').value;
+    const occurredAt = parseTimeOnBeijingDateParts(date, time);
+    if (!Number.isFinite(occurredAt)) {
+        showConfirm('时间格式不正确', '请选择发生日期和时间。', '知道了', () => {});
+        return;
+    }
+    eventDraft.occurredAt = occurredAt;
+    if (saveEventRecord(eventDraft)) {
+        closeEventModal();
+        renderAll();
+    }
+}
+window.saveTimedEvent = saveTimedEvent;
+
+function parseTimeOnBeijingDateParts(dateStr, timeStr) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || '')) || !/^\d{2}:\d{2}(?::\d{2})?$/.test(String(timeStr || ''))) return null;
+    const [hours, minutes, seconds = '00'] = timeStr.split(':').map(Number);
+    if (hours > 23 || minutes > 59 || seconds > 59) return null;
+    return beijingDateStrToDayStart(dateStr) + (hours * 3600 + minutes * 60 + seconds) * 1000;
+}
+
 function buildLogFlowMainRow(opts) {
-    const { timeText, nameText, durText, live, durId, endedParallel } = opts;
+    const { timeText, nameText, durText, live, durId, endedParallel, eventAction } = opts;
     const top = document.createElement('div');
     top.className = 'log-flow-main';
     const time = document.createElement('span');
@@ -2926,6 +3213,18 @@ function buildLogFlowMainRow(opts) {
     if (durId) dur.id = durId;
     dur.innerText = durText;
     top.append(time, name, dur);
+    if (eventAction) {
+        const eventButton = document.createElement('button');
+        eventButton.type = 'button';
+        eventButton.className = 'log-event-btn';
+        eventButton.innerText = '＋';
+        eventButton.title = '记录事件';
+        eventButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openEventModal();
+        });
+        top.appendChild(eventButton);
+    }
     return top;
 }
 
@@ -2953,6 +3252,18 @@ function renderLogs(listId, dateStr) {
     if (!list) return;
     const moreWrap = listId === 'log-list' ? document.getElementById('load-more-wrap') : null;
     list.innerHTML = "";
+    if (eventParentSelecting) {
+        const notice = document.createElement('div');
+        notice.className = 'event-parent-notice';
+        const text = document.createElement('span');
+        text.innerText = '请选择要归属的主线';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.innerText = '取消';
+        cancel.addEventListener('click', cancelEventParentSelection);
+        notice.append(text, cancel);
+        list.appendChild(notice);
+    }
 
     // ── 实时卡片（仅查看今天） ──
     if (isDateToday(dateStr) && current) {
@@ -2971,13 +3282,18 @@ function renderLogs(listId, dateStr) {
             nameText: displayName(current),
             durText: formatDuration(logDurationMs(current, nowSecondMs())),
             live: true,
-            durId: 'live-main-duration'
+            durId: 'live-main-duration',
+            eventAction: true
         }));
         appendLogFlowNote(body, current);
         inner.append(bar, body);
         liveCard.appendChild(inner);
         liveCard.title = '补录一段已结束的并行活动';
         liveCard.addEventListener('click', () => {
+            if (eventParentSelecting) {
+                selectEventParent(current);
+                return;
+            }
             if (current?.scene) openSceneParallelBackfillDrawer(current);
             else openBackfillDrawer(current, { liveParent: true });
         });
@@ -3156,10 +3472,12 @@ function createLogRow(list, log, idx) {
     const card = document.createElement('div');
     card.className = logFlowCardClass(log.parallel ? 'parallel-log' : 'main-log');
     applySceneFlowCardTheme(card, log);
+    if (eventParentSelecting && !log.parallel) card.classList.add('event-parent-selectable');
 
     let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
     let _wasLongPress = false, _lpTimer = null;
     card.addEventListener('touchstart', (e) => {
+        if (eventParentSelecting) return;
         const touch = e.touches[0];
         startX = touch.clientX;
         startY = touch.clientY;
@@ -3168,6 +3486,7 @@ function createLogRow(list, log, idx) {
         card.classList.add('swiping');
     }, { passive: true });
     card.addEventListener('touchmove', (e) => {
+        if (eventParentSelecting) return;
         const touch = e.touches[0];
         const dx = touch.clientX - startX;
         const dy = touch.clientY - startY;
@@ -3182,6 +3501,7 @@ function createLogRow(list, log, idx) {
         }
     }, { passive: false });
     card.addEventListener('touchend', (e) => {
+        if (eventParentSelecting) return;
         card.classList.remove('swiping');
         card.style.transform = '';
         if (isSwiping) {
@@ -3199,20 +3519,26 @@ function createLogRow(list, log, idx) {
     }, { passive: true });
 
     if (!log.parallel && !log._crossDay) {
-        card.addEventListener('pointerdown', (e) => {
-            if (isSwiping) return;
-            _wasLongPress = false;
-            _lpTimer = setTimeout(() => {
+        if (!eventParentSelecting) {
+            card.addEventListener('pointerdown', (e) => {
                 if (isSwiping) return;
-                _wasLongPress = true;
-                openSplitDrawer(log);
-            }, 500);
-        });
-        card.addEventListener('pointerup', () => { clearTimeout(_lpTimer); });
-        card.addEventListener('pointerleave', () => { clearTimeout(_lpTimer); });
-        card.addEventListener('pointercancel', () => { clearTimeout(_lpTimer); });
+                _wasLongPress = false;
+                _lpTimer = setTimeout(() => {
+                    if (isSwiping) return;
+                    _wasLongPress = true;
+                    openSplitDrawer(log);
+                }, 500);
+            });
+            card.addEventListener('pointerup', () => { clearTimeout(_lpTimer); });
+            card.addEventListener('pointerleave', () => { clearTimeout(_lpTimer); });
+            card.addEventListener('pointercancel', () => { clearTimeout(_lpTimer); });
+        }
         card.addEventListener('click', (e) => {
             if (isSwiping || _wasLongPress) return;
+            if (eventParentSelecting) {
+                selectEventParent(log);
+                return;
+            }
             openBackfillDrawer(log);
         });
     }
@@ -3945,6 +4271,38 @@ function parallelHostL1(paraLog) {
     return fallback?.l?.l1 || '未分类';
 }
 
+function buildEventReport(rangeStart, rangeEnd, period) {
+    const byType = new Map();
+    eventRecords
+        .filter((record) => record.occurredAt >= rangeStart && record.occurredAt < rangeEnd)
+        .forEach((record) => {
+            const type = eventTypeById(record.typeId);
+            const key = record.typeId || record.typeName;
+            const item = byType.get(key) || {
+                id: key,
+                name: type?.name || record.typeName || '已删除事件',
+                icon: type?.icon || record.icon || '•',
+                color: type?.color || record.color || '#64748b',
+                count: 0,
+                days: new Set(),
+                latest: 0,
+            };
+            item.count += 1;
+            item.days.add(formatBeijingDate(record.occurredAt));
+            item.latest = Math.max(item.latest, record.occurredAt);
+            byType.set(key, item);
+        });
+    const entries = [...byType.values()]
+        .map((item) => ({ ...item, days: item.days.size }))
+        .sort((a, b) => b.count - a.count || b.days - a.days || a.name.localeCompare(b.name, 'zh-CN'));
+    return {
+        period,
+        total: entries.reduce((sum, item) => sum + item.count, 0),
+        activeDays: new Set(eventRecords.filter((record) => record.occurredAt >= rangeStart && record.occurredAt < rangeEnd).map((record) => formatBeijingDate(record.occurredAt))).size,
+        entries,
+    };
+}
+
 function buildLiveReportDay() {
     const now = nowSecondMs();
     const dayStart = beijingPeriodStart(now, DAY_MS);
@@ -4018,6 +4376,7 @@ function buildLiveReportDay() {
 
     return {
         _live: true,
+        events: buildEventReport(dayStart, now, 'day'),
         timeline: {
             title: '24 小时时间轴',
             hint: '仅主线 · 当日真实记录',
@@ -4030,7 +4389,7 @@ function buildLiveReportDay() {
             meta: {
                 title: formatBeijingDate(now),
                 range: '当日主线',
-                footnote: '日报数据来自本地记录；周/月/年仍为样本占位。',
+                footnote: '所有周期均基于本地真实记录。',
             },
             summary: [
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
@@ -4218,6 +4577,7 @@ function buildLiveReportPeriod(period, options = {}) {
         _live: true,
         _period: period,
         _range: { start: range.start, end: summaryEnd },
+        events: buildEventReport(range.start, Math.min(range.end, now), period),
         timeline: { title: period === 'week' ? '本周每日时间构成' : period === 'month' ? '本月每日时间构成' : '本年每月分类构成', hint: period === 'year' ? '按一级目录合并 · 每月从少到多排列' : '按分类分段 · 重叠时间自动去重', kind: 'bars', bars },
         main: {
             meta: { title: formatBeijingDate(now), range: period === 'week' ? '本周主线' : period === 'month' ? '本月主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },

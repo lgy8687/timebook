@@ -176,9 +176,9 @@ body#report-standalone {
 }
 .summary-block-title--main { color: var(--rp-indigo); }
 .summary-block-title--parallel { color: var(--rp-violet); }
-.summary-view-toggle { display: inline-grid; grid-template-columns: repeat(2, 1fr); min-width: 128px; padding: 3px; border: 1px solid #dce5ec; border-radius: 10px; background: #f5f8fa; }
-.summary-view-btn { min-height: 27px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: #708090; font-size: 10px; font-weight: 800; }
-.summary-view-btn.is-active { background: #dfeaf1; color: #35506a; box-shadow: 0 1px 3px rgba(53, 80, 106, .14); }
+.summary-view-toggle { display: inline-grid; grid-template-columns: repeat(2, 1fr); min-width: 128px; padding: 2px; border: 1px solid var(--rp-border); border-radius: 12px; background: rgba(255,255,255,.95); box-shadow: var(--rp-shadow); }
+.summary-view-btn { min-height: 27px; padding: 0 8px; border: 0; border-radius: 9px; background: transparent; color: var(--rp-muted); font-size: 10px; font-weight: 800; }
+.summary-view-btn.is-active { background: var(--rp-indigo); color: #fff; }
 
 .sunburst-chart-wrap {
     position: relative;
@@ -207,6 +207,21 @@ body#report-standalone {
 }
 .chart-toggle-btn.active.chart-main { background: var(--rp-indigo); color: #fff; }
 .chart-toggle-btn.active.chart-parallel { background: var(--rp-violet); color: #fff; }
+.chart-toggle-btn.active.event-mode-btn { background: var(--rp-indigo); color: #fff; }
+
+.event-report-block { margin: 0 0 12px; padding: 16px; border: 1px solid #e7edf1; border-radius: 14px; background: #fff; box-shadow: 0 2px 8px rgba(53, 80, 106, .05); }
+.event-report-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.event-report-title { color: #4b728a; }
+.event-report-summary { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; padding: 8px 10px; border-radius: 8px; background: #f7fafb; color: #718096; font-size: 10px; font-weight: 800; }
+.event-report-summary strong { color: #35506a; font-size: 18px; font-variant-numeric: tabular-nums; }
+.event-report-list { display: grid; gap: 6px; }
+.event-report-row { display: grid; grid-template-columns: 8px 24px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; min-height: 36px; padding: 6px 8px; border: 1px solid #edf1f4; border-radius: 8px; background: #fff; color: #475569; }
+.event-report-dot { width: 7px; height: 7px; border-radius: 50%; }
+.event-report-icon { font-size: 14px; text-align: center; }
+.event-report-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 900; }
+.event-report-detail { color: #94a3b8; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.event-report-row strong { color: #35506a; font-size: 12px; font-variant-numeric: tabular-nums; }
+.event-report-empty { padding: 18px 8px; color: #94a3b8; font-size: 11px; font-weight: 700; text-align: center; }
 
 
 .sunburst-svg { width: 100%; height: auto; display: block; }
