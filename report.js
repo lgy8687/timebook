@@ -5,7 +5,15 @@
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
     const REPORT_VERSION = 'v2.1';
 
-    let state = { period: 'day', chartView: 'main', legendMode: 'l1' };
+    let state = {
+        period: 'day',
+        chartView: 'main',
+        legendMode: 'l1',
+        summaryModes: {
+            main: localStorage.getItem('v9_report_summary_view_main') || 'live',
+            parallel: localStorage.getItem('v9_report_summary_view_parallel') || 'live',
+        },
+    };
     let getPeriodData = null;
     let eventsBound = false;
     const REPORT_COLORS = ['#2563eb', '#f97316', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#eab308', '#ec4899', '#14b8a6', '#f43f5e', '#6366f1', '#84cc16'];
@@ -78,6 +86,22 @@
             if (live) return live;
         }
         return typeof REPORT_DATA !== 'undefined' ? REPORT_DATA[state.period] || null : null;
+    }
+
+    function resolveSummaryPeriodData(view, fallback) {
+        if (getPeriodData) {
+            const data = getPeriodData(state.period, { summaryMode: state.summaryModes[view] || 'live' });
+            if (data) return data;
+        }
+        return fallback;
+    }
+
+    function syncSummaryModeButtons() {
+        document.querySelectorAll('.summary-view-btn').forEach((button) => {
+            const selected = state.summaryModes[button.dataset.summaryView] === button.dataset.summaryMode;
+            button.classList.toggle('is-active', selected);
+            button.setAttribute('aria-pressed', String(selected));
+        });
     }
 
     function renderSummaryRow(elId, view, periodData) {
@@ -179,8 +203,9 @@
         document.getElementById('summary-block-main')?.classList.toggle('hidden', !periodic);
         document.getElementById('summary-block-parallel')?.classList.toggle('hidden', !periodic);
         if (periodic) {
-            renderSummaryRow('summary-main', 'main', periodData);
-            renderSummaryRow('summary-parallel', 'parallel', periodData);
+            renderSummaryRow('summary-main', 'main', resolveSummaryPeriodData('main', periodData));
+            renderSummaryRow('summary-parallel', 'parallel', resolveSummaryPeriodData('parallel', periodData));
+            syncSummaryModeButtons();
         }
 
         if (periodData.timeline?.kind === 'day') {
@@ -295,6 +320,16 @@
         });
         document.querySelectorAll('[data-chart]').forEach((btn) => {
             btn.addEventListener('click', () => setChartView(btn.dataset.chart));
+        });
+        document.querySelectorAll('.summary-view-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.summaryView;
+                const mode = btn.dataset.summaryMode;
+                if (!view || !mode || state.summaryModes[view] === mode) return;
+                state.summaryModes[view] = mode;
+                localStorage.setItem(`v9_report_summary_view_${view}`, mode);
+                render();
+            });
         });
     }
 

@@ -4058,9 +4058,9 @@ function buildLiveReportDay() {
     };
 }
 
-function getReportPeriodData(period) {
+function getReportPeriodData(period, options) {
     if (period === 'day') return buildLiveReportDay();
-    return buildLiveReportPeriod(period);
+    return buildLiveReportPeriod(period, options);
 }
 
 function getBeijingReportRange(period, now) {
@@ -4170,10 +4170,14 @@ function buildYearCategoryComposition(segments, periodStart, periodEnd) {
         }));
 }
 
-function buildLiveReportPeriod(period) {
+function buildLiveReportPeriod(period, options = {}) {
     const now = nowSecondMs();
     const range = getBeijingReportRange(period, now);
-    const all = getSegmentsInRange(range.start, Math.min(range.end, now), now);
+    const todayStart = beijingDateStrToDayStart(getTodayDateStr());
+    const summaryEnd = options.summaryMode === 'settled'
+        ? Math.min(range.end, todayStart)
+        : Math.min(range.end, now);
+    const all = getSegmentsInRange(range.start, summaryEnd, now);
     const mainSegs = all.filter((l) => !l.parallel);
     const paraSegs = all.filter((l) => l.parallel);
     const mainMs = mainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
@@ -4196,7 +4200,7 @@ function buildLiveReportPeriod(period) {
     });
     const topHostEntry = [...hostMs.entries()].sort((a, b) => b[1] - a[1])[0];
     const bars = [];
-    const reportEnd = period === 'year' ? range.end : Math.min(range.end, now);
+    const reportEnd = period === 'year' ? range.end : summaryEnd;
     for (let periodStart = range.start; periodStart < reportEnd;) {
         const nextPeriodStart = period === 'year' ? nextBeijingMonthStart(periodStart) : periodStart + DAY_MS;
         const periodEnd = Math.min(nextPeriodStart, reportEnd);
@@ -4213,7 +4217,7 @@ function buildLiveReportPeriod(period) {
     return {
         _live: true,
         _period: period,
-        _range: { start: range.start, end: range.end },
+        _range: { start: range.start, end: summaryEnd },
         timeline: { title: period === 'week' ? '本周每日时间构成' : period === 'month' ? '本月每日时间构成' : '本年每月分类构成', hint: period === 'year' ? '按一级目录合并 · 每月从少到多排列' : '按分类分段 · 重叠时间自动去重', kind: 'bars', bars },
         main: {
             meta: { title: formatBeijingDate(now), range: period === 'week' ? '本周主线' : period === 'month' ? '本月主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
