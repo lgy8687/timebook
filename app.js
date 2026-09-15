@@ -1554,15 +1554,17 @@ function showConfirm(title, message, okText, callback, cancelText) {
 function openEdit(index, source = 'logs') {
     editIndex = index;
     const collection = source === 'parallelHistory' ? parallelHistory : logs;
-    const log = collection[index];
+    const log = source === 'parallelCurrent' ? parallelCurrent : collection[index];
     if (!log) return;
-    editTarget = { source, id: log.id };
+    const liveEnd = source === 'parallelCurrent' ? nowSecondMs() : null;
+    editTarget = { source, id: log.id, liveEnd };
     _backfillRange = null;
     editOldL1 = log.l1;
     editOldL2 = log.l2;
-    document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration((log.endTime||nowSecondMs())-log.startTime)}`;
+    const previewEnd = liveEnd || logEndMs(log);
+    document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration(previewEnd - log.startTime)}`;
     setTimeInFields('es', new Date(log.startTime));
-    setTimeInFields('ee', new Date(logEndMs(log)));
+    setTimeInFields('ee', new Date(previewEnd));
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -1713,6 +1715,10 @@ function commitEditedRange(log, newStart, newEnd, previous, next, swallowPreviou
 
 function confirmEdit() {
     if (!editTarget) return;
+    if (editTarget.source === 'parallelCurrent') {
+        confirmActiveParallelEdit();
+        return;
+    }
     const collection = editTarget.source === 'parallelHistory' ? parallelHistory : logs;
     const log = collection.find((item) => item.id === editTarget.id);
     if (!log) return;
@@ -1739,6 +1745,44 @@ function confirmEdit() {
         renderAll();
     };
     applyEditedRange(log, newStart, newEnd, finish);
+}
+
+function confirmActiveParallelEdit() {
+    const target = editTarget;
+    const log = parallelCurrent;
+    if (!target || !log || log.id !== target.id) return;
+    const newStart = parseTimeFromInput('es', log.startTime);
+    const newEnd = parseTimeFromInput('ee', log.startTime);
+    const now = nowSecondMs();
+    if (newStart === null || newEnd === null || newStart >= newEnd) {
+        showConfirm('时间不合法', '开始时间必须早于结束时间。', '知道了', () => {});
+        return;
+    }
+    if (newEnd > now) {
+        showConfirm('结束时间还没到', '进行中的并行不能填写未来时间。', '知道了', () => {});
+        return;
+    }
+    const draft = { ...log, endTime: target.liveEnd, duration: Math.round((target.liveEnd - log.startTime) / 60000) };
+    applyEditedRange(draft, newStart, newEnd, () => {
+        if (editOldL1) { draft.l1 = editOldL1; draft.l2 = editOldL2; }
+        draft.note = document.getElementById('edit-note-input').value;
+        if (draft.l1) rememberInputAlias(draft.note, draft.l1, draft.l2);
+        const keepRunning = Math.floor(newEnd / 1000) === Math.floor(target.liveEnd / 1000);
+        if (keepRunning) {
+            parallelCurrent = { ...log, l1: draft.l1, l2: draft.l2, note: draft.note, startTime: draft.startTime };
+            localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+        } else {
+            parallelHistory.unshift({ ...draft, endTime: draft.endTime, duration: Math.round((draft.endTime - draft.startTime) / 60000), parallel: true });
+            parallelCurrent = null;
+            localStorage.removeItem('v9_parallel');
+            localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+        }
+        document.getElementById('edit-modal').classList.add('hidden');
+        editIndex = null;
+        editTarget = null;
+        editOldL1 = null; editOldL2 = null;
+        renderAll();
+    });
 }
 function closeEdit() {
     document.getElementById('edit-modal').classList.add('hidden');
@@ -2824,7 +2868,7 @@ function renderLogs(listId, dateStr) {
         rightAct.className = "swipe-actions right";
         const editBtn = document.createElement('div');
         editBtn.className = "swipe-action-btn edit";
-        editBtn.innerText = isActive ? '切换' : '编辑';
+        editBtn.innerText = '编辑';
         rightAct.appendChild(editBtn);
         wrap.appendChild(rightAct);
         const card = document.createElement('div');
@@ -2848,18 +2892,7 @@ function renderLogs(listId, dateStr) {
                 }
             } else if (dx < -55) {
                 if (isActive) {
-                    const cb = (l1, l2) => {
-                        _parallelPending = true;
-                        toggleParallel(l1, l2 || '', (getCat(l1)?.icon) || '📌');
-                        _parallelPending = false;
-                    };
-                    pickerMode = 'edit';
-                    document.getElementById('drawer-title').innerText = '切换并行';
-                    document.getElementById('drawer-footer').classList.add('hidden');
-                    _parallelCallback = cb;
-                    showDrawer();
-                    renderPicker();
-                    renderDrawerToggle();
+                    openEdit(0, 'parallelCurrent');
                 } else {
                     openEdit(idx, 'parallelHistory');
                 }
