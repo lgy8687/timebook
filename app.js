@@ -1538,6 +1538,7 @@ if (window.visualViewport) {
 }
 
 let editOldL1 = null, editOldL2 = null;
+let editTarget = null;
 function showConfirm(title, message, okText, callback, cancelText) {
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
@@ -1550,10 +1551,12 @@ function showConfirm(title, message, okText, callback, cancelText) {
     document.getElementById('confirm-modal').classList.remove('hidden');
 }
 
-function openEdit(index) {
+function openEdit(index, source = 'logs') {
     editIndex = index;
-    const log = logs[index];
+    const collection = source === 'parallelHistory' ? parallelHistory : logs;
+    const log = collection[index];
     if (!log) return;
+    editTarget = { source, id: log.id };
     _backfillRange = null;
     editOldL1 = log.l1;
     editOldL2 = log.l2;
@@ -1573,7 +1576,7 @@ function updateEditCatDisplay(l1, l2) {
 document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('edit-cat-btn');
     if (btn) btn.addEventListener('click', () => {
-        if (editIndex === null) return;
+        if (!editTarget) return;
         _parallelCallback = (l1, l2) => { editOldL1 = l1; editOldL2 = l2; updateEditCatDisplay(l1, l2); document.getElementById('edit-modal').classList.remove('hidden'); };
         pickerMode = 'edit';
         document.getElementById('edit-modal').classList.add('hidden');
@@ -1634,7 +1637,7 @@ function applyEditedRange(log, newStart, newEnd, done) {
         return;
     }
     if (log.parallel) {
-        const parallelConflict = logs.some((item) => {
+        const parallelConflict = [...logs, ...parallelHistory].some((item) => {
             if (!item.parallel || item.id === log.id) return false;
             const itemEnd = logEndMs(item);
             return item.startTime < effectiveEnd && itemEnd > effectiveStart;
@@ -1709,8 +1712,10 @@ function commitEditedRange(log, newStart, newEnd, previous, next, swallowPreviou
 }
 
 function confirmEdit() {
-    if (editIndex === null || !logs[editIndex]) return;
-    const log = logs[editIndex];
+    if (!editTarget) return;
+    const collection = editTarget.source === 'parallelHistory' ? parallelHistory : logs;
+    const log = collection.find((item) => item.id === editTarget.id);
+    if (!log) return;
     const newStart = parseTimeFromInput('es', log.startTime);
     const newEnd = parseTimeFromInput('ee', log.startTime);
     if (newStart === null || newEnd === null) {
@@ -1721,10 +1726,15 @@ function confirmEdit() {
         if (editOldL1) { log.l1 = editOldL1; log.l2 = editOldL2; }
         log.note = document.getElementById('edit-note-input').value;
         if (log.l1) rememberInputAlias(log.note, log.l1, log.l2);
-        mergeAdjacentSameActivity();
-        localStorage.setItem('v9_logs', JSON.stringify(logs));
+        if (editTarget.source === 'parallelHistory') {
+            localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+        } else {
+            mergeAdjacentSameActivity();
+            localStorage.setItem('v9_logs', JSON.stringify(logs));
+        }
         document.getElementById('edit-modal').classList.add('hidden');
         editIndex = null;
+        editTarget = null;
         editOldL1 = null; editOldL2 = null;
         renderAll();
     };
@@ -1734,6 +1744,7 @@ function closeEdit() {
     document.getElementById('edit-modal').classList.add('hidden');
     _backfillRange = null;
     editIndex = null;
+    editTarget = null;
     editOldL1 = null; editOldL2 = null;
 }
 
@@ -2792,6 +2803,8 @@ function renderLogs(listId, dateStr) {
         appendLogFlowNote(body, current);
         inner.append(bar, body);
         liveCard.appendChild(inner);
+        liveCard.title = '补录一段已结束的并行活动';
+        liveCard.addEventListener('click', () => openBackfillDrawer(current, { liveParent: true }));
         liveWrap.appendChild(liveCard);
         list.appendChild(liveWrap);
     }
@@ -2811,7 +2824,7 @@ function renderLogs(listId, dateStr) {
         rightAct.className = "swipe-actions right";
         const editBtn = document.createElement('div');
         editBtn.className = "swipe-action-btn edit";
-        editBtn.innerText = "切换";
+        editBtn.innerText = isActive ? '切换' : '编辑';
         rightAct.appendChild(editBtn);
         wrap.appendChild(rightAct);
         const card = document.createElement('div');
@@ -2819,7 +2832,41 @@ function renderLogs(listId, dateStr) {
         let sx=0,sy=0,swiping=false,dx=0;
         card.addEventListener('touchstart', e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY;swiping=false;dx=0;card.classList.add('swiping');},{passive:false});
         card.addEventListener('touchmove', e=>{const d=e.touches[0].clientX-sx;const dy=e.touches[0].clientY-sy;if(!swiping&&Math.abs(d)>Math.abs(dy)&&Math.abs(d)>10)swiping=true;if(swiping){e.preventDefault();dx=Math.max(-80,Math.min(80,d));card.style.transform=`translateX(${dx}px)`;}},{passive:false});
-        card.addEventListener('touchend',()=>{card.classList.remove('swiping');card.style.transform='';if(swiping){if(dx>55){if(isActive){showConfirm('关闭并行','关闭「'+displayName(parallel)+'」？不会记入日志。','关闭',ok=>{if(ok){parallelCurrent=null;localStorage.removeItem('v9_parallel');renderAll();}})}else{showConfirm('删除并行','删除已结束的「'+displayName(parallel)+'」？','删除',ok=>{if(ok){parallelHistory.splice(idx,1);localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}})}}else if(dx<-55){const cb=(l1,l2)=>{if(isActive){_parallelPending=true;toggleParallel(l1,l2||'',(getCat(l1)?.icon)||'📌');_parallelPending=false;}else{const p=parallelHistory[idx];if(p){p.l1=l1;p.l2=l2||'';const cat=getCat(l1);p.color=cat?.color||'#cbd5e1';localStorage.setItem('v9_parallel_history',JSON.stringify(parallelHistory));renderAll();}}};pickerMode='edit';document.getElementById('drawer-title').innerText=isActive?'切换并行':'修改并行';document.getElementById('drawer-footer').classList.add('hidden');_parallelCallback=cb;showDrawer();renderPicker();renderDrawerToggle();}swiping=false;dx=0;}},{passive:true});
+        card.addEventListener('touchend', () => {
+            card.classList.remove('swiping');
+            card.style.transform = '';
+            if (!swiping) return;
+            if (dx > 55) {
+                if (isActive) {
+                    showConfirm('关闭并行', `关闭「${displayName(parallel)}」？不会记入日志。`, '关闭', (ok) => {
+                        if (ok) { parallelCurrent = null; localStorage.removeItem('v9_parallel'); renderAll(); }
+                    });
+                } else {
+                    showConfirm('删除并行', `删除已结束的「${displayName(parallel)}」？`, '删除', (ok) => {
+                        if (ok) { parallelHistory.splice(idx, 1); localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory)); renderAll(); }
+                    });
+                }
+            } else if (dx < -55) {
+                if (isActive) {
+                    const cb = (l1, l2) => {
+                        _parallelPending = true;
+                        toggleParallel(l1, l2 || '', (getCat(l1)?.icon) || '📌');
+                        _parallelPending = false;
+                    };
+                    pickerMode = 'edit';
+                    document.getElementById('drawer-title').innerText = '切换并行';
+                    document.getElementById('drawer-footer').classList.add('hidden');
+                    _parallelCallback = cb;
+                    showDrawer();
+                    renderPicker();
+                    renderDrawerToggle();
+                } else {
+                    openEdit(idx, 'parallelHistory');
+                }
+            }
+            swiping = false;
+            dx = 0;
+        }, { passive: true });
         const inner = document.createElement('div');
         inner.className = "log-flow-inner";
         const bar = buildLogFlowBar(logSegmentColor(parallel), false);
@@ -3005,23 +3052,26 @@ function createLogRow(list, log, idx) {
     return wrap;
 }
 
-function openBackfillDrawer(parentLog) {
+function openBackfillDrawer(parentLog, options = {}) {
+    const liveParent = options.liveParent === true;
     pickerMode = 'parallel-backfill';
     document.getElementById('drawer-title').innerText = `↳ 补录并行于 ${displayName(parentLog)}`;
     document.getElementById('parallel-time-row').classList.remove('hidden');
     document.getElementById('drawer-footer').classList.remove('hidden');
     document.getElementById('drawer-note').value = '';
     document.getElementById('drawer-note').placeholder = '备注（选填）';
-    const parentEnd = parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
+    const parentEnd = liveParent
+        ? nowSecondMs()
+        : (parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000));
     _backfillRange = { start: parentLog.startTime, end: parentEnd };
     setTimeInFields('ps', new Date(parentLog.startTime));
     setTimeInFields('pe', new Date(parentEnd));
-    syncBackfillProgress(parentLog);
+    syncBackfillProgress(parentLog, parentEnd);
     setupBackfillDrag(parentLog, parentEnd);
     _parallelCallback = (l1, l2) => {
         const cat = getCat(l1);
         const startMs = parseTimeFromInput('ps', parentLog.startTime);
-        const realParentEnd = parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
+        const realParentEnd = parentEnd;
         const clampedStart = Math.max(parentLog.startTime, Math.min(realParentEnd, startMs));
         const clampedEnd = Math.max(parentLog.startTime, Math.min(realParentEnd, parseTimeFromInput('pe', parentLog.startTime)));
         const e = clampedEnd > clampedStart ? clampedEnd : Math.min(realParentEnd, clampedStart + 60000);
@@ -3048,8 +3098,13 @@ function openBackfillDrawer(parentLog) {
             parallel: true,
             parentId: parentLog.id || parentLog.startTime
         };
-        logs.unshift(entry);
-        localStorage.setItem('v9_logs', JSON.stringify(logs));
+        if (liveParent) {
+            parallelHistory.unshift(entry);
+            localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+        } else {
+            logs.unshift(entry);
+            localStorage.setItem('v9_logs', JSON.stringify(logs));
+        }
         renderAll();
     };
     if (drawerViewMode === 'columns') drawerViewMode = 'flat';
@@ -3210,7 +3265,7 @@ function setupBackfillDrag(parentLog, parentEnd) {
         const ms = parentLog.startTime + total * pct;
         const prefix = target === 'start' ? 'ps' : 'pe';
         setTimeInFields(prefix, new Date(ms));
-        syncBackfillProgress(parentLog);
+        syncBackfillProgress(parentLog, parentEnd);
     };
 
     const clientXFromEvent = (e) => {
@@ -3291,8 +3346,8 @@ function setupBackfillDrag(parentLog, parentEnd) {
     document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend', onEnd);
 }
-function syncBackfillProgress(parentLog) {
-    const parentEnd = parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
+function syncBackfillProgress(parentLog, parentEndOverride) {
+    const parentEnd = parentEndOverride || parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000);
     const total = parentEnd - parentLog.startTime;
     if (total <= 0) return;
     let startMs = parseTimeFromInput('ps', parentLog.startTime);
