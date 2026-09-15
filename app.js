@@ -996,6 +996,7 @@ function renderHomeHistory() {
                     list.appendChild(wrap);
                 });
         });
+        appendUnattachedParallelLogs(list, parallelLogs, normalLogs);
     });
 }
 
@@ -3034,6 +3035,7 @@ function renderLogs(listId, dateStr) {
             list.appendChild(wrap);
         });
     });
+    appendUnattachedParallelLogs(list, parallelLogs, normalLogs);
 
     if (dayLogs.length === 0 && !(isDateToday(dateStr) && (current || parallelCurrent))) {
         const empty = document.createElement('div');
@@ -3042,6 +3044,26 @@ function renderLogs(listId, dateStr) {
         list.appendChild(empty);
     }
     if (moreWrap) moreWrap.innerHTML = '';
+}
+
+// 已保存的并行绝不能因为旧数据的 parentId 不匹配而从流水中消失。
+function appendUnattachedParallelLogs(list, parallelLogs, normalLogs) {
+    const parentIds = new Set(normalLogs.map((item) => item.id));
+    const unattached = parallelLogs
+        .filter((item) => !parentIds.has(item.parentId))
+        .sort((a, b) => b.startTime - a.startTime);
+    if (!unattached.length) return;
+
+    const label = document.createElement('div');
+    label.className = 'parallel-flow-label px-1 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest';
+    label.innerText = '并行记录';
+    list.appendChild(label);
+    unattached.forEach((item) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'log-flow-nest mt-1 mb-1';
+        createLogRow(wrap, item, logs.indexOf(item));
+        list.appendChild(wrap);
+    });
 }
 
 function createLogRow(list, log, idx) {
