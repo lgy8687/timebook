@@ -209,6 +209,16 @@ function colorWithAlpha(color, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function colorOnWhite(color, strength) {
+    const hex = safeColor(color, '#f59e0b');
+    const value = parseInt(hex.slice(1), 16);
+    const r = (value >> 16) & 255;
+    const g = (value >> 8) & 255;
+    const b = value & 255;
+    const mix = (channel) => Math.round(255 + (channel - 255) * strength);
+    return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
 function getActiveZone() {
     if (isSceneActive()) {
         return { label: current.l2 || current.l1 || '场景', color: getSceneColor(current.l2) };
@@ -1297,7 +1307,7 @@ function applySceneFlowCardTheme(card, log) {
     const color = logSegmentColor(log);
     card.classList.add('log-flow-card--scene');
     card.style.setProperty('--tb-scene-color', color);
-    card.style.backgroundColor = colorWithAlpha(color, 0.10);
+    card.style.backgroundColor = colorOnWhite(color, 0.10);
     card.style.boxShadow = `inset 0 0 0 1px ${colorWithAlpha(color, 0.38)}`;
 }
 
@@ -1641,14 +1651,14 @@ function parseTimeOnBeijingDate(prefix, dateStr) {
 }
 
 function getEditBoundaryNeighbors(log) {
-    const sameDay = logs
-        .filter(l => !l.parallel && l.id !== log.id && formatBeijingDate(l.startTime) === formatBeijingDate(log.startTime))
+    const mainRecords = logs
+        .filter(l => !l.parallel && l.id !== log.id)
         .sort((a, b) => a.startTime - b.startTime);
-    const activeNext = current && formatBeijingDate(current.startTime) === formatBeijingDate(log.startTime)
-        && current.startTime > log.startTime ? current : null;
+    if (current && current.id !== log.id) mainRecords.push(current);
+    mainRecords.sort((a, b) => a.startTime - b.startTime);
     return {
-        previous: [...sameDay].reverse().find(l => l.startTime < log.startTime) || null,
-        next: sameDay.find(l => l.startTime > log.startTime) || activeNext
+        previous: [...mainRecords].reverse().find((item) => logEndMs(item) <= log.startTime) || null,
+        next: mainRecords.find((item) => item.startTime >= logEndMs(log)) || null
     };
 }
 
