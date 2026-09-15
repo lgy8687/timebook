@@ -171,9 +171,11 @@ function repairOrphanedParallelParents() {
     };
     let changed = false;
     logs.forEach((item) => {
-        if (!item.parallel || mainLogs.some((main) => main.id === item.parentId)) return;
+        if (!item.parallel) return;
         const parent = findParent(item);
-        if (parent) {
+        // 主线时间轴本身不重叠，因此按真实重叠时间找父级比沿用旧 id 更可靠。
+        // 场景跨日、补录改日期后，旧 id 可能仍存在却指向了错误的主线。
+        if (parent && item.parentId !== parent.id) {
             item.parentId = parent.id;
             changed = true;
         }
