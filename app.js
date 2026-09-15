@@ -26,7 +26,7 @@ function genId() {
 const DEFAULT_CATS = [
     { id: 1, name: "工作", icon: "💼", color: "#3b82f6", subs: ["办公", "开会", "沟通", "见客户", "上班"] },
     { id: 2, name: "学习", icon: "📘", color: "#6366f1", subs: ["学习", "阅读", "上课", "备考"] },
-    { id: 3, name: "生活", icon: "🏠", color: "#f59e0b", subs: ["睡觉", "起床", "洗漱", "家务", "做饭", "餐饮"] },
+    { id: 3, name: "生活", icon: "🏠", color: "#f59e0b", subs: ["睡觉", "起床", "洗漱", "家务", "做饭", "餐饮"], systemSleep: true },
     { id: 4, name: "出行", icon: "🧭", color: "#ef4444", subs: ["开车", "网约车", "公交", "地铁", "高铁", "飞机", "步行", "骑行"] },
     { id: 5, name: "休闲", icon: "🎧", color: "#a855f7", subs: ["游戏", "刷手机", "娱乐", "社交", "购物", "休息"] },
     { id: 6, name: "锻炼", icon: "🏅", color: "#14b8a6", subs: ["运动", "健身", "跑步", "散步", "瑜伽", "冥想"] }
@@ -64,6 +64,41 @@ if (!cats.some((cat) => cat.name === '场景')) {
     cats.push({ id: genId(), name: '场景', icon: '🧳', color: '#0f9f8c', subs: ['出差', '旅行', '聚会'] });
     localStorage.setItem('v9_cats', JSON.stringify(cats));
 }
+
+function ensureSystemSleepCategory() {
+    let changed = false;
+    let cat = cats.find((item) => item.systemSleep)
+        || cats.find((item) => item.name === '生活' && Array.isArray(item.subs) && item.subs.includes('睡觉'));
+    if (!cat) {
+        cat = { id: genId(), name: '生活', icon: '🏠', color: '#f59e0b', subs: ['睡觉'], systemSleep: true };
+        cats.push(cat);
+        changed = true;
+    }
+    if (!Array.isArray(cat.subs)) {
+        cat.subs = [];
+        changed = true;
+    }
+    if (!cat.subs.includes('睡觉')) {
+        cat.subs.unshift('睡觉');
+        changed = true;
+    }
+    if (!cat.systemSleep) {
+        cat.systemSleep = true;
+        changed = true;
+    }
+    if (changed) localStorage.setItem('v9_cats', JSON.stringify(cats));
+    return cat;
+}
+
+function isSystemSleep(cat, name) {
+    return !!cat?.systemSleep && name === '睡觉';
+}
+
+function isSystemSleepSelection(l1, l2) {
+    return isSystemSleep(getCat(l1), l2);
+}
+
+ensureSystemSleepCategory();
 const SCENE_COLOR_PALETTE = ['#0ea5e9', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444', '#f59e0b', '#6366f1', '#22c55e'];
 const DEFAULT_SCENE_COLORS = { '出差': '#0ea5e9', '旅行': '#8b5cf6', '聚会': '#ec4899' };
 let sceneSettings = safeJSON('v9_scene_settings', {}) || {};
@@ -4057,6 +4092,9 @@ function resolveReportCategoryAverage(slot, periodData, view) {
         return { value: '—', label: '类别平均' };
     }
     const now = nowSecondMs();
+    if (isSystemSleepSelection(l1, l2)) {
+        return resolveSystemSleepAverage(slot, range, now);
+    }
     const observedEnd = Math.min(range.end, now);
     const records = getSegmentsInRange(range.start, observedEnd, now)
         .filter((record) => l1 ? record.l1 === l1 && (!l2 || record.l2 === l2) : record.l1 === category);
@@ -4066,12 +4104,49 @@ function resolveReportCategoryAverage(slot, periodData, view) {
         if (crossesIntoPeriod && slot.carry === 'previous') return;
         totalMs += crossesIntoPeriod ? record.endTime - record.startTime : record.clippedEnd - record.clippedStart;
     });
-    // 未结束的本周/本月按实际已经经过的时长折算，周三刚过零点不会被提前当成完整第三天。
-    // 类别平均用于观察某个行为本身，主线、场景和并行中的同类记录都应计入。
+    // 其他类别按实际已经过的时长折算；睡眠有独立的完整自然日规则。
     const days = Math.max(1, (observedEnd - range.start) / DAY_MS);
     return {
         value: formatDuration(Math.round(totalMs / days / 1000) * 1000),
         label: `${category}平均`,
+    };
+}
+
+function resolveSystemSleepAverage(slot, range, now) {
+    // 今天尚未结束，不参与睡眠平均的分母；完整结束但没有睡眠的日期自然按 0 小时计算。
+    const completedEnd = Math.min(range.end, beijingDateStrToDayStart(getTodayDateStr()));
+    const days = Math.max(0, Math.floor((completedEnd - range.start) / DAY_MS));
+    if (!days) return { value: '—', label: '睡眠日均' };
+
+    const source = logs
+        .concat(parallelHistory)
+        .concat(parallelCurrent ? [{ ...parallelCurrent, endTime: now }] : [])
+        .filter((record) => isSystemSleepSelection(record.l1, record.l2))
+        .map((record) => ({ start: record.startTime, end: logEndMs(record, record.endTime || now) }))
+        .filter((record) => Number.isFinite(record.start) && Number.isFinite(record.end) && record.end > record.start)
+        .sort((a, b) => a.start - b.start);
+
+    // 场景跨零点会把一晚睡眠切成多个片段；这里合并连续片段，再整体归到醒来的那一天。
+    const nights = [];
+    source.forEach((record) => {
+        const previous = nights[nights.length - 1];
+        if (previous && record.start <= previous.end + 1000) {
+            previous.end = Math.max(previous.end, record.end);
+        } else {
+            nights.push({ ...record });
+        }
+    });
+
+    let totalMs = 0;
+    nights.forEach((night) => {
+        const crossesIntoPeriod = night.start < range.start && night.end > range.start;
+        if (crossesIntoPeriod && slot.carry === 'previous') return;
+        const wakeDay = beijingDateStrToDayStart(formatBeijingDate(night.end));
+        if (wakeDay >= range.start && wakeDay < completedEnd) totalMs += night.end - night.start;
+    });
+    return {
+        value: formatDuration(Math.round(totalMs / days / 1000) * 1000),
+        label: '睡眠日均',
     };
 }
 
@@ -4970,6 +5045,10 @@ function editL1(id) {
 function editS(id, oldName) {
     const cat = cats.find(c => c.id == id);
     if (!cat) return;
+    if (isSystemSleep(cat, oldName)) {
+        showConfirm('睡觉为系统级设置', '睡觉用于睡眠统计，不支持重命名或更换图标。', '知道了', () => {});
+        return;
+    }
     showPrompt("编辑子分类", "输入新的子类名称", oldName, (name) => {
         if (name === null) return;
         const next = name.trim();
@@ -4998,6 +5077,10 @@ function editS(id, oldName) {
 function delS(id, name) {
     const cat = cats.find(c => c.id == id);
     if (!cat) return;
+    if (isSystemSleep(cat, name)) {
+        showConfirm('睡觉为系统级设置', '睡觉用于睡眠统计，不能删除。', '知道了', () => {});
+        return;
+    }
     if (cat.name === '场景' && current?.scene && current.l2 === name) {
         showConfirm('场景正在进行中', '请先结束或切换当前场景，再删除它。', '知道了', () => {});
         return;
@@ -5016,6 +5099,10 @@ function delS(id, name) {
 }
 function delL1(id) {
     const cat = cats.find(c => c.id === id);
+    if (cat?.systemSleep) {
+        showConfirm('包含系统级睡觉', '“睡觉”是固定的系统设置，不能删除其所属分类。', '知道了', () => {});
+        return;
+    }
     if (cat?.name === '场景') {
         showConfirm('场景分类不可删除', '场景用于保存出差、旅行等区域记录，不能删除。', '知道了', () => {});
         return;
