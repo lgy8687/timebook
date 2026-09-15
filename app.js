@@ -1565,6 +1565,15 @@ function openEdit(index, source = 'logs') {
     document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration(previewEnd - log.startTime)}`;
     setTimeInFields('es', new Date(log.startTime));
     setTimeInFields('ee', new Date(previewEnd));
+    const dateRow = document.getElementById('edit-parallel-date-row');
+    const dateInput = document.getElementById('edit-parallel-date');
+    if (log.parallel) {
+        dateRow.classList.remove('hidden');
+        dateInput.value = formatBeijingDate(log.startTime);
+    } else {
+        dateRow.classList.add('hidden');
+        dateInput.value = '';
+    }
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -1599,6 +1608,15 @@ function parseEditClock(value, referenceMs) {
     if (h > 23 || m > 59 || s > 59) return null;
     const date = formatBeijingDate(referenceMs);
     return beijingDateStrToDayStart(date) + (h * 3600 + m * 60 + s) * 1000;
+}
+
+function parseTimeOnBeijingDate(prefix, dateStr) {
+    const h = parseInt(document.getElementById(prefix + '-h').value, 10);
+    const m = parseInt(document.getElementById(prefix + '-m').value, 10);
+    const s = parseInt(document.getElementById(prefix + '-s').value, 10);
+    if (![h, m, s].every(Number.isFinite) || h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr || '')) return null;
+    return beijingDateStrToDayStart(dateStr) + (h * 3600 + m * 60 + s) * 1000;
 }
 
 function getEditBoundaryNeighbors(log) {
@@ -1722,8 +1740,9 @@ function confirmEdit() {
     const collection = editTarget.source === 'parallelHistory' ? parallelHistory : logs;
     const log = collection.find((item) => item.id === editTarget.id);
     if (!log) return;
-    const newStart = parseTimeFromInput('es', log.startTime);
-    const newEnd = parseTimeFromInput('ee', log.startTime);
+    const editedDate = log.parallel ? document.getElementById('edit-parallel-date').value : '';
+    const newStart = log.parallel ? parseTimeOnBeijingDate('es', editedDate) : parseTimeFromInput('es', log.startTime);
+    const newEnd = log.parallel ? parseTimeOnBeijingDate('ee', editedDate) : parseTimeFromInput('ee', log.startTime);
     if (newStart === null || newEnd === null) {
         showConfirm('时间格式不正确', '请输入 HH:MM 或 HH:MM:SS。', '知道了', () => {});
         return;
@@ -1751,8 +1770,9 @@ function confirmActiveParallelEdit() {
     const target = editTarget;
     const log = parallelCurrent;
     if (!target || !log || log.id !== target.id) return;
-    const newStart = parseTimeFromInput('es', log.startTime);
-    const newEnd = parseTimeFromInput('ee', log.startTime);
+    const editedDate = document.getElementById('edit-parallel-date').value;
+    const newStart = parseTimeOnBeijingDate('es', editedDate);
+    const newEnd = parseTimeOnBeijingDate('ee', editedDate);
     const now = nowSecondMs();
     if (newStart === null || newEnd === null || newStart >= newEnd) {
         showConfirm('时间不合法', '开始时间必须早于结束时间。', '知道了', () => {});
@@ -1762,20 +1782,33 @@ function confirmActiveParallelEdit() {
         showConfirm('结束时间还没到', '进行中的并行不能填写未来时间。', '知道了', () => {});
         return;
     }
+    const sceneTarget = current?.scene ? getSceneBackfillTarget(current.l2, editedDate) : null;
+    if (current?.scene && !sceneTarget) {
+        showConfirm('当天没有这个场景', '请先选择该场景实际覆盖到的日期。', '知道了', () => {});
+        return;
+    }
     const draft = { ...log, endTime: target.liveEnd, duration: Math.round((target.liveEnd - log.startTime) / 60000) };
     applyEditedRange(draft, newStart, newEnd, () => {
         if (editOldL1) { draft.l1 = editOldL1; draft.l2 = editOldL2; }
         draft.note = document.getElementById('edit-note-input').value;
         if (draft.l1) rememberInputAlias(draft.note, draft.l1, draft.l2);
-        const keepRunning = Math.floor(newEnd / 1000) === Math.floor(target.liveEnd / 1000);
+        const keepRunning = editedDate === getTodayDateStr()
+            && Math.floor(newEnd / 1000) === Math.floor(target.liveEnd / 1000);
         if (keepRunning) {
             parallelCurrent = { ...log, l1: draft.l1, l2: draft.l2, note: draft.note, startTime: draft.startTime };
             localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
         } else {
-            parallelHistory.unshift({ ...draft, endTime: draft.endTime, duration: Math.round((draft.endTime - draft.startTime) / 60000), parallel: true });
+            if (sceneTarget) draft.parentId = sceneTarget.parent.id || sceneTarget.parent.startTime;
+            const finished = { ...draft, endTime: draft.endTime, duration: Math.round((draft.endTime - draft.startTime) / 60000), parallel: true };
+            if (sceneTarget && !sceneTarget.liveParent) {
+                logs.unshift(finished);
+                localStorage.setItem('v9_logs', JSON.stringify(logs));
+            } else {
+                parallelHistory.unshift(finished);
+                localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+            }
             parallelCurrent = null;
             localStorage.removeItem('v9_parallel');
-            localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
         }
         document.getElementById('edit-modal').classList.add('hidden');
         editIndex = null;

@@ -8,7 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=4.79">
+    <link rel="stylesheet" href="style.css?v=4.80">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.0">
 </head>
@@ -41,7 +41,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v4.79</div>
+            <div id="cache-buster" class="version-below-daybar">v4.80</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -479,6 +479,10 @@
             <h3 class="text-sm font-black mb-1">✏️ 修改记录</h3>
             <div id="edit-log-preview" class="text-[10px] text-slate-400 mb-3"></div>
             <div class="space-y-3">
+                <div id="edit-parallel-date-row" class="hidden flex items-center justify-between bg-slate-50 rounded-2xl px-4 py-2.5">
+                    <span class="text-[10px] font-bold text-slate-400">日期</span>
+                    <input id="edit-parallel-date" type="date" class="bg-transparent text-sm font-mono font-bold text-slate-700 border-none focus:outline-none text-right" autocomplete="off">
+                </div>
                 <div id="edit-cat-btn" class="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 flex items-center justify-between cursor-pointer">
                     <span id="edit-cat-display">选择分类</span>
                     <span class="text-slate-300">›</span>
@@ -533,7 +537,7 @@
     <script src="report-metrics.js?v=1.8"></script>
     <script src="report.js?v=2.1"></script>
     <script src="ui-theme.js?v=4.66"></script>
-    <script src="app.js?v=4.79"></script>
+    <script src="app.js?v=4.80"></script>
     <script src="dev-appearance.js?v=4.66"></script>
 </body>
 </html>
