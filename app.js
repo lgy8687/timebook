@@ -2848,7 +2848,10 @@ function renderLogs(listId, dateStr) {
         inner.append(bar, body);
         liveCard.appendChild(inner);
         liveCard.title = '补录一段已结束的并行活动';
-        liveCard.addEventListener('click', () => openBackfillDrawer(current, { liveParent: true }));
+        liveCard.addEventListener('click', () => {
+            if (current?.scene) openSceneParallelBackfillDrawer(current);
+            else openBackfillDrawer(current, { liveParent: true });
+        });
         liveWrap.appendChild(liveCard);
         list.appendChild(liveWrap);
     }
@@ -3085,11 +3088,115 @@ function createLogRow(list, log, idx) {
     return wrap;
 }
 
+function getSceneBackfillTarget(sceneName, dateStr) {
+    const today = getTodayDateStr();
+    if (dateStr === today && current?.scene && current.l2 === sceneName) {
+        return { parent: current, end: nowSecondMs(), liveParent: true };
+    }
+    const matches = logs
+        .filter((item) => !item.parallel && item.scene && item.l2 === sceneName && logTouchesDate(item, dateStr))
+        .sort((a, b) => b.startTime - a.startTime);
+    if (!matches.length) return null;
+    const parent = matches[0];
+    return { parent, end: logEndMs(parent), liveParent: false };
+}
+
+function getSceneBackfillDateBounds(sceneName) {
+    const starts = logs
+        .filter((item) => !item.parallel && item.scene && item.l2 === sceneName)
+        .map((item) => item.startTime);
+    if (current?.scene && current.l2 === sceneName) starts.push(current.startTime);
+    const earliest = starts.length ? Math.min(...starts) : nowSecondMs();
+    return { min: formatBeijingDate(earliest), max: getTodayDateStr() };
+}
+
+function openSceneParallelBackfillDrawer(sceneLog) {
+    const sceneName = sceneLog.l2;
+    const dateInput = document.getElementById('parallel-date');
+    const dateRow = document.getElementById('parallel-date-row');
+    const context = { sceneName, selectedDate: getTodayDateStr(), target: null };
+
+    pickerMode = 'parallel-backfill';
+    document.getElementById('drawer-title').innerText = `↳ 补录并行于 ${displayName(sceneLog)}`;
+    document.getElementById('parallel-time-row').classList.remove('hidden');
+    document.getElementById('drawer-footer').classList.remove('hidden');
+    document.getElementById('drawer-note').value = '';
+    document.getElementById('drawer-note').placeholder = '备注（选填）';
+    dateRow.classList.remove('hidden');
+    const bounds = getSceneBackfillDateBounds(sceneName);
+    dateInput.min = bounds.min;
+    dateInput.max = bounds.max;
+
+    const applyDate = (dateStr) => {
+        const target = getSceneBackfillTarget(sceneName, dateStr);
+        if (!target) {
+            showConfirm('当天没有这个场景', '请选择该场景实际覆盖到的日期。', '知道了', () => {});
+            dateInput.value = context.selectedDate;
+            return false;
+        }
+        context.selectedDate = dateStr;
+        context.target = target;
+        const { parent, end } = target;
+        _backfillRange = { start: parent.startTime, end };
+        setTimeInFields('ps', new Date(parent.startTime));
+        setTimeInFields('pe', new Date(end));
+        syncBackfillProgress(parent, end);
+        setupBackfillDrag(parent, end);
+        _parallelCallback = (l1, l2) => {
+            const active = context.target;
+            if (!active) return;
+            const parentLog = active.parent;
+            const parentEnd = active.end;
+            const startMs = parseTimeFromInput('ps', parentLog.startTime);
+            const endMs = parseTimeFromInput('pe', parentLog.startTime);
+            const start = Math.max(parentLog.startTime, Math.min(parentEnd, startMs));
+            const finish = Math.max(parentLog.startTime, Math.min(parentEnd, endMs));
+            if (finish <= start) {
+                showConfirm('时间不合法', '结束时间必须晚于开始时间。', '知道了', () => {});
+                return;
+            }
+            const parentId = parentLog.id || parentLog.startTime;
+            const conflicts = [...logs.filter((item) => item.parallel && item.parentId === parentId), ...parallelHistory]
+                .some((item) => item.startTime < finish && logEndMs(item) > start);
+            if (conflicts) {
+                showConfirm('时间已被占用', '这段时间已有并行活动，请调整后重试。', '知道了', () => {});
+                return;
+            }
+            const cat = getCat(l1);
+            const entry = {
+                id: genId(), startTime: start, endTime: finish,
+                duration: Math.round((finish - start) / 60000),
+                l1, l2: l2 || '', tag: '', note: document.getElementById('drawer-note').value || '',
+                color: cat?.color || '#cbd5e1', parallel: true, parentId
+            };
+            if (active.liveParent) {
+                parallelHistory.unshift(entry);
+                localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+            } else {
+                logs.unshift(entry);
+                localStorage.setItem('v9_logs', JSON.stringify(logs));
+            }
+            renderAll();
+        };
+        return true;
+    };
+
+    dateInput.value = context.selectedDate;
+    dateInput.onchange = () => applyDate(dateInput.value);
+    if (!applyDate(context.selectedDate)) return;
+    if (drawerViewMode === 'columns') drawerViewMode = 'flat';
+    renderPicker();
+    renderDrawerToggle();
+    showDrawer();
+}
+
 function openBackfillDrawer(parentLog, options = {}) {
     const liveParent = options.liveParent === true;
     pickerMode = 'parallel-backfill';
     document.getElementById('drawer-title').innerText = `↳ 补录并行于 ${displayName(parentLog)}`;
     document.getElementById('parallel-time-row').classList.remove('hidden');
+    document.getElementById('parallel-date-row').classList.add('hidden');
+    document.getElementById('parallel-date').onchange = null;
     document.getElementById('drawer-footer').classList.remove('hidden');
     document.getElementById('drawer-note').value = '';
     document.getElementById('drawer-note').placeholder = '备注（选填）';
