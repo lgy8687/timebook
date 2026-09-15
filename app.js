@@ -1747,11 +1747,40 @@ function confirmEdit() {
         showConfirm('时间格式不正确', '请输入 HH:MM 或 HH:MM:SS。', '知道了', () => {});
         return;
     }
+    const linkedParent = log.parallel
+        ? (logs.find((item) => !item.parallel && item.id === log.parentId)
+            || (current?.id === log.parentId ? current : null))
+        : null;
+    const sceneName = linkedParent
+        ? (linkedParent.scene ? linkedParent.l2 : '')
+        : (editTarget.source === 'parallelHistory' && current?.scene ? current.l2 : '');
+    const sceneTarget = log.parallel && sceneName ? getSceneBackfillTarget(sceneName, editedDate) : null;
+    if (log.parallel && sceneName && !sceneTarget) {
+        showConfirm('当天没有这个场景', '请先选择该场景实际覆盖到的日期。', '知道了', () => {});
+        return;
+    }
     const finish = () => {
         if (editOldL1) { log.l1 = editOldL1; log.l2 = editOldL2; }
         log.note = document.getElementById('edit-note-input').value;
         if (log.l1) rememberInputAlias(log.note, log.l1, log.l2);
-        if (editTarget.source === 'parallelHistory') {
+        if (sceneTarget) log.parentId = sceneTarget.parent.id || sceneTarget.parent.startTime;
+
+        // parallelHistory 只用于今天仍挂在进行中主线上的并行；跨日期后必须搬入对应日期的正式流水。
+        const moveToCompletedScene = log.parallel && editTarget.source === 'parallelHistory'
+            && sceneTarget && !sceneTarget.liveParent;
+        const moveToLiveScene = log.parallel && editTarget.source === 'logs'
+            && sceneTarget && sceneTarget.liveParent && editedDate === getTodayDateStr();
+        if (moveToCompletedScene) {
+            parallelHistory = parallelHistory.filter((item) => item.id !== log.id);
+            logs.unshift(log);
+            localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+            localStorage.setItem('v9_logs', JSON.stringify(logs));
+        } else if (moveToLiveScene) {
+            logs = logs.filter((item) => item.id !== log.id);
+            parallelHistory.unshift(log);
+            localStorage.setItem('v9_logs', JSON.stringify(logs));
+            localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+        } else if (editTarget.source === 'parallelHistory') {
             localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
         } else {
             mergeAdjacentSameActivity();
