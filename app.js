@@ -994,6 +994,7 @@ function renderHomeHistory() {
                 .forEach((child) => {
                     const wrap = document.createElement('div');
                     wrap.className = 'log-flow-nest mt-1 mb-1';
+                    applySceneNestTheme(wrap, log);
                     createLogRow(wrap, child, logs.indexOf(child));
                     list.appendChild(wrap);
                 });
@@ -1291,6 +1292,21 @@ function logSegmentColor(log) {
     return getCat(log?.l1)?.color || log?.color || '#cbd5e1';
 }
 
+function applySceneFlowCardTheme(card, log) {
+    if (!log?.scene) return;
+    const color = logSegmentColor(log);
+    card.classList.add('log-flow-card--scene');
+    card.style.setProperty('--tb-scene-color', color);
+    card.style.backgroundColor = colorWithAlpha(color, 0.10);
+    card.style.boxShadow = `inset 0 0 0 1px ${colorWithAlpha(color, 0.38)}`;
+}
+
+function applySceneNestTheme(nest, parentLog) {
+    if (!parentLog?.scene) return;
+    nest.classList.add('log-flow-nest--scene');
+    nest.style.setProperty('--tb-scene-color', logSegmentColor(parentLog));
+}
+
 function applyClockLayout() {
     const p = getClockPrefs();
     const stage = document.getElementById('clock-stage');
@@ -1567,7 +1583,8 @@ function openEdit(index, source = 'logs') {
     const previewEnd = liveEnd || logEndMs(log);
     document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration(previewEnd - log.startTime)}`;
     setTimeInFields('es', new Date(log.startTime));
-    setTimeInFields('ee', new Date(previewEnd));
+    const endIsNextDayStart = previewEnd === beijingDateStrToDayStart(formatBeijingDate(log.startTime)) + DAY_MS;
+    setTimeInFields('ee', new Date(previewEnd), { show24: endIsNextDayStart });
     const dateRow = document.getElementById('edit-parallel-date-row');
     const dateInput = document.getElementById('edit-parallel-date');
     if (log.parallel) {
@@ -1617,8 +1634,9 @@ function parseTimeOnBeijingDate(prefix, dateStr) {
     const h = parseInt(document.getElementById(prefix + '-h').value, 10);
     const m = parseInt(document.getElementById(prefix + '-m').value, 10);
     const s = parseInt(document.getElementById(prefix + '-s').value, 10);
-    if (![h, m, s].every(Number.isFinite) || h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59) return null;
+    if (![h, m, s].every(Number.isFinite) || h < 0 || h > 24 || m < 0 || m > 59 || s < 0 || s > 59) return null;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr || '')) return null;
+    if (h === 24) return prefix === 'ee' && m === 0 && s === 0 ? beijingDateStrToDayStart(dateStr) + DAY_MS : null;
     return beijingDateStrToDayStart(dateStr) + (h * 3600 + m * 60 + s) * 1000;
 }
 
@@ -2897,6 +2915,7 @@ function renderLogs(listId, dateStr) {
         liveWrap.className = "swipe-wrap";
         const liveCard = document.createElement('div');
         liveCard.className = logFlowCardClass('main-live');
+        applySceneFlowCardTheme(liveCard, current);
         const inner = document.createElement('div');
         inner.className = "log-flow-inner";
         const bar = buildLogFlowBar(logSegmentColor(current), false);
@@ -3033,6 +3052,7 @@ function renderLogs(listId, dateStr) {
             const childIdx = logs.indexOf(child);
             const wrap = document.createElement('div');
             wrap.className = 'log-flow-nest mt-1 mb-1';
+            applySceneNestTheme(wrap, log);
             createLogRow(wrap, child, childIdx);
             list.appendChild(wrap);
         });
@@ -3090,6 +3110,7 @@ function createLogRow(list, log, idx) {
 
     const card = document.createElement('div');
     card.className = logFlowCardClass(log.parallel ? 'parallel-log' : 'main-log');
+    applySceneFlowCardTheme(card, log);
 
     let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
     let _wasLongPress = false, _lpTimer = null;
@@ -3618,14 +3639,24 @@ function parseTimeFromInput(prefix, refDate) {
     const h = parseInt(document.getElementById(prefix + '-h').value) || 0;
     const m = parseInt(document.getElementById(prefix + '-m').value) || 0;
     const s = parseInt(document.getElementById(prefix + '-s').value) || 0;
-    const d = new Date(refDate);
-    d.setHours(Math.min(23, Math.max(0, h)), Math.min(59, Math.max(0, m)), Math.min(59, Math.max(0, s)), 0);
-    return d.getTime();
+    const dayStart = beijingDateStrToDayStart(formatBeijingDate(refDate));
+    if (h === 24) return prefix === 'ee' && m === 0 && s === 0 ? dayStart + DAY_MS : null;
+    return dayStart
+        + Math.min(23, Math.max(0, h)) * 3600000
+        + Math.min(59, Math.max(0, m)) * 60000
+        + Math.min(59, Math.max(0, s)) * 1000;
 }
-function setTimeInFields(prefix, date) {
-    document.getElementById(prefix + '-h').value = String(date.getHours()).padStart(2,'0');
-    document.getElementById(prefix + '-m').value = String(date.getMinutes()).padStart(2,'0');
-    document.getElementById(prefix + '-s').value = String(date.getSeconds()).padStart(2,'0');
+function setTimeInFields(prefix, date, options = {}) {
+    if (options.show24) {
+        document.getElementById(prefix + '-h').value = '24';
+        document.getElementById(prefix + '-m').value = '00';
+        document.getElementById(prefix + '-s').value = '00';
+        return;
+    }
+    const d = new Date(date.getTime() + BJ_OFFSET);
+    document.getElementById(prefix + '-h').value = String(d.getUTCHours()).padStart(2,'0');
+    document.getElementById(prefix + '-m').value = String(d.getUTCMinutes()).padStart(2,'0');
+    document.getElementById(prefix + '-s').value = String(d.getUTCSeconds()).padStart(2,'0');
 }
 let _backfillRange = null;
 
@@ -3755,7 +3786,7 @@ function isTimeInParentRange() {
 ['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s','es-h','es-m','es-s','ee-h','ee-m','ee-s'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    const max = id.endsWith('-h') ? 23 : 59;
+    const max = id === 'ee-h' ? 24 : (id.endsWith('-h') ? 23 : 59);
     initTimeField(el, max);
 });
 ['fb-h','fb-m','fb-s','fe-h','fe-m','fe-s'].forEach(id => {
