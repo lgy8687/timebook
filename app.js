@@ -209,6 +209,24 @@ if (current) localStorage.setItem('v9_current', JSON.stringify(current));
 if (parallelCurrent) localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
 if (parallelHistory.length) localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
 
+// 旧版本曾用时间戳作为主线 ID；极端情况下场景和生活主线会共用一个 ID，
+// 令同一条并行同时挂到两边。先保证每个已结束主线都有唯一 ID，再修复子级归属。
+function repairDuplicateMainLogIds() {
+    const seen = new Set();
+    let changed = false;
+    logs.forEach((item) => {
+        if (item.parallel) return;
+        const idKey = item.id == null ? '' : String(item.id);
+        if (!idKey || seen.has(idKey)) {
+            item.id = genId();
+            changed = true;
+        }
+        seen.add(String(item.id));
+    });
+    if (changed) localStorage.setItem('v9_logs', JSON.stringify(logs));
+}
+repairDuplicateMainLogIds();
+
 function repairOrphanedParallelParents() {
     const mainLogs = logs.filter((item) => !item.parallel);
     const findParent = (parallelLog) => {
@@ -225,7 +243,7 @@ function repairOrphanedParallelParents() {
     let changed = false;
     logs.forEach((item) => {
         if (!item.parallel) return;
-        const linkedParent = mainLogs.find((main) => main.id === item.parentId);
+        const linkedParent = mainLogs.find((main) => String(main.id) === String(item.parentId));
         const linkedOverlap = linkedParent
             ? Math.max(0, Math.min(logEndMs(linkedParent), logEndMs(item)) - Math.max(linkedParent.startTime, item.startTime))
             : 0;
