@@ -1,9 +1,9 @@
 /**
- * 报表 v2.4 — 场景切片与全局活动明细分离
+ * 报表 v2.5 — 场景一级目录与独立覆盖弧
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.4';
+    const REPORT_VERSION = 'v2.5';
 
     let state = {
         period: 'day',
@@ -260,11 +260,11 @@
 
         document.getElementById('structure-title').textContent = '时间结构';
         document.getElementById('chart-legend-hint').textContent = isMain
-            ? '内环 = 一级目录 / 场景 · 外环 = 二级活动'
+            ? '内环 = 一级目录 · 外环 = 二级活动 · 最外弧 = 场景覆盖'
             : '内环 = 并行活动 · 外环 = 叠加明细';
 
         const chartL2 = isMain ? (chartBundle.l2Slices || chartBundle.l2) : chartBundle.l2;
-        renderSunburst(chartBundle.l1, chartL2, total, isMain);
+        renderSunburst(chartBundle.l1, chartL2, total, isMain, chartBundle.sceneCoverage || []);
         renderLegend(chartBundle.l1, chartBundle.l2, total, isMain);
 
         const insight = document.getElementById('insight-block');
@@ -278,7 +278,7 @@
         syncToolbar();
     }
 
-    function renderSunburst(l1, l2, total, isMain) {
+    function renderSunburst(l1, l2, total, isMain, sceneCoverage) {
         const svg = document.getElementById('sunburst-svg');
         if (!svg) return;
         const cx = 100, cy = 100;
@@ -286,6 +286,7 @@
         const outer = isMain
             ? buildEmbeddedOuterSegments(l1, l2, cx, cy, total || 1)
             : buildRingSegments(l2, cx, cy, 54, 80, total || 1, 'l1', false);
+        const sceneArcs = isMain ? buildSceneCoverageSegments(sceneCoverage, cx, cy, total || 1) : [];
 
         let html = '';
         inner.forEach((s) => {
@@ -297,6 +298,10 @@
             html += `<path d="${s.path}" fill="${s.color}" fill-opacity=".78" stroke="#fff" stroke-width=".5" class="outer-seg${remainder}" data-cat="${esc(s.l1)}"
                 data-title="${esc(s.name)}" data-sub="${esc(s.l1)}" data-hours="${fmtHours(s.hours)}" data-pct="${pct(s.hours, total)}"/>`;
         });
+        sceneArcs.forEach((s) => {
+            html += `<path d="${s.path}" fill="${s.color}" fill-opacity=".96" stroke="#fff" stroke-width=".8" class="scene-coverage-seg"
+                data-title="场景 / ${esc(s.name)}" data-hours="${fmtHours(s.hours)}" data-pct="${pct(s.hours, total)}"/>`;
+        });
         const centerVal = Math.round(total * 10) / 10;
         html += `<circle cx="100" cy="100" r="26" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>`;
         html += `<text x="100" y="96" text-anchor="middle" fill="#1e293b" font-size="17" font-weight="800">${centerVal}</text>`;
@@ -306,6 +311,10 @@
         svg.querySelectorAll('.inner-seg').forEach(bindSegTip);
         svg.querySelectorAll('.outer-seg:not(.scene-remainder)').forEach((el) => {
             el.addEventListener('mouseenter', (e) => showTipOuter(e, el.dataset.title, isMain ? '' : el.dataset.sub, el.dataset.hours, el.dataset.pct));
+            el.addEventListener('mouseleave', hideTip);
+        });
+        svg.querySelectorAll('.scene-coverage-seg').forEach((el) => {
+            el.addEventListener('mouseenter', (e) => showTip(e, el.dataset.title, el.dataset.hours, el.dataset.pct));
             el.addEventListener('mouseleave', hideTip);
         });
     }
@@ -346,6 +355,24 @@
                 });
             }
             angle += parentSweep;
+        });
+        return rows;
+    }
+
+    // 场景覆盖是观察维度：从圆顶 0 度开始画独立弧，不加入中心的 24 小时合计。
+    function buildSceneCoverageSegments(items, cx, cy, total) {
+        let angle = 0;
+        const rows = [];
+        items.filter((item) => item.hours > 0).forEach((item) => {
+            const sweep = Math.min(360 - angle, (item.hours / total) * 360);
+            if (sweep <= 0) return;
+            rows.push({
+                path: arcPath(cx, cy, 84, 89, angle, angle + sweep),
+                name: item.name,
+                hours: item.hours,
+                color: reportColor(item.color, item.name),
+            });
+            angle += sweep;
         });
         return rows;
     }
