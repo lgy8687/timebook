@@ -1,9 +1,9 @@
 /**
- * 报表 v2.5 — 场景一级目录与独立覆盖弧
+ * 报表 v2.6 — 真实时刻场景弧与高区分活动色
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.5';
+    const REPORT_VERSION = 'v2.6';
 
     let state = {
         period: 'day',
@@ -18,6 +18,7 @@
     let getPeriodData = null;
     let eventsBound = false;
     const REPORT_COLORS = ['#2563eb', '#f97316', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#eab308', '#ec4899', '#14b8a6', '#f43f5e', '#6366f1', '#84cc16'];
+    const ACTIVITY_COLORS = ['#2563eb', '#f97316', '#0f9f8c', '#8b5cf6', '#dc2626', '#ca8a04', '#0891b2', '#c026d3', '#65a30d', '#4f46e5', '#be123c', '#0f766e'];
 
     function colorForKey(key, fallback) {
         const text = String(key || fallback || '');
@@ -31,6 +32,15 @@
         if (/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)) return color;
         if (/^(?:rgb|rgba|hsl|hsla)\([\d\s.,%]+\)$/i.test(color)) return color;
         return colorForKey(fallback, fallback);
+    }
+
+    function buildActivityColors(items) {
+        const names = [...new Set(items.map((item) => item.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+        const colors = new Map();
+        names.forEach((name, index) => {
+            colors.set(name, name === '自由时间' ? '#ffffff' : ACTIVITY_COLORS[index % ACTIVITY_COLORS.length]);
+        });
+        return colors;
     }
 
     function polar(cx, cy, r, deg) {
@@ -264,8 +274,9 @@
             : '内环 = 并行活动 · 外环 = 叠加明细';
 
         const chartL2 = isMain ? (chartBundle.l2Slices || chartBundle.l2) : chartBundle.l2;
-        renderSunburst(chartBundle.l1, chartL2, total, isMain, chartBundle.sceneCoverage || []);
-        renderLegend(chartBundle.l1, chartBundle.l2, total, isMain);
+        const activityColors = buildActivityColors((chartBundle.l2 || []).concat(chartL2 || []));
+        renderSunburst(chartBundle.l1, chartL2, total, isMain, chartBundle.sceneCoverage || [], chartBundle.sceneRange, activityColors);
+        renderLegend(chartBundle.l1, chartBundle.l2, total, isMain, activityColors);
 
         const insight = document.getElementById('insight-block');
         if (insight) insight.style.display = 'block';
@@ -278,15 +289,15 @@
         syncToolbar();
     }
 
-    function renderSunburst(l1, l2, total, isMain, sceneCoverage) {
+    function renderSunburst(l1, l2, total, isMain, sceneCoverage, sceneRange, activityColors) {
         const svg = document.getElementById('sunburst-svg');
         if (!svg) return;
         const cx = 100, cy = 100;
         const inner = buildRingSegments(l1, cx, cy, 28, 50, total || 1, 'name', isMain);
         const outer = isMain
-            ? buildEmbeddedOuterSegments(l1, l2, cx, cy, total || 1)
+            ? buildEmbeddedOuterSegments(l1, l2, cx, cy, total || 1, activityColors)
             : buildRingSegments(l2, cx, cy, 54, 80, total || 1, 'l1', false);
-        const sceneArcs = isMain ? buildSceneCoverageSegments(sceneCoverage, cx, cy, total || 1) : [];
+        const sceneArcs = isMain ? buildSceneCoverageSegments(sceneCoverage, cx, cy, sceneRange) : [];
 
         let html = '';
         inner.forEach((s) => {
@@ -295,7 +306,8 @@
         });
         outer.forEach((s) => {
             const remainder = s.remainder ? ' scene-remainder' : '';
-            html += `<path d="${s.path}" fill="${s.color}" fill-opacity=".78" stroke="#fff" stroke-width=".5" class="outer-seg${remainder}" data-cat="${esc(s.l1)}"
+            const free = s.free ? ' free-time-seg' : '';
+            html += `<path d="${s.path}" fill="${s.color}" fill-opacity=".78" stroke="${s.free ? '#cbd5e1' : '#fff'}" stroke-width="${s.free ? '1' : '.5'}" class="outer-seg${remainder}${free}" data-cat="${esc(s.l1)}"
                 data-title="${esc(s.name)}" data-sub="${esc(s.l1)}" data-hours="${fmtHours(s.hours)}" data-pct="${pct(s.hours, total)}"/>`;
         });
         sceneArcs.forEach((s) => {
@@ -319,8 +331,8 @@
         });
     }
 
-    // 外环严格跟随内环父块。场景内未细分的部分用场景底色补足，但不作为明细项目显示。
-    function buildEmbeddedOuterSegments(l1, l2, cx, cy, total) {
+    // 外环严格跟随内环父块；场景内未细分的部分已作为“自由时间”写入切片。
+    function buildEmbeddedOuterSegments(l1, l2, cx, cy, total, activityColors) {
         let angle = 0;
         const rows = [];
         l1.filter((item) => item.hours > 0).forEach((parent) => {
@@ -338,7 +350,8 @@
                     name: item.name,
                     l1: parent.name,
                     hours: item.hours,
-                    color: colorForKey(`l2|${parent.name}|${item.name}`, item.color),
+                    color: item.free ? '#ffffff' : (activityColors.get(item.name) || colorForKey(`l2|${parent.name}|${item.name}`, item.color)),
+                    free: !!item.free,
                 });
                 childAngle += sweep;
             });
@@ -359,22 +372,24 @@
         return rows;
     }
 
-    // 场景覆盖是观察维度：从圆顶 0 度开始画独立弧，不加入中心的 24 小时合计。
-    function buildSceneCoverageSegments(items, cx, cy, total) {
-        let angle = 0;
-        const rows = [];
-        items.filter((item) => item.hours > 0).forEach((item) => {
-            const sweep = Math.min(360 - angle, (item.hours / total) * 360);
-            if (sweep <= 0) return;
-            rows.push({
-                path: arcPath(cx, cy, 84, 89, angle, angle + sweep),
-                name: item.name,
-                hours: item.hours,
-                color: reportColor(item.color, item.name),
+    // 场景覆盖是观察维度：按真实开始、结束时刻落在圆周位置，不加入中心的 24 小时合计。
+    function buildSceneCoverageSegments(items, cx, cy, range) {
+        const span = range?.end - range?.start;
+        if (!span) return [];
+        return items
+            .map((item) => ({ ...item, start: Math.max(range.start, item.start), end: Math.min(range.end, item.end) }))
+            .filter((item) => item.end > item.start)
+            .sort((a, b) => a.start - b.start)
+            .map((item) => {
+                const a0 = ((item.start - range.start) / span) * 360;
+                const a1 = ((item.end - range.start) / span) * 360;
+                return {
+                    path: arcPath(cx, cy, 84, 89, a0, a1),
+                    name: item.name,
+                    hours: (item.end - item.start) / 3600000,
+                    color: reportColor(item.color, item.name),
+                };
             });
-            angle += sweep;
-        });
-        return rows;
     }
 
     function bindSegTip(el) {
@@ -382,7 +397,7 @@
         el.addEventListener('mouseleave', hideTip);
     }
 
-    function renderLegend(l1, l2, total, isMain) {
+    function renderLegend(l1, l2, total, isMain, activityColors) {
         const l1Box = document.getElementById('legend-l1');
         const l2Box = document.getElementById('legend-l2');
         l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.hours, isMain ? reportColor(row.color, row.name) : colorForKey(`l1|${row.name}`, row.color), total, row.name)).join('');
@@ -390,7 +405,7 @@
             row.name,
             isMain ? null : row.l1,
             row.hours,
-            colorForKey(`l2|${isMain ? '' : row.l1 || ''}|${row.name}`, row.color),
+            isMain ? (activityColors.get(row.name) || row.color) : colorForKey(`l2|${row.l1 || ''}|${row.name}`, row.color),
             total,
             isMain ? row.name : row.l1
         )).join('');

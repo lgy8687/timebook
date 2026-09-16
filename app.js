@@ -4315,10 +4315,11 @@ function aggregateReportSegments(segments, keyFn) {
 
 function reportMainGroup(log) {
     if (log?.scene) {
+        const sceneName = displayName(log);
         return {
-            key: 'category:场景',
-            name: '场景',
-            color: getCat('场景')?.color || '#0f9f8c',
+            key: `scene:${sceneName}`,
+            name: sceneName,
+            color: getSceneColor(sceneName),
         };
     }
     const l1 = log?.l1 || '未分类';
@@ -4330,7 +4331,7 @@ function reportMainGroup(log) {
 }
 
 // 场景是一级目录；其下的场景记录是二级活动，未记录的剩余时段自动归为自由时间。
-function buildMainChartComposition(mainSegs, parallelSegs) {
+function buildMainChartComposition(mainSegs, parallelSegs, rangeStart, rangeEnd) {
     const groups = new Map();
     const detailSlices = new Map();
     const detailTotals = new Map();
@@ -4340,7 +4341,7 @@ function buildMainChartComposition(mainSegs, parallelSegs) {
         const name = nameOverride || displayName(log);
         const sliceKey = `${parentName}|${name}`;
         const color = colorOverride || getCat(log?.l1)?.color || fallbackColor || '#94a3b8';
-        const slice = detailSlices.get(sliceKey) || { l1: parentName, name, ms: 0, color };
+        const slice = detailSlices.get(sliceKey) || { l1: parentName, name, ms: 0, color, free: name === '自由时间' };
         slice.ms += ms;
         detailSlices.set(sliceKey, slice);
 
@@ -4376,12 +4377,15 @@ function buildMainChartComposition(mainSegs, parallelSegs) {
             parent.children.push({ log, start: Math.max(parent.log.clippedStart, log.clippedStart), end: Math.min(parent.log.clippedEnd, log.clippedEnd), ms: parent.overlap });
         });
 
-    const sceneCoverage = new Map();
+    const sceneCoverage = [];
     sceneParents.forEach((parent) => {
         const sceneName = displayName(parent.log);
-        const coverage = sceneCoverage.get(sceneName) || { name: sceneName, ms: 0, color: getSceneColor(sceneName) };
-        coverage.ms += parent.ms;
-        sceneCoverage.set(sceneName, coverage);
+        sceneCoverage.push({
+            name: sceneName,
+            start: parent.log.clippedStart,
+            end: parent.log.clippedEnd,
+            color: getSceneColor(sceneName),
+        });
 
         parent.children.forEach((child) => addDetail(parent.group.name, child.log, child.ms, parent.group.color));
         const intervals = parent.children
@@ -4398,7 +4402,7 @@ function buildMainChartComposition(mainSegs, parallelSegs) {
         });
         const freeMs = Math.max(0, parent.ms - coveredMs);
         if (freeMs) {
-            addDetail('场景', null, freeMs, '#cbd5e1', '自由时间', '#cbd5e1');
+            addDetail(parent.group.name, null, freeMs, '#ffffff', '自由时间', '#ffffff');
         }
     });
 
@@ -4409,13 +4413,12 @@ function buildMainChartComposition(mainSegs, parallelSegs) {
         // 供圆环定位的分片保留父块；供“活动明细”展示的总表则完全去掉一级目录。
         l2Slices: [...detailSlices.values()]
             .sort((a, b) => b.ms - a.ms)
-            .map((item) => ({ l1: item.l1, name: item.name, hours: msToReportHours(item.ms), color: item.color })),
+            .map((item) => ({ l1: item.l1, name: item.name, hours: msToReportHours(item.ms), color: item.color, free: item.free })),
         l2: [...detailTotals.values()]
             .sort((a, b) => b.ms - a.ms)
             .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), color: item.color })),
-        sceneCoverage: [...sceneCoverage.values()]
-            .sort((a, b) => b.ms - a.ms)
-            .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), color: item.color })),
+        sceneCoverage,
+        sceneRange: { start: rangeStart, end: rangeEnd },
     };
 }
 
@@ -4516,8 +4519,8 @@ function buildLiveReportDay() {
     const mainMs = mainSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
     const paraMs = paraSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
 
-    const chartComposition = buildMainChartComposition(mainSegs, paraSegs);
-    const { l1, l2, l2Slices, sceneCoverage } = chartComposition;
+    const chartComposition = buildMainChartComposition(mainSegs, paraSegs, dayStart, dayStart + DAY_MS);
+    const { l1, l2, l2Slices, sceneCoverage, sceneRange } = chartComposition;
 
     const topL1 = l1[0];
     const mainHours = msToReportHours(mainMs);
@@ -4597,6 +4600,7 @@ function buildLiveReportDay() {
             l2,
             l2Slices,
             sceneCoverage,
+            sceneRange,
         },
         parallel: {
             meta: {
@@ -4750,8 +4754,8 @@ function buildLiveReportPeriod(period, options = {}) {
     const paraSegs = all.filter((l) => l.parallel);
     const mainMs = mainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const paraMs = paraSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
-    const chartComposition = buildMainChartComposition(mainSegs, paraSegs);
-    const { l1, l2, l2Slices, sceneCoverage } = chartComposition;
+    const chartComposition = buildMainChartComposition(mainSegs, paraSegs, range.start, range.end);
+    const { l1, l2, l2Slices, sceneCoverage, sceneRange } = chartComposition;
     const paraAgg = aggregateReportSegments(paraSegs, displayName);
     const paraL1 = paraAgg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
     const mainHours = msToReportHours(mainMs);
@@ -4792,7 +4796,7 @@ function buildLiveReportPeriod(period, options = {}) {
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
                 { icon: '🔀', label: '活动切换', value: String(Math.max(0, mainSegs.length - 1)), sub: '次' },
                 { icon: '📋', label: '流水条数', value: String(mainSegs.length), sub: '条' },
-            ], l1, l2, l2Slices, sceneCoverage,
+            ], l1, l2, l2Slices, sceneCoverage, sceneRange,
         },
         parallel: {
             meta: { title: formatBeijingDate(now), range: '并行活动', footnote: '并行时段可重叠累计。' },
