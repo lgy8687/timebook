@@ -388,6 +388,7 @@ function migrateLegacySceneActivities() {
     localStorage.setItem('v9_scene_activity_migration_v2', 'done');
 }
 migrateLegacySceneActivities();
+settleCompletedParallelHistory();
 
 function isSceneActive() {
     return !!current?.scene;
@@ -1066,6 +1067,76 @@ function flushParallelHistoryForSlice(mainLogId, segStart, segEnd) {
     parallelHistory = keep;
 }
 
+// 已结束并行不应长期停在临时队列里，否则页面会把它错显示在之后的新主线下。
+// 优先尊重原 parentId；旧数据父级失效时，再按真实时间重叠补回普通主线。
+function settleCompletedParallelHistory() {
+    if (!parallelHistory.length) return false;
+    const keep = [];
+    let changed = false;
+    const usedIds = new Set(logs.map((item) => String(item.id)));
+    parallelHistory.forEach((parallel) => {
+        const end = logEndMs(parallel);
+        const directParent = logs.find((item) => !item.parallel && String(item.id) === String(parallel.parentId));
+        const directOverlaps = directParent
+            && directParent.startTime < end
+            && logEndMs(directParent) > parallel.startTime;
+        // 常规主线允许跨主线切片；旧 parentId 若已错挂或没有真实重叠，不能阻止按时间找回。
+        const candidates = directParent?.sceneActivity && directOverlaps
+            ? [directParent]
+            : logs.filter((item) => !item.parallel && !item.scene && !item.sceneActivity);
+        let remaining = [{ ...parallel, startTime: parallel.startTime, endTime: end }];
+        candidates
+            .filter((parent) => parent.startTime < end && logEndMs(parent) > parallel.startTime)
+            .sort((a, b) => a.startTime - b.startTime)
+            .forEach((parent) => {
+                const parentEnd = logEndMs(parent);
+                const nextRemaining = [];
+                remaining.forEach((piece) => {
+                    const pieceEnd = logEndMs(piece);
+                    const start = Math.max(piece.startTime, parent.startTime);
+                    const finish = Math.min(pieceEnd, parentEnd);
+                    if (finish <= start) {
+                        nextRemaining.push(piece);
+                        return;
+                    }
+                    const duplicate = logs.some((item) => item.parallel
+                        && String(item.parentId) === String(parent.id)
+                        && item.startTime === start
+                        && logEndMs(item) === finish
+                        && item.l1 === piece.l1
+                        && item.l2 === piece.l2);
+                    // 相同区间已有副本时不重复写入；跨多条主线的切片则各自获得唯一 ID。
+                    if (!duplicate) {
+                        const entryId = usedIds.has(String(piece.id)) ? genId() : piece.id;
+                        logs.unshift({
+                            ...piece,
+                            id: entryId,
+                            startTime: start,
+                            endTime: finish,
+                            duration: Math.max(1, Math.round((finish - start) / 60000)),
+                            parallel: true,
+                            parentId: parent.id,
+                            sceneName: parent.scene ? parent.l2 : (piece.sceneName || ''),
+                            note: piece.note || ''
+                        });
+                        usedIds.add(String(entryId));
+                    }
+                    if (piece.startTime < start) nextRemaining.push({ ...piece, endTime: start });
+                    if (pieceEnd > finish) nextRemaining.push({ ...piece, startTime: finish, endTime: pieceEnd });
+                    changed = true;
+                });
+                remaining = nextRemaining;
+            });
+        keep.push(...remaining);
+    });
+    if (changed) {
+        parallelHistory = keep;
+        localStorage.setItem('v9_logs', JSON.stringify(logs));
+        localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+    }
+    return changed;
+}
+
 function settleParallelForMainSlice(mainLogId, segStart, segEnd, opts) {
     const { continueSame, rollover, endParallel } = opts;
     flushParallelHistoryForSlice(mainLogId, segStart, segEnd);
@@ -1123,6 +1194,7 @@ function commitCurrentSlice(endMs, continueSame, parallelOpts) {
         flushParallelHistoryForSlice(mainLogId, current.startTime, endMs);
         localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
     }
+    settleCompletedParallelHistory();
     if (continueSame) {
         current = { ...current, id: endMs, startTime: endMs };
         localStorage.setItem('v9_current', JSON.stringify(current));
