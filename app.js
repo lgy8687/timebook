@@ -4605,8 +4605,7 @@ function resolveSystemSleepAverage(slot, range, now) {
     const days = completedDays + (includeToday ? 1 : 0);
     if (!days) return { value: '—', label: '睡眠日均' };
     nights.forEach((night) => {
-        const crossesIntoPeriod = night.start < range.start && night.end > range.start;
-        if (crossesIntoPeriod && slot.carry === 'previous') return;
+        // 睡眠是系统级特殊类别：始终按醒来的日期归属，不受普通类别的跨周/月选择影响。
         const wakeDay = beijingDateStrToDayStart(formatBeijingDate(night.end));
         const isCompletedDay = wakeDay >= range.start && wakeDay < completedEnd;
         const isIncludedToday = includeToday && wakeDay === todayStart;
