@@ -1929,10 +1929,11 @@ function getEditBoundaryNeighbors(log) {
         .sort((a, b) => a.startTime - b.startTime);
     if (current && current.id !== log.id) mainRecords.push(current);
     mainRecords.sort((a, b) => a.startTime - b.startTime);
-    return {
-        previous: [...mainRecords].reverse().find((item) => logEndMs(item) <= log.startTime) || null,
-        next: mainRecords.find((item) => item.startTime >= logEndMs(log)) || null
-    };
+    const previous = [...mainRecords].reverse().find((item) => logEndMs(item) <= log.startTime) || null;
+    const next = mainRecords.find((item) => item.startTime >= logEndMs(log))
+        // 当前主线没有固定结束，且旧数据可能已与它轻微交叠；它仍应是最后一条已结束记录的可调整后继。
+        || (current && current.id !== log.id ? current : null);
+    return { previous, next };
 }
 
 function mainRecordOverlaps(start, end, excludeIds = new Set(), includeCurrent = true) {
@@ -1985,6 +1986,10 @@ function applyEditedRange(log, newStart, newEnd, done) {
     }
     if (needsNext && !next) {
         showConfirm('无法调整结束时间', '下面没有可分配的已结束时间段，不能让时间轴产生空档。', '知道了', () => {});
+        return;
+    }
+    if (needsNext && next === current && effectiveEnd > nowSecondMs()) {
+        showConfirm('结束时间还没到', '正在进行的主线不能从未来时间开始。', '知道了', () => {});
         return;
     }
     const allowedNeighbors = new Set([log.id, previous?.id, next?.id].filter(Boolean));
