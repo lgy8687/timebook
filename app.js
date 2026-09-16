@@ -255,10 +255,14 @@ function repairOrphanedParallelParents() {
         }
     });
     // 旧错挂数据会留下两条内容完全相同、只差父级的并行记录；修复父级后合并为一条。
+    const seenParallelIds = new Set();
     const seenParallel = new Set();
     const beforeDedup = logs.length;
     logs = logs.filter((item) => {
         if (!item.parallel) return true;
+        const idKey = item.id == null ? '' : String(item.id);
+        if (idKey && seenParallelIds.has(idKey)) return false;
+        if (idKey) seenParallelIds.add(idKey);
         const key = [item.parentId, item.startTime, logEndMs(item), item.l1 || '', item.l2 || '', item.icon || ''].join('|');
         if (seenParallel.has(key)) return false;
         seenParallel.add(key);
@@ -1055,7 +1059,9 @@ function getParallelDisplayRecords(parallelLogs) {
             : [];
         if (namedScene.length) candidates = namedScene;
         const parentId = candidates.sort((a, b) => b.overlap - a.overlap)[0]?.main?.id || parallel.parentId;
-        const key = [parentId, start, end, parallel.l1 || '', parallel.l2 || '', parallel.icon || ''].join('|');
+        const key = parallel.id != null
+            ? `id:${parallel.id}`
+            : [parentId, start, end, parallel.l1 || '', parallel.l2 || '', parallel.icon || ''].join('|');
         const existing = winners.get(key);
         // 同一条旧数据有一份已正确挂在目标主线时，优先保留那一份，便于后续编辑。
         if (!existing || (existing.parentId !== parentId && parallel.parentId === parentId)) {
