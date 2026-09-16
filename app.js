@@ -2042,6 +2042,88 @@ function mainRecordOverlaps(start, end, excludeIds = new Set(), includeCurrent =
     return conflicts;
 }
 
+// 当主线的开始时间落在上一条记录中间时，不能把整条并行一起改挂。
+// 位于新边界前的部分仍属原主线，边界后的部分才随新主线走。
+function moveParallelTailFromBoundary(boundary, splitAt, replacement) {
+    const boundaryId = String(boundary.id);
+    const splitCollection = (collection) => collection.flatMap((item) => {
+        if (!item?.parallel || String(item.parentId) !== boundaryId) return [item];
+        const itemEnd = logEndMs(item);
+        if (itemEnd <= splitAt) return [item];
+        if (item.startTime >= splitAt) return [{ ...item, parentId: replacement.id }];
+        return [
+            {
+                ...item,
+                endTime: splitAt,
+                duration: Math.max(1, Math.round((splitAt - item.startTime) / 60000))
+            },
+            {
+                ...item,
+                id: genId(),
+                startTime: splitAt,
+                endTime: itemEnd,
+                duration: Math.max(1, Math.round((itemEnd - splitAt) / 60000)),
+                parentId: replacement.id
+            }
+        ];
+    });
+    logs = splitCollection(logs);
+    parallelHistory = splitCollection(parallelHistory);
+    if (parallelCurrent && String(parallelCurrent.parentId) === boundaryId) {
+        parallelCurrent = { ...parallelCurrent, parentId: replacement.id };
+    }
+}
+
+function expandMainStartAcrossRecords(log, newStart, newEnd, done) {
+    const oldStart = log.startTime;
+    const sceneBlocker = logs.find((item) => !item.parallel
+        && (item.scene || item.sceneActivity)
+        && item.id !== log.id
+        && item.startTime < oldStart
+        && logEndMs(item) > newStart);
+    if (sceneBlocker) {
+        showConfirm('无法跨越场景记录', `「${displayName(sceneBlocker)}」是场景时间，不能被普通主线覆盖。请先结束或单独调整该场景。`, '知道了', () => {});
+        return;
+    }
+    const affected = logs
+        .filter((item) => !item.parallel && !item.scene && !item.sceneActivity && item.id !== log.id)
+        .filter((item) => item.startTime < oldStart && logEndMs(item) > newStart)
+        .sort((a, b) => a.startTime - b.startTime);
+    const boundary = affected.find((item) => item.startTime < newStart && logEndMs(item) > newStart) || null;
+    const swallowed = affected.filter((item) => item !== boundary);
+    const names = [
+        boundary ? `截短「${displayName(boundary)}」` : '',
+        ...swallowed.map((item) => `吸收「${displayName(item)}」`)
+    ].filter(Boolean);
+
+    const commit = () => {
+        if (boundary) {
+            moveParallelTailFromBoundary(boundary, newStart, log);
+            boundary.endTime = newStart;
+            boundary.duration = Math.max(1, Math.round((newStart - boundary.startTime) / 60000));
+        }
+        const swallowedIds = new Set(swallowed.map((item) => item.id));
+        if (swallowedIds.size) {
+            logs = logs.filter((item) => !swallowedIds.has(item.id));
+            // 被吸收主线的并行仍保留，改挂到扩展后的主线，而不是变成孤儿。
+            rehomeParallelChildren(swallowedIds, log);
+        }
+        log.startTime = newStart;
+        log.endTime = newEnd;
+        log.duration = Math.max(1, Math.round((newEnd - newStart) / 60000));
+        // 已存在的旧并行若此前因断档而失去父级，也在新的连续范围内重新归属。
+        repairOrphanedParallelParents();
+        done();
+    };
+    if (!names.length) {
+        commit();
+        return;
+    }
+    showConfirm('确认扩展主线', `开始时间提前后将${names.join('，')}。并行记录会保留并改挂到「${displayName(log)}」。`, '继续', (ok) => {
+        if (ok) commit();
+    }, '取消');
+}
+
 function applyEditedRange(log, newStart, newEnd, done) {
     const oldStart = log.startTime;
     const oldEnd = logEndMs(log);
@@ -2068,6 +2150,11 @@ function applyEditedRange(log, newStart, newEnd, done) {
         log.endTime = effectiveEnd;
         log.duration = Math.round((effectiveEnd - effectiveStart) / 60000);
         done();
+        return;
+    }
+    // 向前补时间允许跨越多条主线；此前只识别一条相邻记录，会把真实补录误判为冲突。
+    if (startChanged && effectiveStart < oldStart) {
+        expandMainStartAcrossRecords(log, effectiveStart, effectiveEnd, done);
         return;
     }
     const { previous, next } = getEditBoundaryNeighbors(log);
