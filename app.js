@@ -4333,8 +4333,23 @@ function reportMainGroup(log) {
 // 场景是主线的覆盖层；场景内记录只在活动明细中嵌入对应场景，不能混入生活区并行。
 function buildMainChartComposition(mainSegs, parallelSegs) {
     const groups = new Map();
-    const details = new Map();
+    const detailSlices = new Map();
+    const detailTotals = new Map();
     const sceneParents = [];
+
+    function addDetail(parentName, log, ms, fallbackColor) {
+        const name = displayName(log);
+        const sliceKey = `${parentName}|${name}`;
+        const color = getCat(log.l1)?.color || fallbackColor || '#94a3b8';
+        const slice = detailSlices.get(sliceKey) || { l1: parentName, name, ms: 0, color };
+        slice.ms += ms;
+        detailSlices.set(sliceKey, slice);
+
+        // 活动明细只认二级活动名称：无论发生在生活区还是场景内，都合并为同一项。
+        const total = detailTotals.get(name) || { name, ms: 0, color };
+        total.ms += ms;
+        detailTotals.set(name, total);
+    }
 
     mainSegs.forEach((log) => {
         const group = reportMainGroup(log);
@@ -4344,11 +4359,7 @@ function buildMainChartComposition(mainSegs, parallelSegs) {
         groups.set(group.key, item);
         if (log.scene) sceneParents.push({ log, group, ms });
         if (!log.scene) {
-            const name = displayName(log);
-            const detailKey = `${group.key}|${name}`;
-            const detail = details.get(detailKey) || { l1: group.name, name, ms: 0, color: group.color };
-            detail.ms += ms;
-            details.set(detailKey, detail);
+            addDetail(group.name, log, ms, group.color);
         }
     });
 
@@ -4363,20 +4374,20 @@ function buildMainChartComposition(mainSegs, parallelSegs) {
                 }))
                 .sort((a, b) => b.overlap - a.overlap)[0];
             if (!parent?.overlap) return;
-            const name = displayName(log);
-            const detailKey = `${parent.group.key}|${name}`;
-            const detail = details.get(detailKey) || { l1: parent.group.name, name, ms: 0, color: getCat(log.l1)?.color || parent.group.color };
-            detail.ms += parent.overlap;
-            details.set(detailKey, detail);
+            addDetail(parent.group.name, log, parent.overlap, parent.group.color);
         });
 
     return {
         l1: [...groups.values()]
             .sort((a, b) => b.ms - a.ms)
             .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), color: item.color })),
-        l2: [...details.values()]
+        // 供圆环定位的分片保留父块；供“活动明细”展示的总表则完全去掉一级目录。
+        l2Slices: [...detailSlices.values()]
             .sort((a, b) => b.ms - a.ms)
             .map((item) => ({ l1: item.l1, name: item.name, hours: msToReportHours(item.ms), color: item.color })),
+        l2: [...detailTotals.values()]
+            .sort((a, b) => b.ms - a.ms)
+            .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), color: item.color })),
     };
 }
 
@@ -4478,7 +4489,7 @@ function buildLiveReportDay() {
     const paraMs = paraSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
 
     const chartComposition = buildMainChartComposition(mainSegs, paraSegs);
-    const { l1, l2 } = chartComposition;
+    const { l1, l2, l2Slices } = chartComposition;
 
     const topL1 = l1[0];
     const mainHours = msToReportHours(mainMs);
@@ -4556,6 +4567,7 @@ function buildLiveReportDay() {
             ],
             l1,
             l2,
+            l2Slices,
         },
         parallel: {
             meta: {
@@ -4710,7 +4722,7 @@ function buildLiveReportPeriod(period, options = {}) {
     const mainMs = mainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const paraMs = paraSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const chartComposition = buildMainChartComposition(mainSegs, paraSegs);
-    const { l1, l2 } = chartComposition;
+    const { l1, l2, l2Slices } = chartComposition;
     const paraAgg = aggregateReportSegments(paraSegs, displayName);
     const paraL1 = paraAgg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
     const mainHours = msToReportHours(mainMs);
@@ -4751,7 +4763,7 @@ function buildLiveReportPeriod(period, options = {}) {
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
                 { icon: '🔀', label: '活动切换', value: String(Math.max(0, mainSegs.length - 1)), sub: '次' },
                 { icon: '📋', label: '流水条数', value: String(mainSegs.length), sub: '条' },
-            ], l1, l2,
+            ], l1, l2, l2Slices,
         },
         parallel: {
             meta: { title: formatBeijingDate(now), range: '并行活动', footnote: '并行时段可重叠累计。' },

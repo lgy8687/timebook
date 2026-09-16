@@ -1,9 +1,9 @@
 /**
- * 报表 v2.3 — 场景活动明细嵌入主线圆环
+ * 报表 v2.4 — 场景切片与全局活动明细分离
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.3';
+    const REPORT_VERSION = 'v2.4';
 
     let state = {
         period: 'day',
@@ -263,7 +263,8 @@
             ? '内环 = 一级目录 / 场景 · 外环 = 二级活动'
             : '内环 = 并行活动 · 外环 = 叠加明细';
 
-        renderSunburst(chartBundle.l1, chartBundle.l2, total, isMain);
+        const chartL2 = isMain ? (chartBundle.l2Slices || chartBundle.l2) : chartBundle.l2;
+        renderSunburst(chartBundle.l1, chartL2, total, isMain);
         renderLegend(chartBundle.l1, chartBundle.l2, total, isMain);
 
         const insight = document.getElementById('insight-block');
@@ -304,7 +305,7 @@
 
         svg.querySelectorAll('.inner-seg').forEach(bindSegTip);
         svg.querySelectorAll('.outer-seg:not(.scene-remainder)').forEach((el) => {
-            el.addEventListener('mouseenter', (e) => showTipOuter(e, el.dataset.title, el.dataset.sub, el.dataset.hours, el.dataset.pct));
+            el.addEventListener('mouseenter', (e) => showTipOuter(e, el.dataset.title, isMain ? '' : el.dataset.sub, el.dataset.hours, el.dataset.pct));
             el.addEventListener('mouseleave', hideTip);
         });
     }
@@ -358,7 +359,14 @@
         const l1Box = document.getElementById('legend-l1');
         const l2Box = document.getElementById('legend-l2');
         l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.hours, isMain ? reportColor(row.color, row.name) : colorForKey(`l1|${row.name}`, row.color), total, row.name)).join('');
-        l2Box.innerHTML = l2.map((row) => legendRow(row.name, row.l1, row.hours, colorForKey(`l2|${row.l1}|${row.name}`, row.color), total, row.l1)).join('');
+        l2Box.innerHTML = l2.map((row) => legendRow(
+            row.name,
+            isMain ? null : row.l1,
+            row.hours,
+            colorForKey(`l2|${isMain ? '' : row.l1 || ''}|${row.name}`, row.color),
+            total,
+            isMain ? row.name : row.l1
+        )).join('');
         l1Box.style.display = state.legendMode === 'l1' ? 'block' : 'none';
         l2Box.style.display = state.legendMode === 'l2' ? 'block' : 'none';
         document.getElementById('btn-l1').classList.toggle('active', state.legendMode === 'l1');
@@ -367,14 +375,17 @@
         document.getElementById('btn-l2').textContent = isMain ? '活动明细' : '叠加明细';
 
         document.querySelectorAll('.sunburst-legend .legend-item').forEach((el) => {
-            el.addEventListener('mouseenter', () => highlightCat(el.dataset.cat));
+            el.addEventListener('mouseenter', () => {
+                if (el.dataset.activity) highlightActivity(el.dataset.activity);
+                else highlightCat(el.dataset.cat);
+            });
             el.addEventListener('mouseleave', unhighlightCat);
         });
     }
 
     function legendRow(name, l1, hours, color, total, cat) {
         const label = l1 ? `${l1} · <span class="legend-sub">${name}</span>` : name;
-        return `<div class="legend-item" data-cat="${esc(cat)}">
+        return `<div class="legend-item" data-cat="${esc(cat)}"${l1 ? '' : ` data-activity="${esc(name)}"`}>
             <span class="legend-dot" style="background:${color}"></span>
             <span class="legend-name">${label}</span>
             <span class="legend-val">${fmtHours(hours)}</span>
@@ -478,6 +489,12 @@
     window.highlightCat = function (cat) {
         document.querySelectorAll('.inner-seg, .outer-seg').forEach((el) => {
             el.style.fillOpacity = el.dataset.cat === cat ? '1' : '0.12';
+        });
+    };
+
+    window.highlightActivity = function (activity) {
+        document.querySelectorAll('.inner-seg, .outer-seg').forEach((el) => {
+            el.style.fillOpacity = el.classList.contains('outer-seg') && el.dataset.title === activity ? '1' : '0.12';
         });
     };
 
