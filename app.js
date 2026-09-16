@@ -2262,17 +2262,38 @@ function closeEdit() {
     editOldL1 = null; editOldL2 = null;
 }
 
+function rehomeParallelChildren(parentIds, replacementParent = null) {
+    const ids = new Set([...parentIds].map((id) => String(id)));
+    const shouldMove = !!replacementParent;
+    const update = (item) => {
+        if (!item?.parallel || !ids.has(String(item.parentId))) return item;
+        return shouldMove ? { ...item, parentId: replacementParent.id } : null;
+    };
+    logs = logs.map(update).filter(Boolean);
+    parallelHistory = parallelHistory.map(update).filter(Boolean);
+    if (parallelCurrent && ids.has(String(parallelCurrent.parentId))) {
+        parallelCurrent = shouldMove ? { ...parallelCurrent, parentId: replacementParent.id } : null;
+    }
+    localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+    if (parallelCurrent) localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+    else localStorage.removeItem('v9_parallel');
+}
+
 function deleteLogEntry(target) {
     if (!target || !logs.includes(target)) return;
-    if (!target.parallel && !target.scene && !target.sceneActivity) mergeDeletedTime(target, 'down');
+    const replacement = !target.parallel && !target.scene && !target.sceneActivity
+        ? getDeleteMergeNeighbors(target).down
+        : null;
+    if (replacement) mergeDeletedTime(target, 'down');
     const sceneActivityIds = target.scene
         ? new Set(logs.filter((item) => item.sceneActivity && String(item.sceneParentId) === getSceneContainerId(target)).map((item) => String(item.id)))
         : new Set();
+    const childParentIds = new Set([String(target.id), ...sceneActivityIds]);
+    rehomeParallelChildren(childParentIds, replacement);
     logs = logs.filter(l => l !== target);
-    // 删除场景容器时移除其场景活动及活动下的真正并行；删除场景活动时仅移除其真正并行。
+    // 删除场景容器时移除其场景活动；子并行已在上面一起移除。
     logs = logs.filter((item) => {
         if (target.scene && item.sceneActivity && String(item.sceneParentId) === getSceneContainerId(target)) return false;
-        if (item.parallel && (String(item.parentId) === String(target.id) || sceneActivityIds.has(String(item.parentId)))) return false;
         return true;
     });
     mergeAdjacentSameActivity();
@@ -2348,13 +2369,14 @@ function requestDeleteLogEntry(target) {
     const activeUp = neighbors.up === current;
     showMergeDirection(target, direction => {
         if (!direction) return;
+        const neighbor = direction === 'up' ? neighbors.up : neighbors.down;
         mergeDeletedTime(target, direction);
         if (direction === 'up' && activeUp && current) {
             // 顶部正在进行的活动不在 logs 中，合并后要把新的起点写回 current。
             localStorage.setItem('v9_current', JSON.stringify(current));
         }
         logs = logs.filter(l => l !== target);
-        logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
+        rehomeParallelChildren(new Set([target.id]), neighbor);
         mergeAdjacentSameActivity();
         localStorage.setItem('v9_logs', JSON.stringify(logs));
         renderAll();
@@ -4155,17 +4177,37 @@ function executeSplit(parentLog, l1, l2) {
 }
 function mergeAdjacentSameActivity() {
     const merged = [];
+    const parentRewrites = new Map();
     for (const log of logs) {
         const last = merged[merged.length - 1];
-        if (last && last.l1 === log.l1 && last.l2 === log.l2 && last.endTime === log.startTime && last.parallel === log.parallel
-            && formatBeijingDate(last.startTime) === formatBeijingDate(log.startTime)) {
+        const canMerge = last
+            && !last.parallel && !log.parallel
+            && !last.scene && !log.scene
+            && !last.sceneActivity && !log.sceneActivity
+            && last.l1 === log.l1 && last.l2 === log.l2
+            && last.endTime === log.startTime
+            && formatBeijingDate(last.startTime) === formatBeijingDate(log.startTime);
+        if (canMerge) {
             last.endTime = log.endTime;
             last.duration = Math.round((last.endTime - last.startTime) / 60000);
+            // 合并会移除 log 这条主线，所有子并行必须跟着改指向留下的 last。
+            parentRewrites.set(String(log.id), last.id);
         } else {
             merged.push({ ...log });
         }
     }
     logs = merged;
+    if (!parentRewrites.size) return;
+    const rewriteParent = (item) => {
+        if (!item?.parallel) return item;
+        const replacement = parentRewrites.get(String(item.parentId));
+        return replacement == null ? item : { ...item, parentId: replacement };
+    };
+    logs = logs.map(rewriteParent);
+    parallelHistory = parallelHistory.map(rewriteParent);
+    if (parallelCurrent) parallelCurrent = rewriteParent(parallelCurrent);
+    localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+    if (parallelCurrent) localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
 }
 // 吸附到最近的空闲区段边界（考虑已有并行占用）
 function snapToNearestFreeZone(pct, parentLog, parentEnd) {
