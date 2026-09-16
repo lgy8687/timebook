@@ -5762,25 +5762,99 @@ function editS(id, oldName) {
         if (name === null) return;
         const next = name.trim();
         if (!next) return;
-        moveSubIcon(cat, oldName, next);
-        if (cat.name === '场景' && oldName !== next) {
-            const oldColor = sceneSettings.colors[oldName];
-            if (oldColor) sceneSettings.colors[next] = oldColor;
-            else ensureSceneColor(next);
-            delete sceneSettings.colors[oldName];
-            saveSceneSettings();
+        if (next !== oldName && cat.subs.includes(next)) {
+            showConfirm('名称已存在', `「${cat.name}」中已有「${next}」，请换一个名称。`, '知道了', () => {});
+            return;
         }
-        cat.subs = cat.subs.map(s => s === oldName ? next : s);
-        shortcuts.forEach(s => { if (s.l1 === cat.name && s.l2 === oldName) s.l2 = next; });
-        syncParallelShortcutRefs(null, null, cat.name, oldName, next);
-        logs.forEach(l => { if (l.l1 === cat.name && l.l2 === oldName) l.l2 = next; });
-        if (current?.l1 === cat.name && current?.l2 === oldName) current.l2 = next;
-        const prevSubIcon = cat.subIcons?.[next];
-        showCategoryPicker(`为「${next}」选择图标（点空白处可保留原图标）`, (icon) => {
-            if (icon) setSubIcon(cat, next, icon);
-            else if (prevSubIcon) setSubIcon(cat, next, prevSubIcon);
-            saveAll();
+        // 场景是容器，不能和普通时间活动互相移动。
+        if (cat.name === '场景') {
+            applySubCategoryEdit(cat, cat, oldName, next);
+            return;
+        }
+        const choices = cats
+            .filter((item) => item.name !== '场景')
+            .map((item) => ({ value: String(item.id), label: item.name, color: item.color }));
+        openReportChoiceGrid('选择一级目录', choices, String(cat.id), (targetId) => {
+            const target = cats.find((item) => String(item.id) === String(targetId));
+            if (target) applySubCategoryEdit(cat, target, oldName, next);
         });
+    });
+}
+
+function updateReportSummaryCategoryRefs(oldL1, oldL2, newL1, newL2) {
+    ['v9_report_summary_main', 'v9_report_summary_parallel', 'v9_report_summary_week_main', 'v9_report_summary_week_parallel', 'v9_report_summary_month_main', 'v9_report_summary_month_parallel'].forEach((key) => {
+        const raw = safeJSON(key);
+        if (!Array.isArray(raw)) return;
+        let changed = false;
+        raw.forEach((slot) => {
+            if (slot?.id !== 'categoryAverage' || slot.l1 !== oldL1 || slot.l2 !== oldL2) return;
+            slot.l1 = newL1;
+            slot.l2 = newL2;
+            changed = true;
+        });
+        if (changed) localStorage.setItem(key, JSON.stringify(raw));
+    });
+}
+
+function applySubCategoryEdit(source, target, oldName, next) {
+    const oldL1 = source.name;
+    const newL1 = target.name;
+    const targetAlreadyHasName = source !== target && target.subs.includes(next);
+    const carriedIcon = source.subIcons?.[oldName] || '';
+
+    if (source.name === '场景' && oldName !== next) {
+        const oldColor = sceneSettings.colors[oldName];
+        if (oldColor) sceneSettings.colors[next] = oldColor;
+        else ensureSceneColor(next);
+        delete sceneSettings.colors[oldName];
+        saveSceneSettings();
+    }
+    source.subs = source.subs.filter((name) => name !== oldName);
+    if (!targetAlreadyHasName) target.subs.push(next);
+    if (source.subIcons) delete source.subIcons[oldName];
+    if (carriedIcon && !targetAlreadyHasName) setSubIcon(target, next, carriedIcon);
+
+    const updateRecord = (record) => {
+        if (!record || record.l1 !== oldL1 || record.l2 !== oldName) return;
+        record.l1 = newL1;
+        record.l2 = next;
+        record.color = target.color || record.color;
+    };
+    logs.forEach(updateRecord);
+    parallelHistory.forEach(updateRecord);
+    updateRecord(current);
+    updateRecord(parallelCurrent);
+    shortcuts.forEach((shortcut) => {
+        if (shortcut.l1 === oldL1 && shortcut.l2 === oldName) {
+            shortcut.l1 = newL1;
+            shortcut.l2 = next;
+        }
+    });
+    parallelShortcuts.forEach((shortcut) => {
+        if (shortcut.l1 === oldL1 && shortcut.l2 === oldName) {
+            shortcut.l1 = newL1;
+            shortcut.l2 = next;
+        }
+    });
+    const recents = safeJSON('v9_recent_picks') || [];
+    let recentsChanged = false;
+    recents.forEach((recent) => {
+        if (recent.l1 === oldL1 && recent.l2 === oldName) {
+            recent.l1 = newL1;
+            recent.l2 = next;
+            recentsChanged = true;
+        }
+    });
+    if (recentsChanged) localStorage.setItem('v9_recent_picks', JSON.stringify(recents));
+    updateReportSummaryCategoryRefs(oldL1, oldName, newL1, next);
+
+    const previousIcon = target.subIcons?.[next] || carriedIcon;
+    showCategoryPicker(`为「${next}」选择图标（点空白处可保留原图标）`, (icon) => {
+        if (icon) setSubIcon(target, next, icon);
+        else if (previousIcon) setSubIcon(target, next, previousIcon);
+        localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+        if (parallelCurrent) localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+        saveAll();
     });
 }
 function delS(id, name) {
