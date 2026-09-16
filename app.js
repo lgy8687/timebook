@@ -294,6 +294,101 @@ function repairOrphanedParallelParents() {
 }
 repairOrphanedParallelParents();
 
+// 场景容器可跨天拆成多条显示记录；活动关联的是稳定的容器 ID，而不是某一天的记录 ID。
+function getSceneContainerId(sceneLog) {
+    return String(sceneLog?.sceneRootId || sceneLog?.id || '');
+}
+
+function ensureSceneContainerIds() {
+    let logsChanged = false;
+    logs.forEach((item) => {
+        if (item.scene && !item.sceneRootId) {
+            item.sceneRootId = item.id || genId();
+            logsChanged = true;
+        }
+    });
+    if (current?.scene && !current.sceneRootId) {
+        current.sceneRootId = current.id || genId();
+        localStorage.setItem('v9_current', JSON.stringify(current));
+    }
+    if (logsChanged) localStorage.setItem('v9_logs', JSON.stringify(logs));
+}
+ensureSceneContainerIds();
+
+// v5.03 前，场景内的零散主线借用了“并行”数据结构。迁移后它们成为场景容器下的主线，
+// 保留原 ID、时间和分类；只有挂在这些记录下面的活动才继续使用 parallel=true。
+function migrateLegacySceneActivities() {
+    if (localStorage.getItem('v9_scene_activity_migration_v2') === 'done') return;
+    const sceneParents = logs.filter((item) => !item.parallel && item.scene);
+    if (current?.scene) sceneParents.push(current);
+    const findSceneParent = (item) => {
+        const direct = sceneParents.find((parent) => String(parent.id) === String(item.parentId));
+        if (direct) return direct;
+        if (!item.sceneName) return null;
+        return sceneParents
+            .filter((parent) => parent.l2 === item.sceneName)
+            .map((parent) => ({
+                parent,
+                overlap: Math.max(0, Math.min(logEndMs(parent), logEndMs(item)) - Math.max(parent.startTime, item.startTime)),
+            }))
+            .filter((candidate) => candidate.overlap > 0)
+            .sort((a, b) => b.overlap - a.overlap)[0]?.parent || null;
+    };
+    let changed = false;
+    const migrate = (item) => {
+        const parent = findSceneParent(item);
+        if (!parent) return false;
+        item.parallel = false;
+        item.sceneActivity = true;
+        item.sceneParentId = getSceneContainerId(parent);
+        item.sceneName = parent.l2 || item.sceneName || '';
+        changed = true;
+        return true;
+    };
+
+    logs.forEach((item) => {
+        if (item.parallel && (item.sceneName || findSceneParent(item))) migrate(item);
+    });
+    // 升级瞬间仍在运行的旧场景并行不能留在旧通道里：收口成一条已结束的场景活动，避免丢失。
+    if (parallelCurrent && (parallelCurrent.sceneName || findSceneParent(parallelCurrent))) {
+        const endTime = nowSecondMs();
+        const activeLegacy = {
+            ...parallelCurrent,
+            endTime,
+            duration: Math.max(1, Math.round((endTime - parallelCurrent.startTime) / 60000))
+        };
+        if (migrate(activeLegacy)) {
+            logs.push(activeLegacy);
+            parallelCurrent = null;
+            localStorage.removeItem('v9_parallel');
+        }
+    }
+    const existingIds = new Set(logs.map((item) => String(item.id)));
+    const retainedParallelHistory = [];
+    parallelHistory.forEach((item) => {
+        if (item.sceneName || findSceneParent(item)) {
+            if (migrate(item)) {
+                // 某些旧版本会同时把同一条记录写入 logs 和并行历史，只保留一份。
+                if (!existingIds.has(String(item.id))) {
+                    logs.push(item);
+                    existingIds.add(String(item.id));
+                }
+            }
+            else retainedParallelHistory.push(item);
+        } else {
+            retainedParallelHistory.push(item);
+        }
+    });
+    parallelHistory = retainedParallelHistory;
+    if (changed) {
+        logs.sort((a, b) => b.startTime - a.startTime);
+        localStorage.setItem('v9_logs', JSON.stringify(logs));
+        localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+    }
+    localStorage.setItem('v9_scene_activity_migration_v2', 'done');
+}
+migrateLegacySceneActivities();
+
 function isSceneActive() {
     return !!current?.scene;
 }
@@ -459,7 +554,12 @@ function transitionCurrentTo(next, askParallel) {
         ensureDayRolloversBefore(now);
         const nextId = genId();
         if (current) commitCurrentSlice(now, false, { endParallel: !!endParallel, rollover: !endParallel });
-        current = { id: nextId, startTime: now, ...next };
+        current = {
+            id: nextId,
+            startTime: now,
+            ...next,
+            ...(next.scene ? { sceneRootId: next.sceneRootId || genId() } : {})
+        };
         if (parallelCurrent && !endParallel) {
             parallelCurrent.parentId = nextId;
             parallelCurrent.sceneName = current.scene ? current.l2 : '';
@@ -1072,11 +1172,12 @@ function getParallelDisplayRecords(parallelLogs) {
         let candidates = mainLogs
             .map((main) => ({ main, overlap: Math.max(0, Math.min(logEndMs(main), end) - Math.max(main.startTime, start)) }))
             .filter((item) => item.overlap > 0);
+        const directParent = candidates.find((item) => String(item.main.id) === String(parallel.parentId));
         const namedScene = parallel.sceneName
             ? candidates.filter((item) => item.main.scene && item.main.l2 === parallel.sceneName)
             : [];
-        if (namedScene.length) candidates = namedScene;
-        const parent = candidates.sort((a, b) => b.overlap - a.overlap)[0]?.main || null;
+        if (!directParent && namedScene.length) candidates = namedScene;
+        const parent = directParent?.main || candidates.sort((a, b) => b.overlap - a.overlap)[0]?.main || null;
         const parentId = parent?.id || parallel.parentId;
         const key = parallel.id != null
             ? `id:${parallel.id}`
@@ -1104,6 +1205,47 @@ function renderRecordPage() {
     renderDayRemain();
 }
 
+function renderSceneActivityTree(list, sceneLog, allLogs, parallelLogs) {
+    const activities = allLogs
+        .filter((item) => item.sceneActivity && String(item.sceneParentId) === getSceneContainerId(sceneLog))
+        .sort((a, b) => b.startTime - a.startTime);
+    activities.forEach((activity) => {
+        const activityWrap = document.createElement('div');
+        activityWrap.className = 'log-flow-nest log-flow-scene-activity mt-1 mb-1';
+        applySceneNestTheme(activityWrap, sceneLog);
+        createLogRow(activityWrap, activity, logs.indexOf(activity));
+        list.appendChild(activityWrap);
+
+        parallelLogs
+            .filter((child) => child._displayParent === activity)
+            .sort((a, b) => a.startTime - b.startTime)
+            .forEach((child) => {
+                const parallelWrap = document.createElement('div');
+                parallelWrap.className = 'log-flow-nest log-flow-true-parallel mt-1 mb-1';
+                applySceneNestTheme(parallelWrap, sceneLog);
+                createLogRow(parallelWrap, child, logs.indexOf(child));
+                list.appendChild(parallelWrap);
+            });
+    });
+    return activities;
+}
+
+function renderMainLogTree(list, log, allLogs, parallelLogs) {
+    createLogRow(list, log, logs.indexOf(log));
+    if (log.scene) return renderSceneActivityTree(list, log, allLogs, parallelLogs);
+    parallelLogs
+        .filter((child) => child._displayParent === log)
+        .sort((a, b) => a.startTime - b.startTime)
+        .forEach((child) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'log-flow-nest mt-1 mb-1';
+            applySceneNestTheme(wrap, log);
+            createLogRow(wrap, child, logs.indexOf(child));
+            list.appendChild(wrap);
+        });
+    return [];
+}
+
 /** 首页流水：今天的实时记录之后，继续显示所有历史日期，编辑入口沿用同一套流水卡片手势。 */
 function renderHomeHistory() {
     const list = document.getElementById('log-list');
@@ -1125,24 +1267,13 @@ function renderHomeHistory() {
         list.appendChild(header);
 
         const normalLogs = dayLogs
-            .filter((log) => !log.parallel)
+            .filter((log) => !log.parallel && !log.sceneActivity)
             .sort((a, b) => b.startTime - a.startTime);
         const parallelLogs = getParallelDisplayRecords(dayLogs.filter((log) => log.parallel));
         normalLogs.forEach((log) => {
-            const realIdx = logs.indexOf(log);
-            createLogRow(list, log, realIdx);
-            parallelLogs
-                .filter((child) => child._displayParent === log)
-                .sort((a, b) => a.startTime - b.startTime)
-                .forEach((child) => {
-                    const wrap = document.createElement('div');
-                    wrap.className = 'log-flow-nest mt-1 mb-1';
-                    applySceneNestTheme(wrap, log);
-                    createLogRow(wrap, child, logs.indexOf(child));
-                    list.appendChild(wrap);
-                });
+            renderMainLogTree(list, log, dayLogs, parallelLogs);
         });
-        appendUnattachedParallelLogs(list, parallelLogs, normalLogs);
+        appendUnattachedParallelLogs(list, parallelLogs, normalLogs.concat(dayLogs.filter((log) => log.sceneActivity)));
     });
 }
 
@@ -1156,7 +1287,7 @@ function getCalendarDaySummary(dateStr) {
     const dayStart = beijingDateStrToDayStart(dateStr);
     const dayEnd = dayStart + DAY_MS;
     const live = isDateToday(dateStr) && current ? [{ ...current, endTime: nowSecondMs(), live: true }] : [];
-    const segments = logs.filter(l => !l.parallel).concat(live).flatMap(log => {
+    const segments = logs.filter(l => !l.parallel && !l.sceneActivity).concat(live).flatMap(log => {
         const end = logEndMs(log, log.live ? nowSecondMs() : null);
         const start = Math.max(dayStart, log.startTime);
         const finish = Math.min(dayEnd, end);
@@ -2026,12 +2157,17 @@ function closeEdit() {
 
 function deleteLogEntry(target) {
     if (!target || !logs.includes(target)) return;
-    if (target && !target.parallel) mergeDeletedTime(target, 'down');
+    if (!target.parallel && !target.scene && !target.sceneActivity) mergeDeletedTime(target, 'down');
+    const sceneActivityIds = target.scene
+        ? new Set(logs.filter((item) => item.sceneActivity && String(item.sceneParentId) === getSceneContainerId(target)).map((item) => String(item.id)))
+        : new Set();
     logs = logs.filter(l => l !== target);
-    // 级联删除挂载的并行子记录
-    if (target && !target.parallel) {
-        logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
-    }
+    // 删除场景容器时移除其场景活动及活动下的真正并行；删除场景活动时仅移除其真正并行。
+    logs = logs.filter((item) => {
+        if (target.scene && item.sceneActivity && String(item.sceneParentId) === getSceneContainerId(target)) return false;
+        if (item.parallel && (String(item.parentId) === String(target.id) || sceneActivityIds.has(String(item.parentId)))) return false;
+        return true;
+    });
     mergeAdjacentSameActivity();
     localStorage.setItem('v9_logs', JSON.stringify(logs));
     renderAll();
@@ -2093,7 +2229,7 @@ function showMergeDirection(target, callback) {
 
 function requestDeleteLogEntry(target) {
     if (!target) return;
-    if (target.parallel) {
+    if (target.parallel || target.scene || target.sceneActivity) {
         deleteLogEntry(target);
         return;
     }
@@ -2120,7 +2256,8 @@ function requestDeleteLogEntry(target) {
 
 function executeRecord(l1, l2, tag, note) {
     if (isSceneActive()) {
-        toggleParallel(l1, l2, resolveShortcutIcon({ l1, l2 }));
+        // 场景里的快捷入口只创建场景活动，真正并行要从一条场景活动下面新增。
+        openSceneParallelBackfillDrawer(current, { preset: { l1, l2: l2 || '' } });
         return;
     }
     if (parallelCurrent) {
@@ -3396,6 +3533,11 @@ function renderLogs(listId, dateStr) {
         });
         liveWrap.appendChild(liveCard);
         list.appendChild(liveWrap);
+        if (current.scene) {
+            const todaySceneLogs = logs.filter((log) => logTouchesDate(log, dateStr));
+            const todayParallel = getParallelDisplayRecords(todaySceneLogs.filter((log) => log.parallel));
+            renderSceneActivityTree(list, current, todaySceneLogs, todayParallel);
+        }
     }
 
     // ── 辅助：渲染并行使卡片（主线卡片样式，无缩进） ──
@@ -3500,22 +3642,13 @@ function renderLogs(listId, dateStr) {
     list.appendChild(header);
 
     const dayLogs = logs.filter((l) => logTouchesDate(l, dateStr));
-    const normalLogs = dayLogs.filter((l) => !l.parallel).sort((a, b) => b.startTime - a.startTime);
+    const normalLogs = dayLogs.filter((l) => !l.parallel && !l.sceneActivity).sort((a, b) => b.startTime - a.startTime);
     const parallelLogs = getParallelDisplayRecords(dayLogs.filter((l) => l.parallel));
 
     normalLogs.forEach((log) => {
-        const realIdx = logs.indexOf(log);
-        createLogRow(list, log, realIdx);
-        parallelLogs.filter((p) => p._displayParent === log).sort((a, b) => a.startTime - b.startTime).forEach((child) => {
-            const childIdx = logs.indexOf(child);
-            const wrap = document.createElement('div');
-            wrap.className = 'log-flow-nest mt-1 mb-1';
-            applySceneNestTheme(wrap, log);
-            createLogRow(wrap, child, childIdx);
-            list.appendChild(wrap);
-        });
+        renderMainLogTree(list, log, dayLogs, parallelLogs);
     });
-    appendUnattachedParallelLogs(list, parallelLogs, normalLogs);
+    appendUnattachedParallelLogs(list, parallelLogs, normalLogs.concat(dayLogs.filter((log) => log.sceneActivity)));
 
     if (dayLogs.length === 0 && !(isDateToday(dateStr) && (current || parallelCurrent))) {
         const empty = document.createElement('div');
@@ -3686,14 +3819,14 @@ function getSceneBackfillDateBounds(sceneName) {
     return { min: formatBeijingDate(earliest), max: getTodayDateStr() };
 }
 
-function openSceneParallelBackfillDrawer(sceneLog) {
+function openSceneParallelBackfillDrawer(sceneLog, options = {}) {
     const sceneName = sceneLog.l2;
     const dateInput = document.getElementById('parallel-date');
     const dateRow = document.getElementById('parallel-date-row');
-    const context = { sceneName, selectedDate: getTodayDateStr(), target: null };
+    const context = { sceneName, selectedDate: getTodayDateStr(), target: null, preset: options.preset || null };
 
     pickerMode = 'parallel-backfill';
-    document.getElementById('drawer-title').innerText = `↳ 补录并行于 ${displayName(sceneLog)}`;
+    document.getElementById('drawer-title').innerText = `补录场景活动于 ${displayName(sceneLog)}`;
     document.getElementById('parallel-time-row').classList.remove('hidden');
     document.getElementById('drawer-footer').classList.remove('hidden');
     document.getElementById('drawer-note').value = '';
@@ -3731,11 +3864,11 @@ function openSceneParallelBackfillDrawer(sceneLog) {
                 showConfirm('时间不合法', '结束时间必须晚于开始时间。', '知道了', () => {});
                 return;
             }
-            const parentId = parentLog.id || parentLog.startTime;
-            const conflicts = [...logs.filter((item) => item.parallel && item.parentId === parentId), ...parallelHistory]
+            const parentId = getSceneContainerId(parentLog);
+            const conflicts = logs.filter((item) => item.sceneActivity && String(item.sceneParentId) === String(parentId))
                 .some((item) => item.startTime < finish && logEndMs(item) > start);
             if (conflicts) {
-                showConfirm('时间已被占用', '这段时间已有并行活动，请调整后重试。', '知道了', () => {});
+                showConfirm('时间已被占用', '这段时间已有场景活动，请调整后重试。', '知道了', () => {});
                 return;
             }
             const cat = getCat(l1);
@@ -3743,15 +3876,11 @@ function openSceneParallelBackfillDrawer(sceneLog) {
                 id: genId(), startTime: start, endTime: finish,
                 duration: Math.round((finish - start) / 60000),
                 l1, l2: l2 || '', tag: '', note: document.getElementById('drawer-note').value || '',
-                color: cat?.color || '#cbd5e1', parallel: true, parentId
+                color: cat?.color || '#cbd5e1', parallel: false,
+                sceneActivity: true, sceneParentId: parentId, sceneName
             };
-            if (active.liveParent) {
-                parallelHistory.unshift(entry);
-                localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
-            } else {
-                logs.unshift(entry);
-                localStorage.setItem('v9_logs', JSON.stringify(logs));
-            }
+            logs.unshift(entry);
+            localStorage.setItem('v9_logs', JSON.stringify(logs));
             renderAll();
         };
         return true;
@@ -3760,6 +3889,9 @@ function openSceneParallelBackfillDrawer(sceneLog) {
     dateInput.value = context.selectedDate;
     dateInput.onchange = () => applyDate(dateInput.value);
     if (!applyDate(context.selectedDate)) return;
+    if (context.preset?.l1 && cats.some((cat) => cat.name === context.preset.l1)) {
+        selL1 = context.preset.l1;
+    }
     if (drawerViewMode === 'columns') drawerViewMode = 'flat';
     renderPicker();
     renderDrawerToggle();
@@ -4351,7 +4483,8 @@ function buildMainChartComposition(mainSegs, parallelSegs, rangeStart, rangeEnd)
         detailTotals.set(name, total);
     }
 
-    mainSegs.forEach((log) => {
+    const sceneActivities = mainSegs.filter((log) => log.sceneActivity);
+    mainSegs.filter((log) => !log.sceneActivity).forEach((log) => {
         const group = reportMainGroup(log);
         const ms = log.clippedEnd - log.clippedStart;
         const item = groups.get(group.key) || { key: group.key, name: group.name, ms: 0, color: group.color };
@@ -4363,11 +4496,10 @@ function buildMainChartComposition(mainSegs, parallelSegs, rangeStart, rangeEnd)
         }
     });
 
-    parallelSegs
-        .filter((log) => log.sceneName || sceneParents.some((item) => item.log.id === log.parentId))
-        .forEach((log) => {
+    // 场景活动是主线切片，不再混在真正的并行统计中。
+    sceneActivities.forEach((log) => {
             const parent = sceneParents
-                .filter((item) => item.log.id === log.parentId || (log.sceneName && item.log.l2 === log.sceneName))
+                .filter((item) => getSceneContainerId(item.log) === String(log.sceneParentId) || (log.sceneName && item.log.l2 === log.sceneName))
                 .map((item) => ({
                     ...item,
                     overlap: Math.max(0, Math.min(item.log.clippedEnd, log.clippedEnd) - Math.max(item.log.clippedStart, log.clippedStart)),
@@ -4515,8 +4647,9 @@ function buildLiveReportDay() {
     const dayStart = beijingPeriodStart(now, DAY_MS);
     const all = getTodaySegments();
     const mainSegs = all.filter((l) => !l.parallel);
+    const coreMainSegs = mainSegs.filter((l) => !l.sceneActivity);
     const paraSegs = all.filter((l) => l.parallel);
-    const mainMs = mainSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
+    const mainMs = coreMainSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
     const paraMs = paraSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
 
     const chartComposition = buildMainChartComposition(mainSegs, paraSegs, dayStart, dayStart + DAY_MS);
@@ -4562,7 +4695,7 @@ function buildLiveReportDay() {
     });
     const topHostEntry = [...hostMs.entries()].sort((a, b) => b[1] - a[1])[0];
 
-    const timelineSegs = mainSegs.map((l) => {
+    const timelineSegs = coreMainSegs.map((l) => {
         const left = ((l.clippedStart - dayStart) / DAY_MS) * 100;
         const width = ((l.clippedEnd - l.clippedStart) / DAY_MS) * 100;
         return {
@@ -4593,8 +4726,8 @@ function buildLiveReportDay() {
             },
             summary: [
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
-                { icon: '🔀', label: '活动切换', value: String(Math.max(0, mainSegs.length - 1)), sub: '次' },
-                { icon: '📋', label: '流水条数', value: String(mainSegs.length), sub: '条' },
+                { icon: '🔀', label: '活动切换', value: String(Math.max(0, coreMainSegs.length - 1)), sub: '次' },
+                { icon: '📋', label: '流水条数', value: String(coreMainSegs.length), sub: '条' },
             ],
             l1,
             l2,
@@ -4751,8 +4884,9 @@ function buildLiveReportPeriod(period, options = {}) {
         : Math.min(range.end, now);
     const all = getSegmentsInRange(range.start, summaryEnd, now);
     const mainSegs = all.filter((l) => !l.parallel);
+    const coreMainSegs = mainSegs.filter((l) => !l.sceneActivity);
     const paraSegs = all.filter((l) => l.parallel);
-    const mainMs = mainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
+    const mainMs = coreMainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const paraMs = paraSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const chartComposition = buildMainChartComposition(mainSegs, paraSegs, range.start, range.end);
     const { l1, l2, l2Slices, sceneCoverage, sceneRange } = chartComposition;
@@ -4774,7 +4908,7 @@ function buildLiveReportPeriod(period, options = {}) {
     for (let periodStart = range.start; periodStart < reportEnd;) {
         const nextPeriodStart = period === 'year' ? nextBeijingMonthStart(periodStart) : periodStart + DAY_MS;
         const periodEnd = Math.min(nextPeriodStart, reportEnd);
-        const daySegs = mainSegs.filter((l) => l.clippedEnd > periodStart && l.clippedStart < periodEnd);
+        const daySegs = coreMainSegs.filter((l) => l.clippedEnd > periodStart && l.clippedStart < periodEnd);
         const segments = period === 'year'
             ? buildYearCategoryComposition(daySegs, periodStart, periodEnd)
             : buildMainComposition(daySegs, periodStart, periodEnd);
@@ -4794,8 +4928,8 @@ function buildLiveReportPeriod(period, options = {}) {
             meta: { title: formatBeijingDate(now), range: period === 'week' ? '本周主线' : period === 'month' ? '本月主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
             summary: [
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
-                { icon: '🔀', label: '活动切换', value: String(Math.max(0, mainSegs.length - 1)), sub: '次' },
-                { icon: '📋', label: '流水条数', value: String(mainSegs.length), sub: '条' },
+                { icon: '🔀', label: '活动切换', value: String(Math.max(0, coreMainSegs.length - 1)), sub: '次' },
+                { icon: '📋', label: '流水条数', value: String(coreMainSegs.length), sub: '条' },
             ], l1, l2, l2Slices, sceneCoverage, sceneRange,
         },
         parallel: {

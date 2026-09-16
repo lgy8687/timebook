@@ -348,6 +348,8 @@
     border-left: 2px solid var(--tb-log-nest-border);
 }
 .log-flow-nest--scene { border-left-color: var(--tb-scene-color); }
+.log-flow-scene-activity { margin-left: 16px; padding-left: 9px; border-left-width: 3px; }
+.log-flow-true-parallel { margin-left: 34px; padding-left: 7px; border-left-color: color-mix(in srgb, var(--tb-scene-color) 48%, #cbd5e1); }
 .log-flow-nest > .swipe-wrap { margin-bottom: 6px; }
 .log-flow-nest > .swipe-wrap:last-child { margin-bottom: 0; }
 .log-flow-body {
