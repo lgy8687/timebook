@@ -463,10 +463,14 @@
 .swipe-card.log-flow-card--parallel-log .log-flow-name { color: var(--tb-log-parallel-name); }
 .swipe-card.log-flow-card--parallel-log .log-flow-name { font-weight: 800; }
 .swipe-card.log-flow-card--parallel-log .log-flow-bar { opacity: 0.55; filter: saturate(0.6); }
-.swipe-card.event-parent-selectable { box-shadow: 0 0 0 2px #7fa4bb, 0 5px 16px rgba(71, 107, 137, .14); cursor: pointer; }
-.swipe-card.event-parent-selectable::after { content: '选择归属'; position: absolute; right: 12px; top: -9px; padding: 2px 7px; border-radius: 999px; background: #51708b; color: #fff; font-size: 9px; font-weight: 900; }
+.event-parent-select-mode .swipe-card.event-parent-selectable { cursor: pointer; filter: grayscale(1); opacity: .42; transition: filter .16s ease, opacity .16s ease, box-shadow .16s ease; }
+.event-parent-select-mode .swipe-card.event-parent-selected { filter: none; opacity: 1; box-shadow: 0 0 0 2px #5a7d97, 0 5px 16px rgba(71, 107, 137, .16); }
+.event-parent-select-mode .swipe-card.event-parent-selected::after { content: '已选择'; position: absolute; right: 12px; top: -9px; padding: 2px 7px; border-radius: 999px; background: #5a7d97; color: #fff; font-size: 9px; font-weight: 900; }
+#page-record.event-parent-select-mode > :not(#log-list) { filter: grayscale(1); opacity: .35; pointer-events: none; }
 .event-parent-notice { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 9px 10px; border: 1px solid #cfe0e9; border-radius: 8px; background: #edf5f8; color: #4c6c84; font-size: 11px; font-weight: 900; }
 .event-parent-notice button { padding: 4px 8px; border: 0; border-radius: 6px; background: #fff; color: #64748b; font-size: 10px; font-weight: 900; }
+.event-parent-notice .event-parent-confirm { background: #5a7d97; color: #fff; }
+.event-parent-notice .event-parent-confirm.is-disabled { background: #d7e2e9; color: #94a3b8; }
 
 .event-modal { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(15, 23, 42, .38); backdrop-filter: blur(4px); }
 .event-modal.hidden { display: none; }

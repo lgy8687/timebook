@@ -3116,6 +3116,7 @@ function buildLogFlowBar(color, muted) {
 
 let eventDraft = null;
 let eventParentSelecting = false;
+let eventParentCandidate = null;
 
 function eventTypeById(id) {
     return eventTypes.find((item) => item.id === id) || null;
@@ -3129,6 +3130,7 @@ function setEventStage(stage) {
 
 function openEventModal() {
     eventParentSelecting = false;
+    eventParentCandidate = null;
     eventDraft = null;
     renderEventChoiceGrid();
     setEventStage('choose');
@@ -3139,6 +3141,7 @@ window.openEventModal = openEventModal;
 function closeEventModal() {
     document.getElementById('event-modal')?.classList.add('hidden');
     eventDraft = null;
+    eventParentCandidate = null;
     if (eventParentSelecting) {
         eventParentSelecting = false;
         renderAll();
@@ -3222,6 +3225,7 @@ window.openIndependentEventTime = openIndependentEventTime;
 function beginEventParentSelection() {
     if (!eventDraft) return;
     eventParentSelecting = true;
+    eventParentCandidate = null;
     document.getElementById('event-modal')?.classList.add('hidden');
     renderAll();
 }
@@ -3229,6 +3233,7 @@ window.beginEventParentSelection = beginEventParentSelection;
 
 function cancelEventParentSelection() {
     eventParentSelecting = false;
+    eventParentCandidate = null;
     eventDraft = null;
     renderAll();
 }
@@ -3236,7 +3241,16 @@ window.cancelEventParentSelection = cancelEventParentSelection;
 
 function selectEventParent(parent) {
     if (!eventParentSelecting || !eventDraft || !parent || parent.parallel) return false;
+    eventParentCandidate = parent;
+    renderAll();
+    return true;
+}
+
+function confirmEventParentSelection() {
+    const parent = eventParentCandidate;
+    if (!eventParentSelecting || !eventDraft || !parent) return;
     eventParentSelecting = false;
+    eventParentCandidate = null;
     eventDraft.parentId = parent.id;
     eventDraft.occurredAt = parent.startTime;
     document.getElementById('event-time-parent').innerText = `归属主线 · ${displayName(parent)}`;
@@ -3244,8 +3258,8 @@ function selectEventParent(parent) {
     document.getElementById('event-modal')?.classList.remove('hidden');
     setEventStage('time');
     renderAll();
-    return true;
 }
+window.confirmEventParentSelection = confirmEventParentSelection;
 
 function saveTimedEvent() {
     if (!eventDraft) return;
@@ -3324,18 +3338,25 @@ function appendLogFlowNote(body, log) {
 function renderLogs(listId, dateStr) {
     const list = document.getElementById(listId);
     if (!list) return;
+    document.getElementById('page-record')?.classList.toggle('event-parent-select-mode', eventParentSelecting);
     const moreWrap = listId === 'log-list' ? document.getElementById('load-more-wrap') : null;
     list.innerHTML = "";
     if (eventParentSelecting) {
         const notice = document.createElement('div');
         notice.className = 'event-parent-notice';
         const text = document.createElement('span');
-        text.innerText = '请选择要归属的主线';
+        text.innerText = eventParentCandidate ? `已选择：${displayName(eventParentCandidate)}` : '请选择要归属的主线';
         const cancel = document.createElement('button');
         cancel.type = 'button';
         cancel.innerText = '取消';
         cancel.addEventListener('click', cancelEventParentSelection);
-        notice.append(text, cancel);
+        const confirm = document.createElement('button');
+        confirm.type = 'button';
+        confirm.innerText = '确认归属';
+        confirm.disabled = !eventParentCandidate;
+        confirm.className = eventParentCandidate ? 'event-parent-confirm' : 'event-parent-confirm is-disabled';
+        confirm.addEventListener('click', confirmEventParentSelection);
+        notice.append(text, cancel, confirm);
         list.appendChild(notice);
     }
 
@@ -3345,6 +3366,8 @@ function renderLogs(listId, dateStr) {
         liveWrap.className = "swipe-wrap";
         const liveCard = document.createElement('div');
         liveCard.className = logFlowCardClass('main-live');
+        if (eventParentSelecting) liveCard.classList.add('event-parent-selectable');
+        if (eventParentCandidate === current) liveCard.classList.add('event-parent-selected');
         applySceneFlowCardTheme(liveCard, current);
         const inner = document.createElement('div');
         inner.className = "log-flow-inner";
@@ -3547,6 +3570,7 @@ function createLogRow(list, log, idx) {
     card.className = logFlowCardClass(log.parallel ? 'parallel-log' : 'main-log');
     applySceneFlowCardTheme(card, log);
     if (eventParentSelecting && !log.parallel) card.classList.add('event-parent-selectable');
+    if (eventParentCandidate === log) card.classList.add('event-parent-selected');
 
     let startX = 0, startY = 0, isSwiping = false, currentDx = 0;
     let _wasLongPress = false, _lpTimer = null;
@@ -4546,12 +4570,13 @@ function resolveReportCategoryAverage(slot, periodData, view) {
 }
 
 function resolveSystemSleepAverage(slot, range, now) {
-    // 今天尚未结束，不参与睡眠平均的分母；完整结束但没有睡眠的日期自然按 0 小时计算。
-    const completedEnd = Math.min(range.end, beijingDateStrToDayStart(getTodayDateStr()));
-    const days = Math.max(0, Math.floor((completedEnd - range.start) / DAY_MS));
-    if (!days) return { value: '—', label: '睡眠日均' };
+    // 已结算只算完整结束的自然日；实时模式会在今天已有一整段结束睡眠时，把今天一并纳入。
+    const todayStart = beijingDateStrToDayStart(getTodayDateStr());
+    const completedEnd = Math.min(range.end, todayStart);
+    const completedDays = Math.max(0, Math.floor((completedEnd - range.start) / DAY_MS));
 
     const source = logs
+        .concat(current ? [{ ...current, endTime: now }] : [])
         .concat(parallelHistory)
         .concat(parallelCurrent ? [{ ...parallelCurrent, endTime: now }] : [])
         .filter((record) => isSystemSleepSelection(record.l1, record.l2))
@@ -4571,11 +4596,21 @@ function resolveSystemSleepAverage(slot, range, now) {
     });
 
     let totalMs = 0;
+    const isRealtime = range.end > todayStart;
+    const todaySleeps = nights.filter((night) => {
+        const wakeDay = beijingDateStrToDayStart(formatBeijingDate(night.end));
+        return wakeDay === todayStart && night.end <= now;
+    });
+    const includeToday = isRealtime && todaySleeps.length > 0;
+    const days = completedDays + (includeToday ? 1 : 0);
+    if (!days) return { value: '—', label: '睡眠日均' };
     nights.forEach((night) => {
         const crossesIntoPeriod = night.start < range.start && night.end > range.start;
         if (crossesIntoPeriod && slot.carry === 'previous') return;
         const wakeDay = beijingDateStrToDayStart(formatBeijingDate(night.end));
-        if (wakeDay >= range.start && wakeDay < completedEnd) totalMs += night.end - night.start;
+        const isCompletedDay = wakeDay >= range.start && wakeDay < completedEnd;
+        const isIncludedToday = includeToday && wakeDay === todayStart;
+        if (isCompletedDay || isIncludedToday) totalMs += night.end - night.start;
     });
     return {
         value: formatDuration(Math.round(totalMs / days / 1000) * 1000),
