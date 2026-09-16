@@ -1076,7 +1076,8 @@ function getParallelDisplayRecords(parallelLogs) {
             ? candidates.filter((item) => item.main.scene && item.main.l2 === parallel.sceneName)
             : [];
         if (namedScene.length) candidates = namedScene;
-        const parentId = candidates.sort((a, b) => b.overlap - a.overlap)[0]?.main?.id || parallel.parentId;
+        const parent = candidates.sort((a, b) => b.overlap - a.overlap)[0]?.main || null;
+        const parentId = parent?.id || parallel.parentId;
         const key = parallel.id != null
             ? `id:${parallel.id}`
             : [parentId, start, end, parallel.l1 || '', parallel.l2 || '', parallel.icon || ''].join('|');
@@ -1084,6 +1085,7 @@ function getParallelDisplayRecords(parallelLogs) {
         // 同一条旧数据有一份已正确挂在目标主线时，优先保留那一份，便于后续编辑。
         if (!existing || (existing.parentId !== parentId && parallel.parentId === parentId)) {
             parallel._displayParentId = parentId;
+            parallel._displayParent = parent;
             winners.set(key, parallel);
         }
     });
@@ -1130,7 +1132,7 @@ function renderHomeHistory() {
             const realIdx = logs.indexOf(log);
             createLogRow(list, log, realIdx);
             parallelLogs
-                .filter((child) => child._displayParentId === log.id)
+                .filter((child) => child._displayParent === log)
                 .sort((a, b) => a.startTime - b.startTime)
                 .forEach((child) => {
                     const wrap = document.createElement('div');
@@ -2022,10 +2024,10 @@ function closeEdit() {
     editOldL1 = null; editOldL2 = null;
 }
 
-function deleteLogEntry(id) {
-    const target = logs.find(l => l.id === id);
+function deleteLogEntry(target) {
+    if (!target || !logs.includes(target)) return;
     if (target && !target.parallel) mergeDeletedTime(target, 'down');
-    logs = logs.filter(l => l.id !== id);
+    logs = logs.filter(l => l !== target);
     // 级联删除挂载的并行子记录
     if (target && !target.parallel) {
         logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
@@ -2037,7 +2039,7 @@ function deleteLogEntry(id) {
 
 function getDeleteMergeNeighbors(target) {
     const sameDay = logs
-        .filter(l => !l.parallel && l.id !== target.id && formatBeijingDate(l.startTime) === formatBeijingDate(target.startTime))
+        .filter(l => !l.parallel && l !== target && formatBeijingDate(l.startTime) === formatBeijingDate(target.startTime))
         .sort((a, b) => a.startTime - b.startTime);
     const activeUp = current && formatBeijingDate(current.startTime) === formatBeijingDate(target.startTime)
         && current.startTime > target.startTime ? current : null;
@@ -2089,16 +2091,15 @@ function showMergeDirection(target, callback) {
     modal.classList.remove('hidden');
 }
 
-function requestDeleteLogEntry(id) {
-    const target = logs.find(l => l.id === id);
+function requestDeleteLogEntry(target) {
     if (!target) return;
     if (target.parallel) {
-        deleteLogEntry(id);
+        deleteLogEntry(target);
         return;
     }
     const neighbors = getDeleteMergeNeighbors(target);
     if (!neighbors.up && !neighbors.down) {
-        deleteLogEntry(id);
+        deleteLogEntry(target);
         return;
     }
     const activeUp = neighbors.up === current;
@@ -2109,7 +2110,7 @@ function requestDeleteLogEntry(id) {
             // 顶部正在进行的活动不在 logs 中，合并后要把新的起点写回 current。
             localStorage.setItem('v9_current', JSON.stringify(current));
         }
-        logs = logs.filter(l => l.id !== id);
+        logs = logs.filter(l => l !== target);
         logs = logs.filter(l => !(l.parallel && l.parentId === target.id));
         mergeAdjacentSameActivity();
         localStorage.setItem('v9_logs', JSON.stringify(logs));
@@ -2144,7 +2145,7 @@ function doExecuteRecord(l1, l2, tag, note, endParallel, rollover) {
     if (current) {
         commitCurrentSlice(now, false, { endParallel: !!endParallel, rollover: !!rollover });
     }
-    current = { id: now, startTime: now, l1, l2, tag, note, color };
+    current = { id: genId(), startTime: now, l1, l2, tag, note, color };
     localStorage.setItem('v9_current', JSON.stringify(current));
     closeDrawer();
     renderAll();
@@ -2235,7 +2236,7 @@ function drawerPick(l1, l2) {
         d.setHours(+t[0], +t[1], 0, 0);
         if (d.getTime() > now) d.setDate(d.getDate() - 1);
         const entry = {
-            id: now + Math.random(),
+            id: genId(),
             startTime: d.getTime(),
             endTime: d.getTime() + dur * 60000,
             duration: dur,
@@ -2378,13 +2379,13 @@ function toggleParallel(l1, l2, icon) {
             localStorage.removeItem('v9_parallel');
         } else {
             // 点不同的并行 → 结束旧的，开新的
-            parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null, sceneName: current?.scene ? current.l2 : '' };
+            parallelCurrent = { id: genId(), startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null, sceneName: current?.scene ? current.l2 : '' };
             localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
         }
         localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
     } else {
         // 没有并行在跑 → 直接开新的
-        parallelCurrent = { id: now, startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null, sceneName: current?.scene ? current.l2 : '' };
+        parallelCurrent = { id: genId(), startTime: now, l1, l2, icon: icon || '📌', note: '', parentId: current?.id || null, sceneName: current?.scene ? current.l2 : '' };
         localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
     }
     renderParallelShortcuts();
@@ -3482,7 +3483,7 @@ function renderLogs(listId, dateStr) {
     normalLogs.forEach((log) => {
         const realIdx = logs.indexOf(log);
         createLogRow(list, log, realIdx);
-        parallelLogs.filter((p) => p._displayParentId === log.id).sort((a, b) => a.startTime - b.startTime).forEach((child) => {
+        parallelLogs.filter((p) => p._displayParent === log).sort((a, b) => a.startTime - b.startTime).forEach((child) => {
             const childIdx = logs.indexOf(child);
             const wrap = document.createElement('div');
             wrap.className = 'log-flow-nest mt-1 mb-1';
@@ -3504,9 +3505,9 @@ function renderLogs(listId, dateStr) {
 
 // 已保存的并行绝不能因为旧数据的 parentId 不匹配而从流水中消失。
 function appendUnattachedParallelLogs(list, parallelLogs, normalLogs) {
-    const parentIds = new Set(normalLogs.map((item) => item.id));
+    const parents = new Set(normalLogs);
     const unattached = parallelLogs
-        .filter((item) => !parentIds.has(item._displayParentId || item.parentId))
+        .filter((item) => !parents.has(item._displayParent))
         .sort((a, b) => b.startTime - a.startTime);
     if (!unattached.length) return;
 
@@ -3581,7 +3582,7 @@ function createLogRow(list, log, idx) {
             if (currentDx > 55) {
                 const logName = displayName(log);
                 showConfirm("确认删除", `删除「${logName}」？这条记录将被永久移除。`, "删除", (ok) => {
-                    if (ok) requestDeleteLogEntry(log.id);
+                    if (ok) requestDeleteLogEntry(log);
                 });
             } else if (currentDx < -55) {
                 openEdit(idx);
