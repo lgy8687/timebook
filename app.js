@@ -2107,7 +2107,11 @@ function confirmActiveParallelEdit() {
     const log = parallelCurrent;
     if (!target || !log || log.id !== target.id) return;
     const editedDate = document.getElementById('edit-parallel-date').value;
-    const newStart = parseTimeOnBeijingDate('es', editedDate);
+    // 某些移动端会在弹窗回到前台时清空 date 控件；开始日期缺失时沿用记录自身日期。
+    const startDate = /^\d{4}-\d{2}-\d{2}$/.test(editedDate || '')
+        ? editedDate
+        : formatBeijingDate(log.startTime);
+    const newStart = parseTimeOnBeijingDate('es', startDate);
     const now = nowSecondMs();
     // 运行中的并行没有固定结束点：始终以保存这一刻为临时边界，避免跨午夜时把“今天”误读成开始日。
     const newEnd = now;
