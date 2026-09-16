@@ -225,15 +225,24 @@ function repairOrphanedParallelParents() {
     let changed = false;
     logs.forEach((item) => {
         if (!item.parallel) return;
-        const parent = item.sceneName
+        const linkedParent = mainLogs.find((main) => main.id === item.parentId);
+        const linkedOverlap = linkedParent
+            ? Math.max(0, Math.min(logEndMs(linkedParent), logEndMs(item)) - Math.max(linkedParent.startTime, item.startTime))
+            : 0;
+        const sceneParent = item.sceneName
             ? mainLogs.filter((main) => main.scene && main.l2 === item.sceneName)
                 .map((main) => ({ main, overlap: Math.max(0, Math.min(logEndMs(main), logEndMs(item)) - Math.max(main.startTime, item.startTime)) }))
                 .filter((candidate) => candidate.overlap > 0)
                 .sort((a, b) => b.overlap - a.overlap)[0]?.main
-            : (!item.parentId || !mainLogs.some((main) => main.id === item.parentId) ? findParent(item) : null);
-        // 已有有效父级绝不重挂；场景并行只允许回到同名场景主线。
+            : null;
+        // 父级存在但和并行时段完全不重叠，仍是错挂；按真实重叠时间修复。
+        const parent = sceneParent || (!linkedParent || linkedOverlap <= 0 ? findParent(item) : null);
         if (parent && item.parentId !== parent.id) {
             item.parentId = parent.id;
+            changed = true;
+        }
+        if (parent?.scene && item.sceneName !== parent.l2) {
+            item.sceneName = parent.l2;
             changed = true;
         }
     });
@@ -245,6 +254,17 @@ function repairOrphanedParallelParents() {
             changed = true;
         }
     });
+    // 旧错挂数据会留下两条内容完全相同、只差父级的并行记录；修复父级后合并为一条。
+    const seenParallel = new Set();
+    const beforeDedup = logs.length;
+    logs = logs.filter((item) => {
+        if (!item.parallel) return true;
+        const key = [item.parentId, item.startTime, logEndMs(item), item.l1 || '', item.l2 || '', item.note || '', item.icon || ''].join('|');
+        if (seenParallel.has(key)) return false;
+        seenParallel.add(key);
+        return true;
+    });
+    if (logs.length !== beforeDedup) changed = true;
     if (changed) {
         localStorage.setItem('v9_logs', JSON.stringify(logs));
         localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
