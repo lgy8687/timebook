@@ -259,7 +259,7 @@ function repairOrphanedParallelParents() {
     const beforeDedup = logs.length;
     logs = logs.filter((item) => {
         if (!item.parallel) return true;
-        const key = [item.parentId, item.startTime, logEndMs(item), item.l1 || '', item.l2 || '', item.note || '', item.icon || ''].join('|');
+        const key = [item.parentId, item.startTime, logEndMs(item), item.l1 || '', item.l2 || '', item.icon || ''].join('|');
         if (seenParallel.has(key)) return false;
         seenParallel.add(key);
         return true;
@@ -1037,6 +1037,35 @@ function formatDateHeaderLabel(dateStr) {
     return `${y}年${m}月${d}日 星期${w}`;
 }
 
+/**
+ * 历史版本曾把同一条并行同时存到场景与生活主线。渲染时以真实时间重叠为准，
+ * 不再盲信旧 parentId；相同时间、相同活动只展示一次。
+ */
+function getParallelDisplayRecords(parallelLogs) {
+    const mainLogs = logs.filter((item) => !item.parallel);
+    const winners = new Map();
+    parallelLogs.forEach((parallel) => {
+        const start = parallel.startTime;
+        const end = logEndMs(parallel);
+        let candidates = mainLogs
+            .map((main) => ({ main, overlap: Math.max(0, Math.min(logEndMs(main), end) - Math.max(main.startTime, start)) }))
+            .filter((item) => item.overlap > 0);
+        const namedScene = parallel.sceneName
+            ? candidates.filter((item) => item.main.scene && item.main.l2 === parallel.sceneName)
+            : [];
+        if (namedScene.length) candidates = namedScene;
+        const parentId = candidates.sort((a, b) => b.overlap - a.overlap)[0]?.main?.id || parallel.parentId;
+        const key = [parentId, start, end, parallel.l1 || '', parallel.l2 || '', parallel.icon || ''].join('|');
+        const existing = winners.get(key);
+        // 同一条旧数据有一份已正确挂在目标主线时，优先保留那一份，便于后续编辑。
+        if (!existing || (existing.parentId !== parentId && parallel.parentId === parentId)) {
+            parallel._displayParentId = parentId;
+            winners.set(key, parallel);
+        }
+    });
+    return [...winners.values()];
+}
+
 function setViewDate(dateStr) {
     viewDate = dateStr;
     renderCalendarPage();
@@ -1072,12 +1101,12 @@ function renderHomeHistory() {
         const normalLogs = dayLogs
             .filter((log) => !log.parallel)
             .sort((a, b) => b.startTime - a.startTime);
-        const parallelLogs = dayLogs.filter((log) => log.parallel);
+        const parallelLogs = getParallelDisplayRecords(dayLogs.filter((log) => log.parallel));
         normalLogs.forEach((log) => {
             const realIdx = logs.indexOf(log);
             createLogRow(list, log, realIdx);
             parallelLogs
-                .filter((child) => child.parentId === log.id)
+                .filter((child) => child._displayParentId === log.id)
                 .sort((a, b) => a.startTime - b.startTime)
                 .forEach((child) => {
                     const wrap = document.createElement('div');
@@ -3424,12 +3453,12 @@ function renderLogs(listId, dateStr) {
 
     const dayLogs = logs.filter((l) => logTouchesDate(l, dateStr));
     const normalLogs = dayLogs.filter((l) => !l.parallel).sort((a, b) => b.startTime - a.startTime);
-    const parallelLogs = dayLogs.filter((l) => l.parallel);
+    const parallelLogs = getParallelDisplayRecords(dayLogs.filter((l) => l.parallel));
 
     normalLogs.forEach((log) => {
         const realIdx = logs.indexOf(log);
         createLogRow(list, log, realIdx);
-        parallelLogs.filter((p) => p.parentId === log.id).sort((a, b) => a.startTime - b.startTime).forEach((child) => {
+        parallelLogs.filter((p) => p._displayParentId === log.id).sort((a, b) => a.startTime - b.startTime).forEach((child) => {
             const childIdx = logs.indexOf(child);
             const wrap = document.createElement('div');
             wrap.className = 'log-flow-nest mt-1 mb-1';
@@ -3453,7 +3482,7 @@ function renderLogs(listId, dateStr) {
 function appendUnattachedParallelLogs(list, parallelLogs, normalLogs) {
     const parentIds = new Set(normalLogs.map((item) => item.id));
     const unattached = parallelLogs
-        .filter((item) => !parentIds.has(item.parentId))
+        .filter((item) => !parentIds.has(item._displayParentId || item.parentId))
         .sort((a, b) => b.startTime - a.startTime);
     if (!unattached.length) return;
 
