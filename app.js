@@ -4313,6 +4313,73 @@ function aggregateReportSegments(segments, keyFn) {
     return [...map.values()].sort((a, b) => b.ms - a.ms);
 }
 
+function reportMainGroup(log) {
+    const sceneName = log?.scene ? displayName(log) : '';
+    if (sceneName) {
+        return {
+            key: `scene:${sceneName}`,
+            name: `场景 / ${sceneName}`,
+            color: typeof getSceneColor === 'function' ? getSceneColor(sceneName) : '#0ea5e9',
+        };
+    }
+    const l1 = log?.l1 || '未分类';
+    return {
+        key: `category:${l1}`,
+        name: l1,
+        color: getCat(l1)?.color || '#94a3b8',
+    };
+}
+
+// 场景是主线的覆盖层；场景内记录只在活动明细中嵌入对应场景，不能混入生活区并行。
+function buildMainChartComposition(mainSegs, parallelSegs) {
+    const groups = new Map();
+    const details = new Map();
+    const sceneParents = [];
+
+    mainSegs.forEach((log) => {
+        const group = reportMainGroup(log);
+        const ms = log.clippedEnd - log.clippedStart;
+        const item = groups.get(group.key) || { key: group.key, name: group.name, ms: 0, color: group.color };
+        item.ms += ms;
+        groups.set(group.key, item);
+        if (log.scene) sceneParents.push({ log, group, ms });
+        if (!log.scene) {
+            const name = displayName(log);
+            const detailKey = `${group.key}|${name}`;
+            const detail = details.get(detailKey) || { l1: group.name, name, ms: 0, color: group.color };
+            detail.ms += ms;
+            details.set(detailKey, detail);
+        }
+    });
+
+    parallelSegs
+        .filter((log) => log.sceneName || sceneParents.some((item) => item.log.id === log.parentId))
+        .forEach((log) => {
+            const parent = sceneParents
+                .filter((item) => item.log.id === log.parentId || (log.sceneName && item.log.l2 === log.sceneName))
+                .map((item) => ({
+                    ...item,
+                    overlap: Math.max(0, Math.min(item.log.clippedEnd, log.clippedEnd) - Math.max(item.log.clippedStart, log.clippedStart)),
+                }))
+                .sort((a, b) => b.overlap - a.overlap)[0];
+            if (!parent?.overlap) return;
+            const name = displayName(log);
+            const detailKey = `${parent.group.key}|${name}`;
+            const detail = details.get(detailKey) || { l1: parent.group.name, name, ms: 0, color: getCat(log.l1)?.color || parent.group.color };
+            detail.ms += parent.overlap;
+            details.set(detailKey, detail);
+        });
+
+    return {
+        l1: [...groups.values()]
+            .sort((a, b) => b.ms - a.ms)
+            .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), color: item.color })),
+        l2: [...details.values()]
+            .sort((a, b) => b.ms - a.ms)
+            .map((item) => ({ l1: item.l1, name: item.name, hours: msToReportHours(item.ms), color: item.color })),
+    };
+}
+
 function buildMainComposition(segments, periodStart, periodEnd) {
     const clipped = segments
         .filter((l) => l.clippedEnd > periodStart && l.clippedStart < periodEnd)
@@ -4410,15 +4477,8 @@ function buildLiveReportDay() {
     const mainMs = mainSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
     const paraMs = paraSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
 
-    const l1Agg = aggregateReportSegments(mainSegs, (l) => l.l1 || '未分类');
-    const l2Agg = aggregateReportSegments(mainSegs, displayName);
-    const l1 = l1Agg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
-    const l2 = l2Agg.map((r) => ({
-        l1: r.l1,
-        name: r.name,
-        hours: msToReportHours(r.ms),
-        color: r.color,
-    }));
+    const chartComposition = buildMainChartComposition(mainSegs, paraSegs);
+    const { l1, l2 } = chartComposition;
 
     const topL1 = l1[0];
     const mainHours = msToReportHours(mainMs);
@@ -4649,10 +4709,8 @@ function buildLiveReportPeriod(period, options = {}) {
     const paraSegs = all.filter((l) => l.parallel);
     const mainMs = mainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const paraMs = paraSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
-    const l1Agg = aggregateReportSegments(mainSegs, (l) => l.l1 || '未分类');
-    const l2Agg = aggregateReportSegments(mainSegs, displayName);
-    const l1 = l1Agg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
-    const l2 = l2Agg.map((r) => ({ l1: r.l1, name: r.name, hours: msToReportHours(r.ms), color: r.color }));
+    const chartComposition = buildMainChartComposition(mainSegs, paraSegs);
+    const { l1, l2 } = chartComposition;
     const paraAgg = aggregateReportSegments(paraSegs, displayName);
     const paraL1 = paraAgg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
     const mainHours = msToReportHours(mainMs);

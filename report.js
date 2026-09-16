@@ -1,9 +1,9 @@
 /**
- * 报表 v1.6 — 主页嵌入 + 沙盘；日报可走真实日志
+ * 报表 v2.3 — 场景活动明细嵌入主线圆环
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.2';
+    const REPORT_VERSION = 'v2.3';
 
     let state = {
         period: 'day',
@@ -54,12 +54,19 @@
         ].join(' ');
     }
 
-    function buildRingSegments(items, cx, cy, r0, r1, total, keyCat) {
+    function buildRingSegments(items, cx, cy, r0, r1, total, keyCat, useItemColor) {
         let angle = 0;
         return items.filter((item) => item.hours > 0).map((item) => {
             const sweep = (item.hours / total) * 360;
             const path = arcPath(cx, cy, r0, r1, angle, angle + sweep);
-            const seg = { path, cat: item[keyCat] || item.name, name: item.name, l1: item.l1, hours: item.hours, color: colorForKey(`${item.l1 || ''}|${item.name}`, item.color) };
+            const seg = {
+                path,
+                cat: item[keyCat] || item.name,
+                name: item.name,
+                l1: item.l1,
+                hours: item.hours,
+                color: useItemColor ? reportColor(item.color, item.name) : colorForKey(`${item.l1 || ''}|${item.name}`, item.color),
+            };
             angle += sweep;
             return seg;
         });
@@ -253,10 +260,10 @@
 
         document.getElementById('structure-title').textContent = '时间结构';
         document.getElementById('chart-legend-hint').textContent = isMain
-            ? '内环 = 活动分类 · 外环 = 活动'
+            ? '内环 = 一级目录 / 场景 · 外环 = 二级活动'
             : '内环 = 并行活动 · 外环 = 叠加明细';
 
-        renderSunburst(chartBundle.l1, chartBundle.l2, total);
+        renderSunburst(chartBundle.l1, chartBundle.l2, total, isMain);
         renderLegend(chartBundle.l1, chartBundle.l2, total, isMain);
 
         const insight = document.getElementById('insight-block');
@@ -270,12 +277,14 @@
         syncToolbar();
     }
 
-    function renderSunburst(l1, l2, total) {
+    function renderSunburst(l1, l2, total, isMain) {
         const svg = document.getElementById('sunburst-svg');
         if (!svg) return;
         const cx = 100, cy = 100;
-        const inner = buildRingSegments(l1, cx, cy, 28, 50, total || 1, 'name');
-        const outer = buildRingSegments(l2, cx, cy, 54, 80, total || 1, 'l1');
+        const inner = buildRingSegments(l1, cx, cy, 28, 50, total || 1, 'name', isMain);
+        const outer = isMain
+            ? buildEmbeddedOuterSegments(l1, l2, cx, cy, total || 1)
+            : buildRingSegments(l2, cx, cy, 54, 80, total || 1, 'l1', false);
 
         let html = '';
         inner.forEach((s) => {
@@ -283,7 +292,8 @@
                 data-title="${esc(s.name)}" data-hours="${fmtHours(s.hours)}" data-pct="${pct(s.hours, total)}"/>`;
         });
         outer.forEach((s) => {
-            html += `<path d="${s.path}" fill="${s.color}" fill-opacity=".78" stroke="#fff" stroke-width=".5" class="outer-seg" data-cat="${esc(s.l1)}"
+            const remainder = s.remainder ? ' scene-remainder' : '';
+            html += `<path d="${s.path}" fill="${s.color}" fill-opacity=".78" stroke="#fff" stroke-width=".5" class="outer-seg${remainder}" data-cat="${esc(s.l1)}"
                 data-title="${esc(s.name)}" data-sub="${esc(s.l1)}" data-hours="${fmtHours(s.hours)}" data-pct="${pct(s.hours, total)}"/>`;
         });
         const centerVal = Math.round(total * 10) / 10;
@@ -293,10 +303,50 @@
         svg.innerHTML = html;
 
         svg.querySelectorAll('.inner-seg').forEach(bindSegTip);
-        svg.querySelectorAll('.outer-seg').forEach((el) => {
+        svg.querySelectorAll('.outer-seg:not(.scene-remainder)').forEach((el) => {
             el.addEventListener('mouseenter', (e) => showTipOuter(e, el.dataset.title, el.dataset.sub, el.dataset.hours, el.dataset.pct));
             el.addEventListener('mouseleave', hideTip);
         });
+    }
+
+    // 外环严格跟随内环父块。场景内未细分的部分用场景底色补足，但不作为明细项目显示。
+    function buildEmbeddedOuterSegments(l1, l2, cx, cy, total) {
+        let angle = 0;
+        const rows = [];
+        l1.filter((item) => item.hours > 0).forEach((parent) => {
+            const parentSweep = (parent.hours / total) * 360;
+            const children = l2.filter((item) => item.l1 === parent.name && item.hours > 0);
+            const childHours = children.reduce((sum, item) => sum + item.hours, 0);
+            const scale = childHours > parent.hours && childHours > 0 ? parent.hours / childHours : 1;
+            let childAngle = angle;
+            children.forEach((item) => {
+                const sweep = (item.hours * scale / total) * 360;
+                if (sweep <= 0) return;
+                rows.push({
+                    path: arcPath(cx, cy, 54, 80, childAngle, childAngle + sweep),
+                    cat: parent.name,
+                    name: item.name,
+                    l1: parent.name,
+                    hours: item.hours,
+                    color: colorForKey(`l2|${parent.name}|${item.name}`, item.color),
+                });
+                childAngle += sweep;
+            });
+            const remainder = angle + parentSweep - childAngle;
+            if (remainder > 0.0001) {
+                rows.push({
+                    path: arcPath(cx, cy, 54, 80, childAngle, angle + parentSweep),
+                    cat: parent.name,
+                    name: parent.name,
+                    l1: parent.name,
+                    hours: 0,
+                    color: reportColor(parent.color, parent.name),
+                    remainder: true,
+                });
+            }
+            angle += parentSweep;
+        });
+        return rows;
     }
 
     function bindSegTip(el) {
@@ -307,7 +357,7 @@
     function renderLegend(l1, l2, total, isMain) {
         const l1Box = document.getElementById('legend-l1');
         const l2Box = document.getElementById('legend-l2');
-        l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.hours, colorForKey(`l1|${row.name}`, row.color), total, row.name)).join('');
+        l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.hours, isMain ? reportColor(row.color, row.name) : colorForKey(`l1|${row.name}`, row.color), total, row.name)).join('');
         l2Box.innerHTML = l2.map((row) => legendRow(row.name, row.l1, row.hours, colorForKey(`l2|${row.l1}|${row.name}`, row.color), total, row.l1)).join('');
         l1Box.style.display = state.legendMode === 'l1' ? 'block' : 'none';
         l2Box.style.display = state.legendMode === 'l2' ? 'block' : 'none';
