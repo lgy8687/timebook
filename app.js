@@ -1868,6 +1868,15 @@ function openEdit(index, source = 'logs') {
         dateRow.classList.add('hidden');
         dateInput.value = '';
     }
+    const activeParallel = source === 'parallelCurrent';
+    ['ee-h', 'ee-m', 'ee-s'].forEach((fieldId) => {
+        const field = document.getElementById(fieldId);
+        if (!field) return;
+        field.disabled = activeParallel;
+        field.classList.toggle('opacity-40', activeParallel);
+    });
+    const endLabel = document.getElementById('edit-end-label');
+    if (endLabel) endLabel.innerText = activeParallel ? '实时结束' : '结束';
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -2099,14 +2108,11 @@ function confirmActiveParallelEdit() {
     if (!target || !log || log.id !== target.id) return;
     const editedDate = document.getElementById('edit-parallel-date').value;
     const newStart = parseTimeOnBeijingDate('es', editedDate);
-    const newEnd = parseTimeOnBeijingDate('ee', editedDate);
     const now = nowSecondMs();
-    if (newStart === null || newEnd === null || newStart >= newEnd) {
-        showConfirm('时间不合法', '开始时间必须早于结束时间。', '知道了', () => {});
-        return;
-    }
-    if (newEnd > now) {
-        showConfirm('结束时间还没到', '进行中的并行不能填写未来时间。', '知道了', () => {});
+    // 运行中的并行没有固定结束点：始终以保存这一刻为临时边界，避免跨午夜时把“今天”误读成开始日。
+    const newEnd = now;
+    if (newStart === null || newStart >= newEnd) {
+        showConfirm('时间不合法', '开始时间必须早于当前时间。', '知道了', () => {});
         return;
     }
     const sceneTarget = current?.scene ? getSceneBackfillTarget(current.l2, editedDate) : null;
@@ -2119,8 +2125,7 @@ function confirmActiveParallelEdit() {
         if (editOldL1) { draft.l1 = editOldL1; draft.l2 = editOldL2; }
         draft.note = document.getElementById('edit-note-input').value;
         if (draft.l1) rememberInputAlias(draft.note, draft.l1, draft.l2);
-        const keepRunning = editedDate === getTodayDateStr()
-            && Math.floor(newEnd / 1000) === Math.floor(target.liveEnd / 1000);
+        const keepRunning = true;
         if (keepRunning) {
             parallelCurrent = { ...log, l1: draft.l1, l2: draft.l2, note: draft.note, startTime: draft.startTime, sceneName: current?.scene ? current.l2 : '' };
             localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
