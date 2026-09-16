@@ -227,6 +227,21 @@ function repairDuplicateMainLogIds() {
 }
 repairDuplicateMainLogIds();
 
+function repairActiveMainId() {
+    if (!current) return;
+    const occupied = new Set(logs.filter((item) => !item.parallel).map((item) => String(item.id)));
+    if (!current.id || occupied.has(String(current.id))) {
+        const oldId = current.id;
+        current.id = genId();
+        if (parallelCurrent && String(parallelCurrent.parentId) === String(oldId)) {
+            parallelCurrent.parentId = current.id;
+            localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+        }
+        localStorage.setItem('v9_current', JSON.stringify(current));
+    }
+}
+repairActiveMainId();
+
 function repairOrphanedParallelParents() {
     const mainLogs = logs.filter((item) => !item.parallel);
     const findParent = (parallelLog) => {
@@ -1172,7 +1187,8 @@ function commitCurrentSlice(endMs, continueSame, parallelOpts) {
     if (!Number.isFinite(current.startTime) || endMs <= current.startTime) return;
     const cat = getCat(current.l1);
     const color = current.color || (cat ? cat.color : '#cbd5e1');
-    const mainLogId = continueSame ? endMs : genId();
+    // 当前主线启动时已获得唯一 ID；结束后保留它，子并行的 parentId 无须二次改挂。
+    const mainLogId = current.id || genId();
     const dur = Math.max(1, Math.round((endMs - current.startTime) / 60000));
     const needsClassify = !current.l1 && !!(current.note || current.tag);
     logs.unshift({
@@ -1196,7 +1212,12 @@ function commitCurrentSlice(endMs, continueSame, parallelOpts) {
     }
     settleCompletedParallelHistory();
     if (continueSame) {
-        current = { ...current, id: endMs, startTime: endMs };
+        const nextMainId = genId();
+        current = { ...current, id: nextMainId, startTime: endMs };
+        if (parallelCurrent) {
+            parallelCurrent.parentId = nextMainId;
+            localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+        }
         localStorage.setItem('v9_current', JSON.stringify(current));
     }
     localStorage.setItem('v9_logs', JSON.stringify(logs));
