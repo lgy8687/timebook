@@ -60,6 +60,55 @@ body#report-standalone {
 .seg-btn.view-main.active { background: var(--rp-indigo); }
 .seg-btn.view-parallel.active { background: var(--rp-violet); color: #fff; }
 
+.report-period-nav {
+    width: min(100%, 340px);
+    min-height: 38px;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    align-items: center;
+    border: 1px solid var(--rp-border);
+    border-radius: 12px;
+    background: var(--rp-card);
+    box-shadow: var(--rp-shadow);
+    overflow: hidden;
+}
+.report-period-nav.hidden { display: none; }
+.report-period-nav-btn {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    background: transparent;
+    color: #4b728a;
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+}
+.report-period-nav-btn:disabled { color: #cbd5e1; cursor: default; }
+.report-period-nav-range {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+.report-period-today {
+    border: 0;
+    border-radius: 7px;
+    padding: 4px 7px;
+    background: #edf6f4;
+    color: #16816e;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1.2;
+    cursor: pointer;
+}
+.report-period-today.hidden { display: none; }
+
 /* ── 账单头 ── */
 .header { margin-bottom: 16px; }
 .header h1 { font-size: 22px; font-weight: 900; color: #1e293b; display: flex; align-items: center; gap: 8px; }

@@ -142,6 +142,14 @@
                             <button type="button" class="seg-btn" data-period="year">年报</button>
                         </div>
                     </div>
+                    <div class="report-period-nav hidden" id="report-period-nav" aria-label="报表时间范围">
+                        <button type="button" class="report-period-nav-btn" data-report-nav="previous" title="查看上一周期" aria-label="查看上一周期">&#8249;</button>
+                        <div class="report-period-nav-range">
+                            <span id="report-period-range">—</span>
+                            <button type="button" class="report-period-today hidden" data-report-nav="current">回到当前</button>
+                        </div>
+                        <button type="button" class="report-period-nav-btn" data-report-nav="next" title="查看下一周期" aria-label="查看下一周期">&#8250;</button>
+                    </div>
                 </div>
 
                 <section class="summary-block report-summary-periodic" id="summary-block-main">
@@ -607,7 +615,7 @@
     <div id="tip"></div>
 
     <script src="report-metrics.js?v=1.8"></script>
-    <script src="report.js?v=2.6"></script>
+    <script src="report.js?v=2.7"></script>
     <script src="ui-theme.js?v=4.67"></script>
     <script src="app.js?v=5.12"></script>
     <script src="dev-appearance.js?v=4.67"></script>

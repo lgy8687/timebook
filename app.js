@@ -4989,12 +4989,12 @@ function buildLiveReportDay() {
     };
 }
 
-function getReportPeriodData(period, options) {
+function getReportPeriodData(period, options = {}) {
     if (period === 'day') return buildLiveReportDay();
     return buildLiveReportPeriod(period, options);
 }
 
-function getBeijingReportRange(period, now) {
+function getBeijingReportRange(period, now, rangeOffset = 0) {
     const d = new Date(now + BJ_OFFSET);
     const y = d.getUTCFullYear();
     const m = d.getUTCMonth();
@@ -5002,15 +5002,23 @@ function getBeijingReportRange(period, now) {
     const today = Date.UTC(y, m, day) - BJ_OFFSET;
     if (period === 'week') {
         const mondayOffset = (d.getUTCDay() + 6) % 7;
-        const start = today - mondayOffset * DAY_MS;
+        const start = today - mondayOffset * DAY_MS + rangeOffset * 7 * DAY_MS;
         return { start, end: start + 7 * DAY_MS };
     }
     if (period === 'month') {
-        const start = Date.UTC(y, m, 1) - BJ_OFFSET;
-        return { start, end: Date.UTC(y, m + 1, 1) - BJ_OFFSET };
+        const start = Date.UTC(y, m + rangeOffset, 1) - BJ_OFFSET;
+        return { start, end: Date.UTC(y, m + rangeOffset + 1, 1) - BJ_OFFSET };
     }
     const start = Date.UTC(y, 0, 1) - BJ_OFFSET;
     return { start, end: Date.UTC(y + 1, 0, 1) - BJ_OFFSET };
+}
+
+function getReportPeriodTitle(period, range) {
+    const start = new Date(range.start + BJ_OFFSET);
+    const end = new Date(range.end - 1 + BJ_OFFSET);
+    if (period === 'month') return `${start.getUTCFullYear()}年${start.getUTCMonth() + 1}月`;
+    if (period === 'week') return `${start.getUTCFullYear()}年${start.getUTCMonth() + 1}月${start.getUTCDate()}日-${end.getUTCMonth() + 1}月${end.getUTCDate()}日`;
+    return `${start.getUTCFullYear()}年`;
 }
 
 function resolveReportCategoryAverage(slot, periodData, view) {
@@ -5113,7 +5121,7 @@ function buildYearCategoryComposition(segments, periodStart, periodEnd) {
 
 function buildLiveReportPeriod(period, options = {}) {
     const now = nowSecondMs();
-    const range = getBeijingReportRange(period, now);
+    const range = getBeijingReportRange(period, now, Number(options.rangeOffset) || 0);
     const todayStart = beijingDateStrToDayStart(getTodayDateStr());
     const summaryEnd = options.summaryMode === 'settled'
         ? Math.min(range.end, todayStart)
@@ -5154,14 +5162,16 @@ function buildLiveReportPeriod(period, options = {}) {
         bars.push({ label, hours: msToReportHours(totalMs), segments });
         periodStart = nextPeriodStart;
     }
+    const isCurrentPeriod = range.start <= now && range.end > now;
+    const periodTitle = getReportPeriodTitle(period, range);
     return {
-        _live: true,
+        _live: isCurrentPeriod,
         _period: period,
         _range: { start: range.start, end: summaryEnd },
         events: buildEventReport(range.start, Math.min(range.end, now), period),
-        timeline: { title: period === 'week' ? '本周每日时间构成' : period === 'month' ? '本月每日时间构成' : '本年每月分类构成', hint: period === 'year' ? '按一级目录合并 · 每月从少到多排列' : '按分类分段 · 重叠时间自动去重', kind: 'bars', bars },
+        timeline: { title: period === 'week' ? `${periodTitle}每日时间构成` : period === 'month' ? `${periodTitle}每日时间构成` : '本年每月分类构成', hint: period === 'year' ? '按一级目录合并 · 每月从少到多排列' : '按分类分段 · 重叠时间自动去重', kind: 'bars', bars },
         main: {
-            meta: { title: formatBeijingDate(now), range: period === 'week' ? '本周主线' : period === 'month' ? '本月主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
+            meta: { title: periodTitle, range: period === 'week' ? '周报主线' : period === 'month' ? '月报主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
             summary: [
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
                 { icon: '🔀', label: '活动切换', value: String(Math.max(0, coreMainSegs.length - 1)), sub: '次' },
@@ -5169,7 +5179,7 @@ function buildLiveReportPeriod(period, options = {}) {
             ], l1, l2, l2Slices, sceneCoverage, sceneRange,
         },
         parallel: {
-            meta: { title: formatBeijingDate(now), range: '并行活动', footnote: '并行时段可重叠累计。' },
+            meta: { title: periodTitle, range: '并行活动', footnote: '并行时段可重叠累计。' },
             summary: [
                 { icon: '⏳', label: '并行总时长', value: String(msToReportHours(paraMs)), sub: '小时' },
                 { icon: '📐', label: '叠在主线比', value: paraRatio, sub: '并行/主线' },

@@ -1,12 +1,13 @@
 /**
- * 报表 v2.6 — 真实时刻场景弧与高区分活动色
+ * 报表 v2.7 — 支持周报、月报历史周期浏览
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.6';
+    const REPORT_VERSION = 'v2.7';
 
     let state = {
         period: 'day',
+        periodOffsets: { week: 0, month: 0 },
         chartView: 'main',
         legendMode: 'l1',
         summaryModes: {
@@ -100,7 +101,7 @@
 
     function resolvePeriodData() {
         if (getPeriodData) {
-            const live = getPeriodData(state.period);
+            const live = getPeriodData(state.period, { rangeOffset: state.periodOffsets[state.period] || 0 });
             if (live) return live;
         }
         return typeof REPORT_DATA !== 'undefined' ? REPORT_DATA[state.period] || null : null;
@@ -108,7 +109,10 @@
 
     function resolveSummaryPeriodData(view, fallback) {
         if (getPeriodData) {
-            const data = getPeriodData(state.period, { summaryMode: state.summaryModes[view] || 'live' });
+            const data = getPeriodData(state.period, {
+                summaryMode: state.summaryModes[view] || 'live',
+                rangeOffset: state.periodOffsets[state.period] || 0,
+            });
             if (data) return data;
         }
         return fallback;
@@ -236,8 +240,8 @@
         const periodName = PERIOD_LABELS[state.period];
         const isLive = !!periodData._live;
         const badge = isLive
-            ? '<span class="badge-live">当日记录</span>'
-            : '<span class="badge-sample">沙盘样本</span>';
+            ? '<span class="badge-live">当前周期</span>'
+            : '<span class="badge-sample">历史周期</span>';
 
         const verEl = document.getElementById('report-version');
         if (verEl) verEl.textContent = REPORT_VERSION;
@@ -445,6 +449,37 @@
             btn.classList.toggle('chart-main', btn.dataset.chart === 'main');
             btn.classList.toggle('chart-parallel', btn.dataset.chart === 'parallel');
         });
+        const navigable = !!getPeriodData && (state.period === 'week' || state.period === 'month');
+        const offset = state.periodOffsets[state.period] || 0;
+        const nav = document.getElementById('report-period-nav');
+        const range = document.getElementById('report-period-range');
+        const reset = nav?.querySelector('[data-report-nav="current"]');
+        const next = nav?.querySelector('[data-report-nav="next"]');
+        nav?.classList.toggle('hidden', !navigable);
+        if (range && navigable) range.textContent = getPeriodRangeLabel(state.period, offset);
+        reset?.classList.toggle('hidden', offset === 0);
+        if (next) {
+            next.disabled = offset >= 0;
+            next.title = offset >= 0 ? '已是当前周期' : '查看下一周期';
+        }
+    }
+
+    function getPeriodRangeLabel(period, offset) {
+        const now = new Date();
+        const beijing = new Date(now.getTime() + 8 * 3600000);
+        const year = beijing.getUTCFullYear();
+        const month = beijing.getUTCMonth();
+        const day = beijing.getUTCDate();
+        const today = Date.UTC(year, month, day);
+        if (period === 'month') {
+            const target = new Date(Date.UTC(year, month + offset, 1));
+            return `${target.getUTCFullYear()}年${target.getUTCMonth() + 1}月`;
+        }
+        const mondayOffset = (beijing.getUTCDay() + 6) % 7;
+        const start = new Date(today - mondayOffset * 86400000 + offset * 7 * 86400000);
+        const end = new Date(start.getTime() + 6 * 86400000);
+        const fmt = (date) => `${date.getUTCMonth() + 1}月${date.getUTCDate()}日`;
+        return `${start.getUTCFullYear()}年${fmt(start)}-${fmt(end)}`;
     }
 
     function bindEvents() {
@@ -452,6 +487,16 @@
         eventsBound = true;
         document.querySelectorAll('[data-period]').forEach((btn) => {
             btn.addEventListener('click', () => setPeriod(btn.dataset.period));
+        });
+        document.querySelectorAll('[data-report-nav]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const direction = btn.dataset.reportNav;
+                if (!['week', 'month'].includes(state.period)) return;
+                if (direction === 'previous') state.periodOffsets[state.period] -= 1;
+                if (direction === 'next') state.periodOffsets[state.period] = Math.min(0, state.periodOffsets[state.period] + 1);
+                if (direction === 'current') state.periodOffsets[state.period] = 0;
+                render();
+            });
         });
         document.querySelectorAll('[data-chart]').forEach((btn) => {
             btn.addEventListener('click', () => setChartView(btn.dataset.chart));
