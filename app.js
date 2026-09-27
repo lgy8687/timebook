@@ -1951,6 +1951,7 @@ function openEdit(index, source = 'logs') {
     document.getElementById('edit-log-preview').innerText = `${log.l1 || '??'}${log.l2 ? ' / ' + log.l2 : ''} — ${formatDuration(previewEnd - log.startTime)}`;
     setTimeInFields('es', new Date(log.startTime));
     const endIsNextDayStart = previewEnd === beijingDateStrToDayStart(formatBeijingDate(log.startTime)) + DAY_MS;
+    const fixedMidnightEnd = !log.parallel && !log.sceneActivity && endIsNextDayStart;
     setTimeInFields('ee', new Date(previewEnd), { show24: endIsNextDayStart });
     const dateRow = document.getElementById('edit-parallel-date-row');
     const dateInput = document.getElementById('edit-parallel-date');
@@ -1965,11 +1966,11 @@ function openEdit(index, source = 'logs') {
     ['ee-h', 'ee-m', 'ee-s'].forEach((fieldId) => {
         const field = document.getElementById(fieldId);
         if (!field) return;
-        field.disabled = activeParallel;
-        field.classList.toggle('opacity-40', activeParallel);
+        field.disabled = activeParallel || fixedMidnightEnd;
+        field.classList.toggle('opacity-40', activeParallel || fixedMidnightEnd);
     });
     const endLabel = document.getElementById('edit-end-label');
-    if (endLabel) endLabel.innerText = activeParallel ? '实时结束' : '结束';
+    if (endLabel) endLabel.innerText = activeParallel ? '实时结束' : fixedMidnightEnd ? '结转结束（24:00 固定）' : '结束';
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -2136,6 +2137,11 @@ function applyEditedRange(log, newStart, newEnd, done) {
         showConfirm('时间不合法', '开始时间必须早于结束时间。', '知道了', () => {});
         return;
     }
+    const dayEnd = beijingDateStrToDayEnd(formatBeijingDate(oldStart));
+    if (!log.parallel && !log.sceneActivity && oldEnd === dayEnd && effectiveEnd !== oldEnd) {
+        showConfirm('结转边界固定', '这条主线已在 24:00 自动结转。请调整当天的其他时段，不能把次日主线拉回昨天。', '知道了', () => {});
+        return;
+    }
     if (log.parallel) {
         const parallelConflict = [...logs, ...parallelHistory].some((item) => {
             if (!item.parallel || item.id === log.id) return false;
@@ -2170,6 +2176,10 @@ function applyEditedRange(log, newStart, newEnd, done) {
     }
     if (needsNext && next === current && effectiveEnd > nowSecondMs()) {
         showConfirm('结束时间还没到', '正在进行的主线不能从未来时间开始。', '知道了', () => {});
+        return;
+    }
+    if (needsNext && formatBeijingDate(effectiveEnd) !== formatBeijingDate(next.startTime)) {
+        showConfirm('不能跨日调整', '调整后会把下一条主线的起点移到另一天，导致 24:00 结转错位。请在同一天内调整。', '知道了', () => {});
         return;
     }
     const allowedNeighbors = new Set([log.id, previous?.id, next?.id].filter(Boolean));
