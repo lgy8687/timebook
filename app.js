@@ -4074,7 +4074,8 @@ function openSceneParallelBackfillDrawer(sceneLog, options = {}) {
         const { parent, end } = target;
         _backfillRange = { start: parent.startTime, end };
         setTimeInFields('ps', new Date(parent.startTime));
-        setTimeInFields('pe', new Date(end));
+        const endAtMidnight = end === beijingDateStrToDayStart(formatBeijingDate(parent.startTime)) + DAY_MS;
+        setTimeInFields('pe', new Date(end), { show24: endAtMidnight });
         syncBackfillProgress(parent, end);
         setupBackfillDrag(parent, end);
         _parallelCallback = (l1, l2) => {
@@ -4139,7 +4140,8 @@ function openBackfillDrawer(parentLog, options = {}) {
         : (parentLog.endTime || (parentLog.startTime + (parentLog.duration || 60) * 60000));
     _backfillRange = { start: parentLog.startTime, end: parentEnd };
     setTimeInFields('ps', new Date(parentLog.startTime));
-    setTimeInFields('pe', new Date(parentEnd));
+    const endAtMidnight = parentEnd === beijingDateStrToDayStart(formatBeijingDate(parentLog.startTime)) + DAY_MS;
+    setTimeInFields('pe', new Date(parentEnd), { show24: endAtMidnight });
     syncBackfillProgress(parentLog, parentEnd);
     setupBackfillDrag(parentLog, parentEnd);
     _parallelCallback = (l1, l2) => {
@@ -4197,8 +4199,10 @@ function openSplitDrawer(parentLog) {
     document.getElementById('drawer-note').placeholder = '备注（选填）';
     _backfillRange = { start: pStart, end: pEnd };
     setTimeInFields('ps', new Date(pStart));
-    setTimeInFields('pe', new Date(pEnd));
+    const endAtMidnight = pEnd === beijingDateStrToDayStart(formatBeijingDate(pStart)) + DAY_MS;
+    setTimeInFields('pe', new Date(pEnd), { show24: endAtMidnight });
     setupBackfillDrag(parentLog, pEnd);
+    syncBackfillProgress(parentLog, pEnd);
     _parallelCallback = (l1, l2) => { executeSplit(parentLog, l1, l2); };
     if (drawerViewMode === 'columns') drawerViewMode = 'flat';
     renderPicker();
@@ -4353,12 +4357,15 @@ function snapToNearestFreeZone(pct, parentLog, parentEnd) {
 function setupBackfillDrag(parentLog, parentEnd) {
     let dragTarget = null;
     const total = parentEnd - parentLog.startTime;
+    _backfillUiSession = { parentLog, parentEnd };
 
     const setTimeFromPct = (pct, target) => {
         pct = Math.max(0, Math.min(1, pct));
         const ms = parentLog.startTime + total * pct;
         const prefix = target === 'start' ? 'ps' : 'pe';
-        setTimeInFields(prefix, new Date(ms));
+        const endAtMidnight = target === 'end'
+            && ms === beijingDateStrToDayStart(formatBeijingDate(parentLog.startTime)) + DAY_MS;
+        setTimeInFields(prefix, new Date(ms), { show24: endAtMidnight });
         syncBackfillProgress(parentLog, parentEnd);
     };
 
@@ -4455,7 +4462,8 @@ function syncBackfillProgress(parentLog, parentEndOverride) {
         setTimeInFields('ps', new Date(startMs));
     }
     if (endMs !== parseTimeFromInput('pe', parentLog.startTime)) {
-        setTimeInFields('pe', new Date(endMs));
+        const endAtMidnight = endMs === beijingDateStrToDayStart(formatBeijingDate(parentLog.startTime)) + DAY_MS;
+        setTimeInFields('pe', new Date(endMs), { show24: endAtMidnight });
     }
     document.getElementById('backfill-fill').style.left = left + '%';
     document.getElementById('backfill-fill').style.width = Math.max(2, right - left) + '%';
@@ -4487,7 +4495,7 @@ function parseTimeFromInput(prefix, refDate) {
     const m = parseInt(document.getElementById(prefix + '-m').value) || 0;
     const s = parseInt(document.getElementById(prefix + '-s').value) || 0;
     const dayStart = beijingDateStrToDayStart(formatBeijingDate(refDate));
-    if (h === 24) return prefix === 'ee' && m === 0 && s === 0 ? dayStart + DAY_MS : null;
+    if (h === 24) return (prefix === 'ee' || prefix === 'pe') && m === 0 && s === 0 ? dayStart + DAY_MS : null;
     return dayStart
         + Math.min(23, Math.max(0, h)) * 3600000
         + Math.min(59, Math.max(0, m)) * 60000
@@ -4506,6 +4514,19 @@ function setTimeInFields(prefix, date, options = {}) {
     document.getElementById(prefix + '-s').value = String(d.getUTCSeconds()).padStart(2,'0');
 }
 let _backfillRange = null;
+let _backfillUiSession = null;
+
+function resetBackfillEditor() {
+    const session = _backfillUiSession;
+    _backfillRange = null;
+    _backfillUiSession = null;
+    if (!session) return;
+    const { parentLog, parentEnd } = session;
+    const endAtMidnight = parentEnd === beijingDateStrToDayStart(formatBeijingDate(parentLog.startTime)) + DAY_MS;
+    setTimeInFields('ps', new Date(parentLog.startTime));
+    setTimeInFields('pe', new Date(parentEnd), { show24: endAtMidnight });
+    syncBackfillProgress(parentLog, parentEnd);
+}
 
 function initTimeField(el, max) {
     el.addEventListener('touchstart', function() {
@@ -4633,7 +4654,7 @@ function isTimeInParentRange() {
 ['ps-h','ps-m','ps-s','pe-h','pe-m','pe-s','es-h','es-m','es-s','ee-h','ee-m','ee-s'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    const max = id === 'ee-h' ? 24 : (id.endsWith('-h') ? 23 : 59);
+    const max = id === 'ee-h' || id === 'pe-h' ? 24 : (id.endsWith('-h') ? 23 : 59);
     initTimeField(el, max);
 });
 ['fb-h','fb-m','fb-s','fe-h','fe-m','fe-s'].forEach(id => {
@@ -5928,7 +5949,9 @@ function handleFreeInput() {
 }
 
 function closeDrawer() {
+    const wasBackfill = pickerMode === 'split' || pickerMode.startsWith('parallel-backfill');
     if (_cleanupBackfillDrag) { _cleanupBackfillDrag(); }
+    if (wasBackfill) resetBackfillEditor();
     const wasClassify = pickerMode === 'classify-log' && _classifyPromptOpen;
     document.getElementById('drawer').classList.add('hidden');
     pickerMode = 'record';
