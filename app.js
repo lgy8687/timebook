@@ -4411,7 +4411,6 @@ function setupBackfillDrag(parentLog, parentEnd) {
             }
         }
         dragTarget = null;
-        removeDocListeners();
     };
 
     const onTrackTap = (clientX) => {
