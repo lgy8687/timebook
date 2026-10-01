@@ -4259,14 +4259,14 @@ function executeSplit(parentLog, l1, l2, selectedRange) {
     const note = document.getElementById('drawer-note').value || '';
     const newLogs = [];
     if (splitStart > pStart) {
-        newLogs.push({ ...parentLog, id: genId(), startTime: pStart, endTime: splitStart, duration: Math.round((splitStart - pStart) / 60000) });
+        newLogs.push({ ...parentLog, id: genId(), startTime: pStart, endTime: splitStart, duration: Math.round((splitStart - pStart) / 60000), manualSplit: true });
     }
     const sceneContext = parentLog.sceneActivity
         ? { sceneActivity: true, sceneParentId: parentLog.sceneParentId, sceneName: parentLog.sceneName }
         : {};
-    newLogs.push({ ...sceneContext, id: genId(), startTime: splitStart, endTime: splitEnd, duration: Math.round((splitEnd - splitStart) / 60000), l1, l2: l2 || '', tag: '', note, color });
+    newLogs.push({ ...sceneContext, id: genId(), startTime: splitStart, endTime: splitEnd, duration: Math.round((splitEnd - splitStart) / 60000), l1, l2: l2 || '', tag: '', note, color, manualSplit: true });
     if (splitEnd < pEnd) {
-        newLogs.push({ ...parentLog, id: genId(), startTime: splitEnd, endTime: pEnd, duration: Math.round((pEnd - splitEnd) / 60000) });
+        newLogs.push({ ...parentLog, id: genId(), startTime: splitEnd, endTime: pEnd, duration: Math.round((pEnd - splitEnd) / 60000), manualSplit: true });
     }
     // 主线切割后旧 parentId 会失效；把原有并行记录按重叠范围重新挂到新片段。
     const replacementMain = newLogs.filter((item) => !item.parallel).sort((a, b) => a.startTime - b.startTime);
@@ -4296,7 +4296,6 @@ function executeSplit(parentLog, l1, l2, selectedRange) {
         });
     }
     logs.splice(idx, 0, ...newLogs);
-    mergeAdjacentSameActivity();
     localStorage.setItem('v9_logs', JSON.stringify(logs));
     localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
     closeDrawer();
@@ -4309,6 +4308,7 @@ function mergeAdjacentSameActivity() {
         const last = merged[merged.length - 1];
         const canMerge = last
             && !last.parallel && !log.parallel
+            && !last.manualSplit && !log.manualSplit
             && !last.scene && !log.scene
             && !last.sceneActivity && !log.sceneActivity
             && last.l1 === log.l1 && last.l2 === log.l2
