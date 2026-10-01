@@ -12,10 +12,35 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.widget.Toast;
+
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
     private static final String APP_URL = "https://lgy8687.github.io/timebook/";
+    private static final int REQUEST_BACKUP = 101;
+    private static final int REQUEST_IMPORT = 102;
     private WebView webView;
+    private ValueCallback<Uri[]> filePathCallback;
+    private String pendingBackup;
+
+    private class BackupBridge {
+        @JavascriptInterface
+        public void saveBackup(String name, String json) {
+            runOnUiThread(() -> {
+                pendingBackup = json;
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/json");
+                intent.putExtra(Intent.EXTRA_TITLE,
+                    name != null && name.matches("[A-Za-z0-9._-]+\\.json") ? name : "timebook-backup.json");
+                startActivityForResult(intent, REQUEST_BACKUP);
+            });
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,7 +55,23 @@ public class MainActivity extends Activity {
         webView.getSettings().setDomStorageEnabled(true);
         webView.getSettings().setAllowFileAccess(false);
         webView.getSettings().setAllowContentAccess(false);
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.addJavascriptInterface(new BackupBridge(), "TimeBookAndroid");
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                    FileChooserParams params) {
+                if (filePathCallback != null) filePathCallback.onReceiveValue(null);
+                filePathCallback = callback;
+                try {
+                    startActivityForResult(params.createIntent(), REQUEST_IMPORT);
+                    return true;
+                } catch (Exception error) {
+                    filePathCallback = null;
+                    callback.onReceiveValue(null);
+                    return false;
+                }
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -62,6 +103,29 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle outState) {
         webView.saveState(outState);
         super.onSaveInstanceState(outState);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_IMPORT) {
+            if (filePathCallback != null) {
+                filePathCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+                filePathCallback = null;
+            }
+            return;
+        }
+        if (requestCode != REQUEST_BACKUP) return;
+        if (resultCode == RESULT_OK && data != null && data.getData() != null && pendingBackup != null) {
+            try (OutputStream output = getContentResolver().openOutputStream(data.getData())) {
+                if (output == null) throw new IllegalStateException("No output stream");
+                output.write(pendingBackup.getBytes(StandardCharsets.UTF_8));
+                Toast.makeText(this, "备份已保存", Toast.LENGTH_SHORT).show();
+            } catch (Exception error) {
+                Toast.makeText(this, "保存失败，请重试", Toast.LENGTH_LONG).show();
+            }
+        }
+        pendingBackup = null;
     }
 
     @Override
