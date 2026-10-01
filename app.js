@@ -1480,7 +1480,8 @@ function appendDrawerRecentsBar(l2Box) {
         btn.className = 'drawer-recent-btn btn-active';
         const icon = r.l2 ? getSubIcon(r.l2, cat.icon, cat) : cat.icon;
         btn.innerHTML = `<span class="drawer-recent-icon">${escHtml(icon)}</span><span class="drawer-recent-text">${escHtml(r.l2 || r.l1)}</span>`;
-        btn.addEventListener('click', () => drawerPick(r.l1, r.l2 || ''));
+        const mode = pickerMode;
+        btn.addEventListener('click', () => drawerPick(r.l1, r.l2 || '', mode));
         row.appendChild(btn);
     });
     const addL1Btn = document.createElement('button');
@@ -2236,8 +2237,11 @@ function confirmEdit() {
         confirmActiveParallelEdit();
         return;
     }
-    const collection = editTarget.source === 'parallelHistory' ? parallelHistory : logs;
-    const log = collection.find((item) => item.id === editTarget.id);
+    const target = { ...editTarget };
+    const selectedL1 = editOldL1;
+    const selectedL2 = editOldL2;
+    const collection = target.source === 'parallelHistory' ? parallelHistory : logs;
+    const log = collection.find((item) => item.id === target.id);
     if (!log) return;
     const editedDate = log.parallel ? document.getElementById('edit-parallel-date').value : '';
     const newStart = log.parallel ? parseTimeOnBeijingDate('es', editedDate) : parseTimeFromInput('es', log.startTime);
@@ -2252,14 +2256,19 @@ function confirmEdit() {
         : null;
     const sceneName = linkedParent
         ? (linkedParent.scene ? linkedParent.l2 : '')
-        : (editTarget.source === 'parallelHistory' && current?.scene ? current.l2 : '');
+        : (target.source === 'parallelHistory' && current?.scene ? current.l2 : '');
     const sceneTarget = log.parallel && sceneName ? getSceneBackfillTarget(sceneName, editedDate) : null;
     if (log.parallel && sceneName && !sceneTarget) {
         showConfirm('当天没有这个场景', '请先选择该场景实际覆盖到的日期。', '知道了', () => {});
         return;
     }
     const finish = () => {
-        if (editOldL1) { log.l1 = editOldL1; log.l2 = editOldL2; }
+        if (!editTarget || editTarget.id !== target.id || editTarget.source !== target.source) return;
+        if (selectedL1) {
+            log.l1 = selectedL1;
+            log.l2 = selectedL2;
+            log.color = getCat(selectedL1)?.color || log.color;
+        }
         log.note = document.getElementById('edit-note-input').value;
         if (log.l1) rememberInputAlias(log.note, log.l1, log.l2);
         if (sceneTarget) {
@@ -2268,9 +2277,9 @@ function confirmEdit() {
         }
 
         // parallelHistory 只用于今天仍挂在进行中主线上的并行；跨日期后必须搬入对应日期的正式流水。
-        const moveToCompletedScene = log.parallel && editTarget.source === 'parallelHistory'
+        const moveToCompletedScene = log.parallel && target.source === 'parallelHistory'
             && sceneTarget && !sceneTarget.liveParent;
-        const moveToLiveScene = log.parallel && editTarget.source === 'logs'
+        const moveToLiveScene = log.parallel && target.source === 'logs'
             && sceneTarget && sceneTarget.liveParent && editedDate === getTodayDateStr();
         if (moveToCompletedScene) {
             parallelHistory = parallelHistory.filter((item) => item.id !== log.id);
@@ -2282,7 +2291,7 @@ function confirmEdit() {
             parallelHistory.unshift(log);
             localStorage.setItem('v9_logs', JSON.stringify(logs));
             localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
-        } else if (editTarget.source === 'parallelHistory') {
+        } else if (target.source === 'parallelHistory') {
             localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
         } else {
             mergeAdjacentSameActivity();
@@ -2540,7 +2549,9 @@ let _parallelPending = false;
 let _parallelCallback = null;
 let _cleanupBackfillDrag = null;
 let _reportSummaryCategoryPicker = null;
-function drawerPick(l1, l2) {
+function drawerPick(l1, l2, expectedMode = pickerMode) {
+    // Ignore a delayed tap from a picker that has already closed or changed modes.
+    if (expectedMode !== pickerMode) return;
     if (_parallelPending) {
         _parallelPending = false;
         const cat = getCat(l1);
@@ -4457,11 +4468,6 @@ function setupBackfillDrag(parentLog, parentEnd) {
         if (e.target === newStartH || e.target === newEndH) return;
         onTrackTap(e.clientX);
     });
-    newTrack.addEventListener('touchstart', (e) => {
-        if (e.target === newStartH || e.target === newEndH) return;
-        if (e.touches && e.touches.length > 0) onTrackTap(e.touches[0].clientX);
-    }, { passive: true });
-
     newStartH.addEventListener('mousedown', (e) => { dragTarget = 'start'; e.preventDefault(); e.stopPropagation(); });
     newStartH.addEventListener('touchstart', (e) => { dragTarget = 'start'; e.stopPropagation(); }, { passive: true });
     newEndH.addEventListener('mousedown', (e) => { dragTarget = 'end'; e.preventDefault(); e.stopPropagation(); });
@@ -4586,7 +4592,6 @@ function initTimeField(el, max) {
                     next.setSelectionRange(0, next.value.length);
                 }, 80);
             }
-            if (_backfillRange) snapTimeToRange();
         }
         // 输入→进度条视觉同步（不写回输入框）
         if (_backfillRange) {
@@ -5448,7 +5453,8 @@ function renderPicker() {
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
                 btn.innerHTML = `<div class="text-base leading-none mb-0.5">${escHtml(c.icon)}</div><div class="leading-tight">${escHtml(c.name)}</div>`;
-                btn.addEventListener('click', () => drawerPick(c.name, ""));
+                const mode = pickerMode;
+                btn.addEventListener('click', () => drawerPick(c.name, "", mode));
                 l2Box.appendChild(btn);
                 return;
             }
@@ -5457,7 +5463,8 @@ function renderPicker() {
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
                 btn.innerHTML = `<div class="text-base leading-none mb-0.5">${escHtml(getSubIcon(s, c.icon, c))}</div><div class="leading-tight">${escHtml(s)}</div>`;
-                btn.addEventListener('click', () => drawerPick(c.name, s));
+                const mode = pickerMode;
+                btn.addEventListener('click', () => drawerPick(c.name, s, mode));
                 l2Box.appendChild(btn);
             });
         });
@@ -5479,14 +5486,16 @@ function renderPicker() {
             direct.type = 'button';
             direct.className = "bg-indigo-600 text-white border border-indigo-600 rounded-xl p-1.5 text-center text-[10px] font-bold shadow-sm active:bg-indigo-700";
             direct.innerHTML = `<div class="text-base leading-none mb-0.5">${escHtml(c.icon)}</div><div class="leading-tight">${escHtml(c.name)}</div>`;
-            direct.addEventListener('click', () => drawerPick(c.name, ""));
+            const mode = pickerMode;
+            direct.addEventListener('click', () => drawerPick(c.name, "", mode));
             grid.appendChild(direct);
             c.subs.forEach(s => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = "bg-white border border-slate-100 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-600 shadow-sm active:bg-indigo-50";
                 btn.innerHTML = `<div class="text-base leading-none mb-0.5">${escHtml(getSubIcon(s, c.icon, c))}</div><div class="leading-tight">${escHtml(s)}</div>`;
-                btn.addEventListener('click', () => drawerPick(c.name, s));
+                const mode = pickerMode;
+                btn.addEventListener('click', () => drawerPick(c.name, s, mode));
                 grid.appendChild(btn);
             });
             l2Box.appendChild(grid);
@@ -5519,7 +5528,8 @@ function renderPicker() {
         direct.type = 'button';
         direct.className = "bg-indigo-600 text-white border border-indigo-600 p-4 rounded-2xl text-sm font-black shadow-sm active:bg-indigo-700";
         direct.innerText = `${selected.name}`;
-        direct.addEventListener('click', () => drawerPick(selected.name, ""));
+        const mode = pickerMode;
+        direct.addEventListener('click', () => drawerPick(selected.name, "", mode));
         l2Box.appendChild(direct);
     }
 
@@ -5528,7 +5538,9 @@ function renderPicker() {
         btn.type = 'button';
         btn.className = "bg-white border border-slate-100 p-4 rounded-2xl text-sm font-black text-slate-600 shadow-sm active:bg-indigo-50";
         btn.innerText = s;
-        btn.addEventListener('click', () => drawerPick(selL1, s));
+        const mode = pickerMode;
+        const category = selL1;
+        btn.addEventListener('click', () => drawerPick(category, s, mode));
         l2Box.appendChild(btn);
     });
     if (!selected.subs.length) {

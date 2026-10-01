@@ -25,6 +25,10 @@ const sceneTreeSource = source.slice(
     source.indexOf('function renderSceneActivityTree('),
     source.indexOf('\nfunction renderMainLogTree(', source.indexOf('function renderSceneActivityTree('))
 );
+const confirmEditSource = source.slice(
+    source.indexOf('function confirmEdit()'),
+    source.indexOf('\nfunction confirmActiveParallelEdit()', source.indexOf('function confirmEdit()'))
+);
 
 function makeEditor(parent, start, end) {
     const fields = { start, end };
@@ -154,4 +158,60 @@ test('parallel backfill also keeps its selected interval after closing', () => {
     context.drawerPick('Work', 'Meeting');
 
     assert.deepEqual([selectedRange.start, selectedRange.end], [1800000, 3600000]);
+});
+
+test('a stale picker tap cannot switch from split into recording another activity', () => {
+    const parent = { id: 'main', startTime: 0, endTime: 7200000, l1: 'Life', l2: 'Rest' };
+    const { context } = makeEditor(parent, 1800000, 3600000);
+    let recorded = false;
+    context.executeRecord = () => { recorded = true; };
+
+    context.drawerPick('Work', 'Meeting', 'split');
+    context.drawerPick('Life', 'Sleep', 'split');
+
+    assert.equal(recorded, false);
+    assert.equal(context.logs.length, 3);
+    assert.deepEqual(Array.from(context.logs, (log) => log.l2), ['Rest', 'Meeting', 'Rest']);
+});
+
+test('split keeps each original activity name and reparents its parallel by interval', () => {
+    const parent = { id: 'main', startTime: 0, endTime: 7200000, l1: 'Life', l2: 'Rest' };
+    const { context } = makeEditor(parent, 1800000, 3600000);
+    context.logs.push({ id: 'parallel', startTime: 3600000, endTime: 4200000,
+        l1: 'Work', l2: 'Call', parallel: true, parentId: 'main' });
+
+    context.drawerPick('Work', 'Meeting');
+
+    const mains = context.logs.filter((log) => !log.parallel);
+    const child = context.logs.find((log) => log.parallel);
+    assert.deepEqual(Array.from(mains, (log) => log.l2), ['Rest', 'Meeting', 'Rest']);
+    assert.equal(child.l2, 'Call');
+    assert.equal(child.parentId, mains[2].id);
+    assert.equal(new Set(context.logs.map((log) => log.id)).size, context.logs.length);
+});
+
+test('an edit confirmation keeps its selected category when another picker changes later', () => {
+    const log = { id: 'one', startTime: 0, endTime: 3600000, l1: 'Life', l2: 'Rest', color: '#aaa' };
+    let finish;
+    const context = {
+        editTarget: { source: 'logs', id: 'one' }, editOldL1: 'Work', editOldL2: 'Meeting',
+        logs: [log], parallelHistory: [], current: null,
+        parseTimeFromInput(prefix) { return prefix === 'es' ? 0 : 3600000; },
+        applyEditedRange(_log, _start, _end, done) { finish = done; },
+        getCat() { return { color: '#123456' }; },
+        rememberInputAlias() {}, mergeAdjacentSameActivity() {}, renderAll() {},
+        localStorage: { setItem() {} },
+        document: { getElementById() { return { value: '', classList: { add() {} } }; } }
+    };
+    vm.createContext(context);
+    vm.runInContext(confirmEditSource, context);
+
+    context.confirmEdit();
+    context.editOldL1 = 'Life';
+    context.editOldL2 = 'Sleep';
+    finish();
+
+    assert.equal(log.l1, 'Work');
+    assert.equal(log.l2, 'Meeting');
+    assert.equal(log.color, '#123456');
 });
