@@ -6,3 +6,7 @@ package-lock.json
 patch_v*.py
 test-calendar.mjs
 历史版本/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
