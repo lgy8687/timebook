@@ -2621,9 +2621,26 @@ function drawerPick(l1, l2) {
                 return;
             }
         }
+        const selectedRange = _backfillRange
+            ? {
+                start: parseTimeFromInput('ps', _backfillRange.start),
+                end: parseTimeFromInput('pe', _backfillRange.start)
+            }
+            : null;
+        if (pickerMode === 'split') {
+            if (!selectedRange || !Number.isFinite(selectedRange.start) || !Number.isFinite(selectedRange.end)
+                || selectedRange.start >= selectedRange.end) {
+                showConfirm('时间不合法', '请先调整切割的开始和结束时间。', '知道了', () => {});
+                return;
+            }
+            if (selectedRange.start === _backfillRange.start && selectedRange.end === _backfillRange.end) {
+                showConfirm('请先选择切割范围', '当前仍选中整条时间线，请移动开始或结束位置。', '知道了', () => {});
+                return;
+            }
+        }
         const cb = _parallelCallback;
         closeDrawer();
-        if (cb) { cb(l1, l2); }
+        if (cb) { cb(l1, l2, selectedRange); }
     } else {
         executeRecord(l1, l2, "", document.getElementById('drawer-note').value);
     }
@@ -4078,13 +4095,13 @@ function openSceneParallelBackfillDrawer(sceneLog, options = {}) {
         setTimeInFields('pe', new Date(end), { show24: endAtMidnight });
         syncBackfillProgress(parent, end);
         setupBackfillDrag(parent, end);
-        _parallelCallback = (l1, l2) => {
+        _parallelCallback = (l1, l2, selectedRange) => {
             const active = context.target;
             if (!active) return;
             const parentLog = active.parent;
             const parentEnd = active.end;
-            const startMs = parseTimeFromInput('ps', parentLog.startTime);
-            const endMs = parseTimeFromInput('pe', parentLog.startTime);
+            const startMs = selectedRange.start;
+            const endMs = selectedRange.end;
             const start = Math.max(parentLog.startTime, Math.min(parentEnd, startMs));
             const finish = Math.max(parentLog.startTime, Math.min(parentEnd, endMs));
             if (finish <= start) {
@@ -4144,12 +4161,12 @@ function openBackfillDrawer(parentLog, options = {}) {
     setTimeInFields('pe', new Date(parentEnd), { show24: endAtMidnight });
     syncBackfillProgress(parentLog, parentEnd);
     setupBackfillDrag(parentLog, parentEnd);
-    _parallelCallback = (l1, l2) => {
+    _parallelCallback = (l1, l2, selectedRange) => {
         const cat = getCat(l1);
-        const startMs = parseTimeFromInput('ps', parentLog.startTime);
+        const startMs = selectedRange.start;
         const realParentEnd = parentEnd;
         const clampedStart = Math.max(parentLog.startTime, Math.min(realParentEnd, startMs));
-        const clampedEnd = Math.max(parentLog.startTime, Math.min(realParentEnd, parseTimeFromInput('pe', parentLog.startTime)));
+        const clampedEnd = Math.max(parentLog.startTime, Math.min(realParentEnd, selectedRange.end));
         const e = clampedEnd > clampedStart ? clampedEnd : Math.min(realParentEnd, clampedStart + 60000);
         const dur = Math.round((e - clampedStart) / 60000);
         // 时间唯一性：检查与已有并行是否重叠
@@ -4189,6 +4206,10 @@ function openBackfillDrawer(parentLog, options = {}) {
     showDrawer();
 }
 function openSplitDrawer(parentLog) {
+    if (parentLog.scene) {
+        showConfirm('请切割场景活动', '场景是时间容器，请长按场景下方的活动来切割。', '知道了', () => {});
+        return;
+    }
     pickerMode = 'split';
     const pStart = parentLog.startTime;
     const pEnd = parentLog.endTime || (pStart + (parentLog.duration || 60) * 60000);
@@ -4203,20 +4224,22 @@ function openSplitDrawer(parentLog) {
     setTimeInFields('pe', new Date(pEnd), { show24: endAtMidnight });
     setupBackfillDrag(parentLog, pEnd);
     syncBackfillProgress(parentLog, pEnd);
-    _parallelCallback = (l1, l2) => { executeSplit(parentLog, l1, l2); };
+    _parallelCallback = (l1, l2, selectedRange) => { executeSplit(parentLog, l1, l2, selectedRange); };
     if (drawerViewMode === 'columns') drawerViewMode = 'flat';
     renderPicker();
     renderDrawerToggle();
     showDrawer();
 }
-function executeSplit(parentLog, l1, l2) {
+function executeSplit(parentLog, l1, l2, selectedRange) {
     const pStart = parentLog.startTime;
     const pEnd = parentLog.endTime || (pStart + (parentLog.duration || 60) * 60000);
-    const startMs = parseTimeFromInput('ps', pStart);
-    const endMs = parseTimeFromInput('pe', pStart);
-    const splitStart = Math.max(pStart, Math.min(pEnd, startMs));
-    const splitEnd = Math.max(pStart, Math.min(pEnd, endMs));
-    if (splitEnd - splitStart < 60000) { closeDrawer(); return; }
+    const splitStart = selectedRange?.start;
+    const splitEnd = selectedRange?.end;
+    if (!Number.isFinite(splitStart) || !Number.isFinite(splitEnd)
+        || splitStart < pStart || splitEnd > pEnd || splitEnd - splitStart < 60000) {
+        showConfirm('时间不合法', '请选择主线内至少一分钟的切割范围。', '知道了', () => {});
+        return;
+    }
     // 时间唯一性：切割区间不能与已有并行重叠
     const splitParentId = parentLog.id || parentLog.startTime;
     const splitConflicts = [...logs.filter(l => l.parallel && l.parentId === splitParentId), ...parallelHistory].some(p => {
@@ -4238,7 +4261,10 @@ function executeSplit(parentLog, l1, l2) {
     if (splitStart > pStart) {
         newLogs.push({ ...parentLog, id: genId(), startTime: pStart, endTime: splitStart, duration: Math.round((splitStart - pStart) / 60000) });
     }
-    newLogs.push({ id: genId(), startTime: splitStart, endTime: splitEnd, duration: Math.round((splitEnd - splitStart) / 60000), l1, l2: l2 || '', tag: '', note, color });
+    const sceneContext = parentLog.sceneActivity
+        ? { sceneActivity: true, sceneParentId: parentLog.sceneParentId, sceneName: parentLog.sceneName }
+        : {};
+    newLogs.push({ ...sceneContext, id: genId(), startTime: splitStart, endTime: splitEnd, duration: Math.round((splitEnd - splitStart) / 60000), l1, l2: l2 || '', tag: '', note, color });
     if (splitEnd < pEnd) {
         newLogs.push({ ...parentLog, id: genId(), startTime: splitEnd, endTime: pEnd, duration: Math.round((pEnd - splitEnd) / 60000) });
     }
