@@ -5389,14 +5389,14 @@ function showDrawer() {
 
 function openShortcutPicker() {
     pickerMode = 'shortcut';
-    document.getElementById('drawer-title').innerText = "设为首页大图标";
+    document.getElementById('drawer-title').innerText = "选择主线快捷";
     document.getElementById('drawer-footer').classList.add('hidden');
     showDrawer();
     renderPicker();
 }
 function openParallelShortcutPicker() {
     pickerMode = 'parallel-shortcut';
-    document.getElementById('drawer-title').innerText = "设为并行快捷";
+    document.getElementById('drawer-title').innerText = "选择并行快捷";
     document.getElementById('drawer-footer').classList.add('hidden');
     showDrawer();
     renderPicker();
@@ -5474,10 +5474,8 @@ function renderPicker() {
                 btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${escHtml(c.icon)}</div><div class=\"leading-tight\">${escHtml(c.name)}</div>`;
                 const already = shortcuts.some(s => s.l1 === c.name && s.l2 === "");
                 if (already) {
-                    btn.style.background = '#f1f5f9';
-                    btn.style.color = '#94a3b8';
-                    btn.style.cursor = 'pointer';
-                    btn.style.opacity = '0.6';
+                    btn.classList.add('shortcut-choice-selected');
+                    btn.setAttribute('aria-pressed', 'true');
                     btn.style.borderLeft = `4px solid ${safeColor(c.color, '#6366f1')}`;
                     btn.addEventListener('click', () => removeShortcut(c.name, ""));
                 } else {
@@ -5493,10 +5491,8 @@ function renderPicker() {
                 btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${escHtml(getSubIcon(s, c.icon, c))}</div><div class=\"leading-tight\">${escHtml(s)}</div>`;
                 const already = shortcuts.some(sm => sm.l1 === c.name && sm.l2 === s);
                 if (already) {
-                    btn.style.background = '#f1f5f9';
-                    btn.style.color = '#94a3b8';
-                    btn.style.cursor = 'pointer';
-                    btn.style.opacity = '0.6';
+                    btn.classList.add('shortcut-choice-selected');
+                    btn.setAttribute('aria-pressed', 'true');
                     btn.style.borderLeft = `4px solid ${safeColor(c.color, '#6366f1')}`;
                     btn.addEventListener('click', () => removeShortcut(c.name, s));
                 } else {
@@ -5519,7 +5515,8 @@ function renderPicker() {
                 btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${escHtml(c.icon)}</div><div class=\"leading-tight\">${escHtml(c.name)}</div>`;
                 const already = parallelShortcuts.some(s => s.l1 === c.name && s.l2 === "");
                 if (already) {
-                    btn.style.background = '#f1f5f9'; btn.style.color = '#94a3b8'; btn.style.cursor = 'pointer'; btn.style.opacity = '0.6';
+                    btn.classList.add('shortcut-choice-selected');
+                    btn.setAttribute('aria-pressed', 'true');
                     btn.style.borderLeft = `4px solid ${safeColor(c.color, '#6366f1')}`;
                     btn.addEventListener('click', () => {
                         parallelShortcuts = parallelShortcuts.filter(s => !(s.l1 === c.name && s.l2 === ""));
@@ -5539,7 +5536,8 @@ function renderPicker() {
                 btn.innerHTML = `<div class=\"text-base leading-none mb-0.5\">${escHtml(getSubIcon(s, c.icon, c))}</div><div class=\"leading-tight\">${escHtml(s)}</div>`;
                 const already = parallelShortcuts.some(sm => sm.l1 === c.name && sm.l2 === s);
                 if (already) {
-                    btn.style.background = '#f1f5f9'; btn.style.color = '#94a3b8'; btn.style.cursor = 'pointer'; btn.style.opacity = '0.6';
+                    btn.classList.add('shortcut-choice-selected');
+                    btn.setAttribute('aria-pressed', 'true');
                     btn.style.borderLeft = `4px solid ${safeColor(c.color, '#6366f1')}`;
                     btn.addEventListener('click', () => {
                         parallelShortcuts = parallelShortcuts.filter(sm => !(sm.l1 === c.name && sm.l2 === s));
