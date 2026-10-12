@@ -10,6 +10,7 @@ const gapSource = app.slice(app.indexOf('const UNRECORDED_COLOR'), app.indexOf('
 const stopSource = app.slice(app.indexOf('function stopCurrentMain()'), app.indexOf('\nfunction executeAddShortcut(', app.indexOf('function stopCurrentMain()')));
 const editSource = app.slice(app.indexOf('function applyEditedRange('), app.indexOf('\nfunction commitEditedRange(', app.indexOf('function applyEditedRange(')));
 const resetSource = backup.slice(backup.indexOf('function resetTimebookStorage('), backup.indexOf('\nfunction requestTimebookReset(', backup.indexOf('function resetTimebookStorage(')));
+const modeSource = app.slice(app.indexOf('function setRecordMode('), app.indexOf('\nwindow.setRecordMode = setRecordMode;', app.indexOf('function setRecordMode(')));
 
 function storage(values) {
     const valuesMap = new Map(Object.entries(values));
@@ -81,6 +82,31 @@ test('ending a journal main records it and leaves no active main', () => {
     assert.equal(calls[0].options.endParallel, true);
     assert.equal(store.getItem('v9_current'), null);
     assert.equal(context.current, null);
+});
+
+test('switching mode waits for confirmation and preserves active parallel state', () => {
+    const parallel = { id: 'parallel-1', parentId: 'main-1', startTime: start };
+    const store = storage({ v9_parallel: JSON.stringify(parallel) });
+    let confirm;
+    let renders = 0;
+    const context = {
+        recordMode: 'continuous', current: { id: 'main-1', startTime: start },
+        parallelCurrent: parallel, localStorage: store,
+        showConfirm(title, message, action, callback) { confirm = callback; },
+        nowSecondMs: () => start, renderAll() { renders++; },
+    };
+    vm.createContext(context);
+    vm.runInContext(modeSource, context);
+    context.setRecordMode('journal');
+    assert.equal(store.getItem('v9_record_mode'), null);
+    confirm(false);
+    assert.equal(store.getItem('v9_record_mode'), null);
+    context.setRecordMode('journal');
+    confirm(true);
+    assert.equal(store.getItem('v9_record_mode'), 'journal');
+    assert.equal(store.getItem('v9_parallel'), JSON.stringify(parallel));
+    assert.equal(context.parallelCurrent, parallel);
+    assert.equal(renders, 1);
 });
 
 test('journal main can expand into a gap without moving adjacent records', () => {

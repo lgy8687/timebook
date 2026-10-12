@@ -250,6 +250,33 @@
     align-items: center;
     gap: 8px;
 }
+.category-shortcut-legend {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 46px 46px;
+    gap: 6px;
+    padding: 14px 12px 4px;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+}
+.category-shortcut-legend span:first-child { text-align: left; }
+.category-group { border-bottom: 1px solid #e9edf3; padding-bottom: 10px; }
+.category-group-head { display: flex; align-items: center; gap: 8px; min-height: 42px; }
+.category-group-title { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; font-size: 14px; font-weight: 800; color: #334155; }
+.category-group-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.category-expand-button { flex: 0 0 30px; height: 30px; color: #64748b; font-size: 20px; line-height: 1; border-radius: 6px; }
+.category-sub-list { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.category-sub-list[hidden] { display: none; }
+.category-sub-row { display: grid; grid-template-columns: 23px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; min-height: 42px; padding: 5px 8px; border-radius: 6px; background: #f8fafc; }
+.category-sub-row--whole { grid-template-columns: minmax(0, 1fr) auto; padding-left: 12px; color: #64748b; font-size: 12px; }
+.category-sub-icon { font-size: 16px; text-align: center; }
+.category-sub-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; color: #334155; }
+.category-shortcut-actions { display: flex; gap: 5px; }
+.category-shortcut-button { width: 46px; height: 30px; border: 1px solid #dbe2ea; border-radius: 6px; background: #fff; color: #64748b; font-size: 11px; font-weight: 700; }
+.category-shortcut-button.is-active { background: #e9f4f0; border-color: #71b8a5; color: #176c59; }
+.category-delete-button { width: 24px; height: 24px; color: #dc5d66; font-size: 12px; }
+.category-add-button { min-height: 38px; border: 1px dashed #cbd5e1; border-radius: 6px; color: #64748b; font-size: 11px; font-weight: 700; }
 #nav-fab-slot { min-width: 0; }
 .clock-face {
     position: relative; background: #ffffff; border-radius: 50%;

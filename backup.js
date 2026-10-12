@@ -82,8 +82,13 @@ function requestTimebookReset(kind) {
         : '这会清空本机时间线和事件记录，保留类别、场景、快捷入口和设置。请先导出备份。';
     showConfirm(title, message, '删除', (ok) => {
         if (!ok) return;
-        resetTimebookStorage(kind);
-        location.reload();
+        showConfirm('最后确认', all
+            ? '所有记录、分类和设置都将从这台设备删除，无法撤销。确认已经导出备份后再继续。'
+            : '所有时间线和事件记录都将从这台设备删除，无法撤销；分类和设置会保留。', '确认删除', (confirmed) => {
+            if (!confirmed) return;
+            resetTimebookStorage(kind);
+            location.reload();
+        }, '保留数据');
     }, '取消');
 }
 

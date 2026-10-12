@@ -127,28 +127,14 @@ function ensureSceneColor(name) {
 }
 (getCat('场景')?.subs || []).forEach(ensureSceneColor);
 saveSceneSettings();
-let shortcuts = safeJSON('v9_shorts') || [];
-function padShortcutsToDefault(list, defaults) {
-    const next = [...list];
-    defaults.forEach((def) => {
-        if (next.length >= 6) return;
-        if (!next.some((s) => s.l1 === def.l1 && s.l2 === def.l2)) next.push({ ...def });
-    });
-    return next;
-}
-if (!shortcuts.length) {
+let shortcuts = safeJSON('v9_shorts');
+if (!Array.isArray(shortcuts)) {
     shortcuts = [...DEFAULT_SHORTCUTS];
     localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
-} else if (shortcuts.length < 6) {
-    shortcuts = padShortcutsToDefault(shortcuts, DEFAULT_SHORTCUTS);
-    localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
 }
-let parallelShortcuts = safeJSON('v9_parallel_shorts') || [];
-if (!parallelShortcuts.length) {
+let parallelShortcuts = safeJSON('v9_parallel_shorts');
+if (!Array.isArray(parallelShortcuts)) {
     parallelShortcuts = [...DEFAULT_PARALLEL_SHORTCUTS];
-    localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
-} else if (parallelShortcuts.length < 6) {
-    parallelShortcuts = padShortcutsToDefault(parallelShortcuts, DEFAULT_PARALLEL_SHORTCUTS);
     localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
 }
 // 旧版本没有记录“快捷入口图标是否由用户指定”，用已有非占位图标兼容迁移。
@@ -676,8 +662,8 @@ let editIndex = null;
 let editingShortcutIndex = null;
 let configEditMode = false;
 let configSectionOpen = null;
+let expandedCategoryId = null;
 let drawerViewMode = 'columns';
-let showShortcutIcons = true;
 const BJ_OFFSET = 8 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -1865,8 +1851,9 @@ document.addEventListener('DOMContentLoaded', () => {
 let confirmCallback = null;
 function closeConfirm(result) {
     document.getElementById('confirm-modal').classList.add('hidden');
-    if (confirmCallback) confirmCallback(result);
+    const callback = confirmCallback;
     confirmCallback = null;
+    if (callback) callback(result);
 }
 
 let keyboardActiveModal = null;
@@ -1933,7 +1920,7 @@ function showConfirm(title, message, okText, callback, cancelText) {
     document.getElementById('confirm-message').innerText = message;
     const okBtn = document.getElementById('confirm-ok-btn');
     okBtn.innerText = okText || '确定';
-    okBtn.className = 'flex-1 py-3 text-sm font-bold text-white ' + (okText === '删除' ? 'bg-red-500' : 'bg-indigo-600') + ' rounded-2xl';
+    okBtn.className = 'flex-1 py-3 text-sm font-bold text-white ' + (okText?.includes('删除') ? 'bg-red-500' : 'bg-indigo-600') + ' rounded-2xl';
     const cancelBtn = document.getElementById('confirm-cancel-btn');
     if (cancelBtn) cancelBtn.innerText = cancelText || '取消';
     confirmCallback = callback;
@@ -2901,7 +2888,7 @@ function syncConfigSectionUI() {
             ? 'text-[10px] bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-full font-black'
             : 'text-[10px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-black';
     });
-    ['clock', 'shortcut', 'parallel', 'report', 'cats', 'scene', 'event', 'more'].forEach((id) => {
+    ['clock', 'report', 'cats', 'scene', 'event', 'mode', 'data'].forEach((id) => {
         const panel = document.getElementById('config-panel-' + id);
         if (panel) panel.classList.toggle('hidden', configSectionOpen !== id);
     });
@@ -2916,41 +2903,63 @@ window.openConfigSection = openConfigSection;
 
 function setRecordMode(mode) {
     if (mode !== 'continuous' && mode !== 'journal') return;
-    recordMode = mode;
-    localStorage.setItem('v9_record_mode', mode);
-    if (mode === 'journal' && current && !current.scene) {
-        current.journal = true;
-        localStorage.setItem('v9_current', JSON.stringify(current));
-    }
-    if (!localStorage.getItem('v9_tracking_start')) {
-        localStorage.setItem('v9_tracking_start', String(nowSecondMs()));
-    }
-    renderAll();
+    if (mode === recordMode) return;
+    const label = mode === 'journal' ? '手账模式' : '24 小时模式';
+    const message = mode === 'journal'
+        ? '切换后可结束当前主线，空出的时段会作为“未记录时间”进入报表。正在运行的主线与并行不会被清除。'
+        : '切换后主线恢复连续记录；已有的手账空档不会被补造记录。正在运行的主线与并行不会被清除。';
+    showConfirm(`切换到${label}？`, message, '确认切换', (ok) => {
+        if (!ok) return;
+        recordMode = mode;
+        localStorage.setItem('v9_record_mode', mode);
+        if (mode === 'journal' && current && !current.scene) {
+            current.journal = true;
+            localStorage.setItem('v9_current', JSON.stringify(current));
+        }
+        if (!localStorage.getItem('v9_tracking_start')) {
+            localStorage.setItem('v9_tracking_start', String(nowSecondMs()));
+        }
+        renderAll();
+    });
 }
 window.setRecordMode = setRecordMode;
+
+function makeCategoryShortcutButtons(l1, l2, icon) {
+    const actions = document.createElement('div');
+    actions.className = 'category-shortcut-actions';
+    [['主线', 'main'], ['并行', 'parallel']].forEach(([label, kind]) => {
+        const list = kind === 'main' ? shortcuts : parallelShortcuts;
+        const active = list.some((item) => item.l1 === l1 && item.l2 === l2);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `category-shortcut-button${active ? ' is-active' : ''}`;
+        button.innerText = label;
+        button.title = `${active ? '移除' : '加入'}${label}快捷入口：${l2 || l1}`;
+        button.setAttribute('aria-label', button.title);
+        button.setAttribute('aria-pressed', String(active));
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (!active && kind === 'main' && shortcuts.length >= 9) {
+                showConfirm('主线快捷已满', '主线快捷最多保留 9 项。请先取消一个，再添加。', '知道了', () => {});
+                return;
+            }
+            const next = active
+                ? list.filter((item) => !(item.l1 === l1 && item.l2 === l2))
+                : [...list, { l1, l2, icon, customIcon: false }];
+            if (kind === 'main') shortcuts = next;
+            else parallelShortcuts = next;
+            localStorage.setItem(kind === 'main' ? 'v9_shorts' : 'v9_parallel_shorts', JSON.stringify(next));
+            renderAll();
+        });
+        actions.appendChild(button);
+    });
+    return actions;
+}
 
 function toggleConfigEdit() {
     configEditMode = !configEditMode;
     renderConfig();
 }
-
-function toggleShortcutIcons() {
-    showShortcutIcons = !showShortcutIcons;
-    const toggle = document.getElementById('shortcut-icon-toggle');
-    const text = document.getElementById('shortcut-icon-toggle-text');
-    if (showShortcutIcons) {
-        toggle.style.background = '#6366f1';
-        toggle.querySelector('div').style.transform = 'translateX(14px)';
-        if (text) text.innerText = '图标';
-    } else {
-        toggle.style.background = '#94a3b8';
-        toggle.querySelector('div').style.transform = 'translateX(0)';
-        if (text) text.innerText = '隐藏';
-    }
-    renderShortcuts();
-    renderConfig();
-}
-
 
 function renderReportSummarySettings() {
     const box = document.getElementById('report-summary-settings-ui');
@@ -3384,79 +3393,17 @@ function renderConfig() {
     renderReportSummarySettings();
     renderSceneSettings();
     renderEventSettings();
-    const shortcutList = document.getElementById('shortcut-list');
-    shortcutList.innerHTML = "";
-    shortcuts.forEach((s, idx) => {
-        const card = document.createElement('div');
-        const compact = !showShortcutIcons;
-        card.className = compact
-            ? "bg-slate-50 rounded-xl p-1.5 text-center text-xs font-bold relative"
-            : "bg-slate-50 rounded-2xl p-2 text-center text-xs font-bold relative";
-        if (showShortcutIcons) {
-            const icon = document.createElement('div');
-            icon.className = "text-xs leading-none mb-0.5";
-            icon.innerText = s.icon;
-            card.appendChild(icon);
-        }
-        const label = document.createElement('div');
-        label.className = "text-xs font-bold leading-tight";
-        label.innerText = s.l2 || s.l1;
-        card.appendChild(label);
-        {
-            const del = document.createElement('button');
-            del.type = 'button';
-            del.className = "absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-400 text-white rounded-full text-[10px] flex items-center justify-center shadow-sm";
-            del.innerText = "✕";
-            del.addEventListener('click', () => {
-                shortcuts.splice(idx, 1);
-                localStorage.setItem('v9_shorts', JSON.stringify(shortcuts));
-                renderAll();
-            });
-            card.appendChild(del);
-        }
-        shortcutList.appendChild(card);
-    });
-
-    const paraList = document.getElementById('parallel-shortcut-list');
-    if (paraList) {
-        paraList.innerHTML = "";
-        parallelShortcuts.forEach((s, idx) => {
-            const card = document.createElement('div');
-            card.className = "bg-violet-50 rounded-2xl p-2 text-center text-xs font-bold relative";
-            const icon = document.createElement('div');
-            icon.className = "text-xs leading-none mb-0.5";
-            icon.innerText = s.icon;
-            card.appendChild(icon);
-            const label = document.createElement('div');
-            label.className = "text-xs font-bold leading-tight";
-            label.innerText = s.l2 || s.l1;
-            card.appendChild(label);
-            {
-                const del = document.createElement('button');
-                del.type = 'button';
-                del.className = "absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-400 text-white rounded-full text-[10px] flex items-center justify-center shadow-sm";
-                del.innerText = "✕";
-                del.addEventListener('click', () => {
-                    parallelShortcuts.splice(idx, 1);
-                    localStorage.setItem('v9_parallel_shorts', JSON.stringify(parallelShortcuts));
-                    renderAll();
-                });
-                card.appendChild(del);
-            }
-            paraList.appendChild(card);
-        });
-    }
-
     const catList = document.getElementById('full-cat-list');
     catList.innerHTML = "";
     cats.filter(c => c.name !== '场景').forEach(c => {
         const wrap = document.createElement('div');
-        wrap.className = "space-y-2 border-b border-slate-50 pb-3";
+        const expanded = expandedCategoryId === null ? c.id === cats.find(item => item.name !== '场景')?.id : expandedCategoryId === c.id;
+        wrap.className = 'category-group';
 
         const head = document.createElement('div');
-        head.className = "flex justify-between items-center text-base font-black";
+        head.className = 'category-group-head';
         const titleGroup = document.createElement('div');
-        titleGroup.className = "flex items-center gap-2";
+        titleGroup.className = 'category-group-title';
         const PRESET_COLORS = ['#f59e0b','#06b6d4','#10b981','#0ea5e9','#f97316','#c4841a','#ec4899','#3b82f6','#ef4444','#8b5cf6','#a0522d','#334155'];
         const colorDot = document.createElement('button');
         colorDot.type = 'button';
@@ -3501,6 +3448,17 @@ function renderConfig() {
         title.innerText = `${c.icon} ${c.name}`;
         titleGroup.append(colorDot, title);
         head.appendChild(titleGroup);
+        const chevron = document.createElement('button');
+        chevron.type = 'button';
+        chevron.className = 'category-expand-button';
+        chevron.innerText = expanded ? '⌃' : '⌄';
+        chevron.title = expanded ? '收起二级活动' : '展开二级活动';
+        chevron.setAttribute('aria-expanded', String(expanded));
+        chevron.addEventListener('click', () => {
+            expandedCategoryId = expanded ? -1 : c.id;
+            renderConfig();
+        });
+        if (!configEditMode) titleGroup.addEventListener('click', () => chevron.click());
         if (configEditMode) {
             const actions = document.createElement('div');
             actions.className = "flex space-x-2 items-center";
@@ -3515,26 +3473,38 @@ function renderConfig() {
             actions.append(del);
             head.appendChild(actions);
         }
+        head.appendChild(chevron);
         wrap.appendChild(head);
 
         const subs = document.createElement('div');
-        subs.className = "grid grid-cols-3 gap-2";
+        subs.className = 'category-sub-list';
+        subs.hidden = !expanded;
+        if (c.subs.length === 0 || shortcuts.some(item => item.l1 === c.name && !item.l2)
+            || parallelShortcuts.some(item => item.l1 === c.name && !item.l2)) {
+            const whole = document.createElement('div');
+            whole.className = 'category-sub-row category-sub-row--whole';
+            const label = document.createElement('span');
+            label.innerText = '整个分类';
+            whole.append(label, makeCategoryShortcutButtons(c.name, '', c.icon));
+            subs.appendChild(whole);
+        }
         c.subs.forEach(name => {
             const card = document.createElement('div');
-            card.className = "bg-slate-50 rounded-xl p-1.5 text-center text-xs font-bold relative cursor-pointer";
+            card.className = 'category-sub-row';
             const iconEl = document.createElement('div');
-            iconEl.className = "text-xs leading-none mb-0.5";
+            iconEl.className = 'category-sub-icon';
             iconEl.innerText = getSubIcon(name, c.icon, c);
             card.appendChild(iconEl);
             const nameEl = document.createElement('div');
-            nameEl.className = "leading-tight";
+            nameEl.className = 'category-sub-name';
             nameEl.innerText = name;
             card.appendChild(nameEl);
-            if (configEditMode) card.addEventListener('click', () => editS(c.id, name));
+            if (configEditMode) nameEl.addEventListener('click', () => editS(c.id, name));
+            card.appendChild(makeCategoryShortcutButtons(c.name, name, getSubIcon(name, c.icon, c)));
             if (configEditMode) {
                 const del = document.createElement('button');
                 del.type = 'button';
-                del.className = "absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-400 text-white rounded-full text-[8px] flex items-center justify-center shadow-sm";
+                del.className = 'category-delete-button';
                 del.innerText = "✕";
                 del.addEventListener('click', (e) => { e.stopPropagation(); delS(c.id, name); });
                 card.appendChild(del);
@@ -3543,12 +3513,12 @@ function renderConfig() {
         });
         const addBtn = document.createElement('button');
         addBtn.type = 'button';
-        addBtn.className = "bg-slate-100 border border-dashed border-slate-300 rounded-xl p-1.5 text-center text-[10px] font-bold text-slate-400 cursor-pointer";
-        addBtn.innerHTML = '<div class="text-base leading-none mb-0.5">＋</div><div class="leading-tight">新增</div>';
+        addBtn.className = 'category-add-button';
+        addBtn.innerText = '＋ 新增二级活动';
         addBtn.addEventListener('click', () => addS(c.id));
         subs.appendChild(addBtn);
 
-        wrap.append(head, subs);
+        wrap.append(subs);
         catList.appendChild(wrap);
     });
     if (configEditMode) {
