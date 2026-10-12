@@ -663,6 +663,7 @@ let editingShortcutIndex = null;
 let configEditMode = false;
 let configSectionOpen = null;
 let expandedCategoryId = null;
+let categoryConfigTab = 'categories';
 let drawerViewMode = 'columns';
 const BJ_OFFSET = 8 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -2924,37 +2925,12 @@ function setRecordMode(mode) {
 }
 window.setRecordMode = setRecordMode;
 
-function makeCategoryShortcutButtons(l1, l2, icon) {
-    const actions = document.createElement('div');
-    actions.className = 'category-shortcut-actions';
-    [['主线', 'main'], ['并行', 'parallel']].forEach(([label, kind]) => {
-        const list = kind === 'main' ? shortcuts : parallelShortcuts;
-        const active = list.some((item) => item.l1 === l1 && item.l2 === l2);
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = `category-shortcut-button${active ? ' is-active' : ''}`;
-        button.innerText = label;
-        button.title = `${active ? '移除' : '加入'}${label}快捷入口：${l2 || l1}`;
-        button.setAttribute('aria-label', button.title);
-        button.setAttribute('aria-pressed', String(active));
-        button.addEventListener('click', (event) => {
-            event.stopPropagation();
-            if (!active && kind === 'main' && shortcuts.length >= 9) {
-                showConfirm('主线快捷已满', '主线快捷最多保留 9 项。请先取消一个，再添加。', '知道了', () => {});
-                return;
-            }
-            const next = active
-                ? list.filter((item) => !(item.l1 === l1 && item.l2 === l2))
-                : [...list, { l1, l2, icon, customIcon: false }];
-            if (kind === 'main') shortcuts = next;
-            else parallelShortcuts = next;
-            localStorage.setItem(kind === 'main' ? 'v9_shorts' : 'v9_parallel_shorts', JSON.stringify(next));
-            renderAll();
-        });
-        actions.appendChild(button);
-    });
-    return actions;
+function switchCategoryConfigTab(tab) {
+    if (!['categories', 'shortcut', 'parallel'].includes(tab)) return;
+    categoryConfigTab = tab;
+    renderConfig();
 }
+window.switchCategoryConfigTab = switchCategoryConfigTab;
 
 function toggleConfigEdit() {
     configEditMode = !configEditMode;
@@ -3384,6 +3360,14 @@ function renderEventSettings() {
 
 function renderConfig() {
     syncConfigSectionUI();
+    document.querySelectorAll('[data-category-tab]').forEach((button) => {
+        const selected = button.dataset.categoryTab === categoryConfigTab;
+        button.classList.toggle('is-active', selected);
+        button.setAttribute('aria-selected', String(selected));
+    });
+    ['categories', 'shortcut', 'parallel'].forEach((tab) => {
+        document.getElementById('category-config-' + tab)?.classList.toggle('hidden', categoryConfigTab !== tab);
+    });
     document.querySelectorAll('[data-record-mode]').forEach((button) => {
         const selected = button.dataset.recordMode === recordMode;
         button.classList.toggle('is-active', selected);
@@ -3393,6 +3377,38 @@ function renderConfig() {
     renderReportSummarySettings();
     renderSceneSettings();
     renderEventSettings();
+    [['shortcut-list', shortcuts, 'v9_shorts'], ['parallel-shortcut-list', parallelShortcuts, 'v9_parallel_shorts']].forEach(([id, list, key]) => {
+        const host = document.getElementById(id);
+        host.innerHTML = '';
+        list.forEach((item, index) => {
+            const row = document.createElement('div');
+            row.className = 'category-selected-item';
+            const icon = document.createElement('span');
+            icon.className = 'category-selected-icon';
+            icon.innerText = resolveShortcutIcon(item);
+            const names = document.createElement('span');
+            names.className = 'category-selected-names';
+            const name = document.createElement('strong');
+            name.innerText = item.l2 || item.l1;
+            const parent = document.createElement('small');
+            parent.innerText = item.l2 ? item.l1 : '一级分类';
+            names.append(name, parent);
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'category-selected-remove';
+            remove.innerText = '×';
+            remove.title = `移除${item.l2 || item.l1}`;
+            remove.setAttribute('aria-label', remove.title);
+            remove.addEventListener('click', () => {
+                if (key === 'v9_shorts') shortcuts.splice(index, 1);
+                else parallelShortcuts.splice(index, 1);
+                localStorage.setItem(key, JSON.stringify(key === 'v9_shorts' ? shortcuts : parallelShortcuts));
+                renderAll();
+            });
+            row.append(icon, names, remove);
+            host.appendChild(row);
+        });
+    });
     const catList = document.getElementById('full-cat-list');
     catList.innerHTML = "";
     cats.filter(c => c.name !== '场景').forEach(c => {
@@ -3479,15 +3495,6 @@ function renderConfig() {
         const subs = document.createElement('div');
         subs.className = 'category-sub-list';
         subs.hidden = !expanded;
-        if (c.subs.length === 0 || shortcuts.some(item => item.l1 === c.name && !item.l2)
-            || parallelShortcuts.some(item => item.l1 === c.name && !item.l2)) {
-            const whole = document.createElement('div');
-            whole.className = 'category-sub-row category-sub-row--whole';
-            const label = document.createElement('span');
-            label.innerText = '整个分类';
-            whole.append(label, makeCategoryShortcutButtons(c.name, '', c.icon));
-            subs.appendChild(whole);
-        }
         c.subs.forEach(name => {
             const card = document.createElement('div');
             card.className = 'category-sub-row';
@@ -3500,7 +3507,6 @@ function renderConfig() {
             nameEl.innerText = name;
             card.appendChild(nameEl);
             if (configEditMode) nameEl.addEventListener('click', () => editS(c.id, name));
-            card.appendChild(makeCategoryShortcutButtons(c.name, name, getSubIcon(name, c.icon, c)));
             if (configEditMode) {
                 const del = document.createElement('button');
                 del.type = 'button';

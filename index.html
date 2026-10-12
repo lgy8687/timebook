@@ -8,7 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>TimeBook Pro - 稳如老狗版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="style.css?v=5.21">
+    <link rel="stylesheet" href="style.css?v=5.22">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
 </head>
@@ -41,7 +41,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.21</div>
+            <div id="cache-buster" class="version-below-daybar">v5.22</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -291,13 +291,33 @@
                     <div id="report-summary-settings-ui" class="report-summary-settings-ui"></div>
                 </div>
                 <div id="config-panel-cats" class="config-panel hidden">
-                    <div class="config-panel-head">
-                        <h3 class="config-panel-title">分类管理</h3>
-                        <button id="config-edit-btn" type="button" onclick="toggleConfigEdit()" class="text-[10px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-black">编辑</button>
+                    <h3 class="config-panel-title">分类管理</h3>
+                    <div class="category-config-tabs" role="tablist" aria-label="分类管理设置">
+                        <button type="button" data-category-tab="categories" onclick="switchCategoryConfigTab('categories')">分类</button>
+                        <button type="button" data-category-tab="shortcut" onclick="switchCategoryConfigTab('shortcut')">主线快捷</button>
+                        <button type="button" data-category-tab="parallel" onclick="switchCategoryConfigTab('parallel')">并行快捷</button>
                     </div>
-                    <p class="config-panel-hint">展开一级分类后，可为二级活动设置主线或并行快捷入口。点“编辑”修改名称和颜色。</p>
-                    <div class="category-shortcut-legend"><span>活动</span><span>主线</span><span>并行</span></div>
-                    <div id="full-cat-list" class="space-y-4 mt-3"></div>
+                    <div id="category-config-categories">
+                        <div class="config-panel-head">
+                            <span class="config-panel-hint">一级分类与二级活动</span>
+                            <button id="config-edit-btn" type="button" onclick="toggleConfigEdit()" class="text-[11px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg font-black">编辑</button>
+                        </div>
+                        <div id="full-cat-list" class="space-y-3 mt-3"></div>
+                    </div>
+                    <div id="category-config-shortcut" class="hidden">
+                        <div class="config-panel-head">
+                            <h4 class="category-config-subtitle">主线快捷入口</h4>
+                            <button type="button" onclick="openShortcutPicker()" class="category-pick-button">＋ 选取</button>
+                        </div>
+                        <div id="shortcut-list" class="category-selected-list"></div>
+                    </div>
+                    <div id="category-config-parallel" class="hidden">
+                        <div class="config-panel-head">
+                            <h4 class="category-config-subtitle">并行快捷入口</h4>
+                            <button type="button" onclick="openParallelShortcutPicker()" class="category-pick-button">＋ 选取</button>
+                        </div>
+                        <div id="parallel-shortcut-list" class="category-selected-list"></div>
+                    </div>
                 </div>
                 <div id="config-panel-scene" class="config-panel hidden">
                     <div class="config-panel-head">
@@ -611,7 +631,7 @@
     <script src="report-metrics.js?v=1.9"></script>
     <script src="report.js?v=2.8"></script>
     <script src="ui-theme.js?v=4.67"></script>
-    <script src="app.js?v=5.21"></script>
+    <script src="app.js?v=5.22"></script>
     <script src="backup.js?v=3"></script>
     <script src="dev-appearance.js?v=4.67"></script>
 </body>
