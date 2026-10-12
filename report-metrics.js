@@ -60,7 +60,7 @@ function resolveReportMetric(metricSlot, periodData, view) {
     const b = view === 'main' ? main : parallel;
     const summary = b.summary || [];
     const l1 = main.l1 || [];
-    const mainTotal = l1.reduce((s, x) => s + x.hours, 0) || 1;
+    const mainTotal = l1.filter((x) => x.name !== '未记录时间').reduce((s, x) => s + (x.exactHours ?? x.hours), 0);
     const paraTotal = (parallel.l1 || []).reduce((s, x) => s + x.hours, 0);
 
     const fromSummary = (icon, labelKey) => {

@@ -156,6 +156,7 @@ shortcuts = shortcuts.map(s => ({ ...s, customIcon: s.customIcon ?? (s.icon && s
 parallelShortcuts = parallelShortcuts.map(s => ({ ...s, customIcon: s.customIcon ?? (s.icon && s.icon !== '📌') }));
 let logs = safeJSON('v9_logs') || [];
 let current = safeJSON('v9_current') || null;
+let recordMode = localStorage.getItem('v9_record_mode') === 'journal' ? 'journal' : 'continuous';
 function toSecondMs(value) {
     const n = Number(value);
     return Number.isFinite(n) ? Math.floor(n / 1000) * 1000 : n;
@@ -574,6 +575,7 @@ function transitionCurrentTo(next, askParallel) {
             id: nextId,
             startTime: now,
             ...next,
+            ...(!next.scene && recordMode === 'journal' ? { journal: true } : {}),
             ...(next.scene ? { sceneRootId: next.sceneRootId || genId() } : {})
         };
         if (parallelCurrent && !endParallel) {
@@ -2159,6 +2161,30 @@ function applyEditedRange(log, newStart, newEnd, done) {
         done();
         return;
     }
+    if (log.journal && !log.scene && !log.sceneActivity) {
+        const dayStart = beijingDateStrToDayStart(formatBeijingDate(oldStart));
+        if (effectiveStart < dayStart || effectiveEnd > dayStart + DAY_MS || effectiveEnd > nowSecondMs()) {
+            showConfirm('时间不合法', '手账主线须在当天已过去的时间内。', '知道了', () => {});
+            return;
+        }
+        const outsideChild = logs.concat(parallelHistory).some((item) => item.parallel
+            && String(item.parentId) === String(log.id)
+            && (item.startTime < effectiveStart || logEndMs(item) > effectiveEnd));
+        if (outsideChild) {
+            showConfirm('并行超出主线', '请先调整这条主线下面的并行时间。', '知道了', () => {});
+            return;
+        }
+        const conflicts = mainRecordOverlaps(effectiveStart, effectiveEnd, new Set([log.id]));
+        if (conflicts.length) {
+            showConfirm('时间段发生重叠', `调整后的时间与「${displayName(conflicts[0])}」重叠。`, '知道了', () => {});
+            return;
+        }
+        log.startTime = effectiveStart;
+        log.endTime = effectiveEnd;
+        log.duration = Math.max(1, Math.round((effectiveEnd - effectiveStart) / 60000));
+        done();
+        return;
+    }
     // 向前补时间允许跨越多条主线；此前只识别一条相邻记录，会把真实补录误判为冲突。
     if (startChanged && effectiveStart < oldStart) {
         expandMainStartAcrossRecords(log, effectiveStart, effectiveEnd, done);
@@ -2517,11 +2543,32 @@ function doExecuteRecord(l1, l2, tag, note, endParallel, rollover) {
     if (current) {
         commitCurrentSlice(now, false, { endParallel: !!endParallel, rollover: !!rollover });
     }
-    current = { id: genId(), startTime: now, l1, l2, tag, note, color };
+    current = { id: genId(), startTime: now, l1, l2, tag, note, color, ...(recordMode === 'journal' ? { journal: true } : {}) };
     localStorage.setItem('v9_current', JSON.stringify(current));
     closeDrawer();
     renderAll();
     if (pendingClassifyLogIds.length) setTimeout(flushUncategorizedClassifyPrompt, 50);
+}
+
+function stopCurrentMain() {
+    if (recordMode !== 'journal' || !current || current.scene) return;
+    const finish = () => {
+        const now = nowSecondMs();
+        ensureDayRolloversBefore(now);
+        if (!current || now <= current.startTime) return;
+        commitCurrentSlice(now, false, { endParallel: true });
+        current = null;
+        localStorage.removeItem('v9_current');
+        setText('header-timer', '00:00:00');
+        renderAll();
+    };
+    if (parallelCurrent) {
+        showConfirm('并行仍在运行', `结束主线时也会结束「${displayName(parallelCurrent)}」。`, '一起结束', (ok) => {
+            if (ok) finish();
+        });
+        return;
+    }
+    finish();
 }
 
 function executeAddShortcut(l1, l2) {
@@ -2752,6 +2799,10 @@ function renderParallelShortcuts() {
     updateParallelStatus();
 }
 function toggleParallel(l1, l2, icon) {
+    if (!current) {
+        showConfirm('先开启主线', '并行需要归属一条主线，请先选择主线活动。', '知道了', () => {});
+        return;
+    }
     const now = nowSecondMs();
     // 结束当前并行 → 存入 parallelHistory
     if (parallelCurrent) {
@@ -2862,6 +2913,21 @@ function openConfigSection(id) {
     renderConfig();
 }
 window.openConfigSection = openConfigSection;
+
+function setRecordMode(mode) {
+    if (mode !== 'continuous' && mode !== 'journal') return;
+    recordMode = mode;
+    localStorage.setItem('v9_record_mode', mode);
+    if (mode === 'journal' && current && !current.scene) {
+        current.journal = true;
+        localStorage.setItem('v9_current', JSON.stringify(current));
+    }
+    if (!localStorage.getItem('v9_tracking_start')) {
+        localStorage.setItem('v9_tracking_start', String(nowSecondMs()));
+    }
+    renderAll();
+}
+window.setRecordMode = setRecordMode;
 
 function toggleConfigEdit() {
     configEditMode = !configEditMode;
@@ -3309,6 +3375,11 @@ function renderEventSettings() {
 
 function renderConfig() {
     syncConfigSectionUI();
+    document.querySelectorAll('[data-record-mode]').forEach((button) => {
+        const selected = button.dataset.recordMode === recordMode;
+        button.classList.toggle('is-active', selected);
+        button.setAttribute('aria-pressed', String(selected));
+    });
     renderClockSettings();
     renderReportSummarySettings();
     renderSceneSettings();
@@ -3677,7 +3748,7 @@ function parseTimeOnBeijingDateParts(dateStr, timeStr) {
 }
 
 function buildLogFlowMainRow(opts) {
-    const { timeText, nameText, durText, live, durId, endedParallel, eventAction } = opts;
+    const { timeText, nameText, durText, live, durId, endedParallel, eventAction, stopAction } = opts;
     const top = document.createElement('div');
     top.className = 'log-flow-main';
     const time = document.createElement('span');
@@ -3692,6 +3763,19 @@ function buildLogFlowMainRow(opts) {
     if (durId) dur.id = durId;
     dur.innerText = durText;
     top.append(time, name, dur);
+    if (stopAction) {
+        const stopButton = document.createElement('button');
+        stopButton.type = 'button';
+        stopButton.className = 'log-stop-btn';
+        stopButton.textContent = '■';
+        stopButton.title = '结束当前主线';
+        stopButton.setAttribute('aria-label', '结束当前主线');
+        stopButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            stopCurrentMain();
+        });
+        top.appendChild(stopButton);
+    }
     if (eventAction) {
         const eventButton = document.createElement('button');
         eventButton.type = 'button';
@@ -3771,6 +3855,7 @@ function renderLogs(listId, dateStr) {
             durText: formatDuration(logDurationMs(current, nowSecondMs())),
             live: true,
             durId: 'live-main-duration',
+            stopAction: recordMode === 'journal' && !current.scene,
             eventAction: true
         }));
         appendLogFlowNote(body, current);
@@ -4719,6 +4804,46 @@ function getTodaySegments() {
     return getSegmentsInRange(dayStart, dayStart + DAY_MS, now);
 }
 
+const UNRECORDED_COLOR = '#cbd5e1';
+function getTrackingStartMs() {
+    const saved = Number(localStorage.getItem('v9_tracking_start'));
+    const starts = logs.filter((log) => !log.parallel && !log.sceneActivity).map((log) => Number(log.startTime));
+    if (current) starts.push(Number(current.startTime));
+    if (Number.isFinite(saved) && saved > 0) starts.push(saved);
+    const valid = starts.filter(Number.isFinite);
+    return valid.length ? Math.min(...valid) : null;
+}
+
+function getUnrecordedSegments(mainSegments, rangeStart, rangeEnd, now = nowSecondMs()) {
+    const trackingStart = getTrackingStartMs();
+    if (trackingStart == null) return [];
+    const start = Math.max(rangeStart, beijingDateStrToDayStart(formatBeijingDate(trackingStart)));
+    const end = Math.min(rangeEnd, now);
+    if (end <= start) return [];
+    const covered = mainSegments
+        .filter((segment) => !segment.parallel && !segment.sceneActivity && !segment.unrecorded)
+        .map((segment) => ({ start: Math.max(start, segment.clippedStart), end: Math.min(end, segment.clippedEnd) }))
+        .filter((segment) => segment.end > segment.start)
+        .sort((a, b) => a.start - b.start || a.end - b.end);
+    const gaps = [];
+    let cursor = start;
+    const addGap = (gapStart, gapEnd) => {
+        if (gapEnd <= gapStart) return;
+        gaps.push({
+            startTime: gapStart, endTime: gapEnd,
+            clippedStart: gapStart, clippedEnd: gapEnd,
+            l1: '未记录时间', l2: '未记录时间', color: UNRECORDED_COLOR,
+            unrecorded: true
+        });
+    };
+    covered.forEach((segment) => {
+        addGap(cursor, segment.start);
+        cursor = Math.max(cursor, segment.end);
+    });
+    addGap(cursor, end);
+    return gaps;
+}
+
 let reportBillboardReady = false;
 
 function msToReportHours(ms) {
@@ -4743,6 +4868,9 @@ function aggregateReportSegments(segments, keyFn) {
 }
 
 function reportMainGroup(log) {
+    if (log?.unrecorded) {
+        return { key: 'unrecorded', name: '未记录时间', color: UNRECORDED_COLOR };
+    }
     if (log?.scene) {
         const sceneName = displayName(log);
         return {
@@ -4838,14 +4966,14 @@ function buildMainChartComposition(mainSegs, parallelSegs, rangeStart, rangeEnd)
     return {
         l1: [...groups.values()]
             .sort((a, b) => b.ms - a.ms)
-            .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), color: item.color })),
+            .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), exactHours: item.ms / HOUR_MS, color: item.color })),
         // 供圆环定位的分片保留父块；供“活动明细”展示的总表则完全去掉一级目录。
         l2Slices: [...detailSlices.values()]
             .sort((a, b) => b.ms - a.ms)
-            .map((item) => ({ l1: item.l1, name: item.name, hours: msToReportHours(item.ms), color: item.color, free: item.free })),
+            .map((item) => ({ l1: item.l1, name: item.name, hours: msToReportHours(item.ms), exactHours: item.ms / HOUR_MS, color: item.color, free: item.free })),
         l2: [...detailTotals.values()]
             .sort((a, b) => b.ms - a.ms)
-            .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), color: item.color })),
+            .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), exactHours: item.ms / HOUR_MS, color: item.color })),
         sceneCoverage,
         sceneRange: { start: rangeStart, end: rangeEnd },
     };
@@ -4875,7 +5003,7 @@ function buildMainComposition(segments, periodStart, periodEnd) {
             last.end = end;
             last.ms += end - effectiveStart;
         } else {
-            parts.push({ name, l1, start: effectiveStart, end, ms: end - effectiveStart, color: getCat(log.l1)?.color || '#94a3b8' });
+            parts.push({ name, l1, start: effectiveStart, end, ms: end - effectiveStart, color: log.unrecorded ? UNRECORDED_COLOR : (getCat(log.l1)?.color || '#94a3b8') });
         }
         cursor = end;
     });
@@ -4943,10 +5071,14 @@ function buildLiveReportDay() {
     const now = nowSecondMs();
     const dayStart = beijingPeriodStart(now, DAY_MS);
     const all = getTodaySegments();
-    const mainSegs = all.filter((l) => !l.parallel);
-    const coreMainSegs = mainSegs.filter((l) => !l.sceneActivity);
+    const recordedMainSegs = all.filter((l) => !l.parallel);
+    const recordedCore = recordedMainSegs.filter((l) => !l.sceneActivity);
+    const unrecorded = getUnrecordedSegments(recordedCore, dayStart, dayStart + DAY_MS, now);
+    const mainSegs = recordedMainSegs.concat(unrecorded);
+    const coreMainSegs = recordedCore.concat(unrecorded);
     const paraSegs = all.filter((l) => l.parallel);
-    const mainMs = coreMainSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
+    const mainMs = recordedCore.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
+    const accountedMs = coreMainSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
     const paraMs = paraSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
 
     const chartComposition = buildMainChartComposition(mainSegs, paraSegs, dayStart, dayStart + DAY_MS);
@@ -4954,8 +5086,8 @@ function buildLiveReportDay() {
 
     const topL1 = l1[0];
     const mainHours = msToReportHours(mainMs);
-    const focusPct = topL1 && mainHours
-        ? (Math.round((topL1.hours / mainHours) * 1000) / 10) + '%'
+    const focusPct = topL1 && accountedMs
+        ? (Math.round(((topL1.exactHours ?? topL1.hours) / (accountedMs / HOUR_MS)) * 1000) / 10) + '%'
         : '0%';
 
     const paraL1Agg = aggregateReportSegments(paraSegs, displayName);
@@ -4998,7 +5130,7 @@ function buildLiveReportDay() {
         return {
             left,
             width,
-            color: getCat(l.l1)?.color || '#94a3b8',
+            color: l.unrecorded ? UNRECORDED_COLOR : (getCat(l.l1)?.color || '#94a3b8'),
             label: displayName(l),
             title: `${displayName(l)} ${formatBeijingClockSec(l.clippedStart)}-${formatBeijingClockSec(l.clippedEnd)}`,
         };
@@ -5023,8 +5155,8 @@ function buildLiveReportDay() {
             },
             summary: [
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
-                { icon: '🔀', label: '活动切换', value: String(Math.max(0, coreMainSegs.length - 1)), sub: '次' },
-                { icon: '📋', label: '流水条数', value: String(coreMainSegs.length), sub: '条' },
+                { icon: '🔀', label: '活动切换', value: String(Math.max(0, recordedCore.length - 1)), sub: '次' },
+                { icon: '📋', label: '流水条数', value: String(recordedCore.length), sub: '条' },
             ],
             l1,
             l2,
@@ -5188,10 +5320,14 @@ function buildLiveReportPeriod(period, options = {}) {
         ? Math.min(range.end, todayStart)
         : Math.min(range.end, now);
     const all = getSegmentsInRange(range.start, summaryEnd, now);
-    const mainSegs = all.filter((l) => !l.parallel);
-    const coreMainSegs = mainSegs.filter((l) => !l.sceneActivity);
+    const recordedMainSegs = all.filter((l) => !l.parallel);
+    const recordedCore = recordedMainSegs.filter((l) => !l.sceneActivity);
+    const unrecorded = getUnrecordedSegments(recordedCore, range.start, summaryEnd, now);
+    const mainSegs = recordedMainSegs.concat(unrecorded);
+    const coreMainSegs = recordedCore.concat(unrecorded);
     const paraSegs = all.filter((l) => l.parallel);
-    const mainMs = coreMainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
+    const mainMs = recordedCore.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
+    const accountedMs = coreMainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const paraMs = paraSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const chartComposition = buildMainChartComposition(mainSegs, paraSegs, range.start, range.end);
     const { l1, l2, l2Slices, sceneCoverage, sceneRange } = chartComposition;
@@ -5199,7 +5335,7 @@ function buildLiveReportPeriod(period, options = {}) {
     const paraL1 = paraAgg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
     const mainHours = msToReportHours(mainMs);
     const topL1 = l1[0];
-    const focusPct = topL1 && mainHours ? (Math.round((topL1.hours / mainHours) * 1000) / 10) + '%' : '0%';
+    const focusPct = topL1 && accountedMs ? (Math.round(((topL1.exactHours ?? topL1.hours) / (accountedMs / HOUR_MS)) * 1000) / 10) + '%' : '0%';
     const paraRatio = mainHours ? (Math.round((msToReportHours(paraMs) / mainHours) * 1000) / 10) + '%' : '0%';
     const hostMs = new Map();
     paraSegs.forEach((l) => {
@@ -5235,8 +5371,8 @@ function buildLiveReportPeriod(period, options = {}) {
             meta: { title: periodTitle, range: period === 'week' ? '周报主线' : period === 'month' ? '月报主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
             summary: [
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
-                { icon: '🔀', label: '活动切换', value: String(Math.max(0, coreMainSegs.length - 1)), sub: '次' },
-                { icon: '📋', label: '流水条数', value: String(coreMainSegs.length), sub: '条' },
+                { icon: '🔀', label: '活动切换', value: String(Math.max(0, recordedCore.length - 1)), sub: '次' },
+                { icon: '📋', label: '流水条数', value: String(recordedCore.length), sub: '条' },
             ], l1, l2, l2Slices, sceneCoverage, sceneRange,
         },
         parallel: {
@@ -5606,6 +5742,8 @@ function tick() {
             if (el) el.innerText = formatDuration(diff);
             const liveDur = document.getElementById('live-main-duration');
             if (liveDur) liveDur.innerText = formatDuration(diff);
+        } else {
+            setText('header-timer', '00:00:00');
         }
         if (parallelCurrent) {
             const diff = now - parallelCurrent.startTime;
@@ -5634,6 +5772,7 @@ function tick() {
             setText('header-l2', displayName(current));
             setText('header-memo', current.note || "");
         } else {
+            document.getElementById('status-light').className = "w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0";
             setText('header-l2', "等待开启...");
             setText('header-memo', "");
         }
@@ -5971,7 +6110,8 @@ function handleFreeInput() {
             tag: match.tag,
             note: match.note,
             color: cat?.color || '#cbd5e1',
-            parallel: false
+            parallel: false,
+            ...(recordMode === 'journal' ? { journal: true } : {})
         };
         logs.unshift(entry);
         localStorage.setItem('v9_logs', JSON.stringify(logs));

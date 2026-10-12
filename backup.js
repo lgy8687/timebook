@@ -59,6 +59,34 @@ function restoreTimebookBackup(backup, storage = localStorage) {
     }
 }
 
+function resetTimebookStorage(kind, storage = localStorage, now = Date.now()) {
+    if (kind !== 'records' && kind !== 'all') throw new Error('未知的清空范围。');
+    const recordKeys = new Set([
+        'v9_logs', 'v9_current', 'v9_parallel', 'v9_parallel_history',
+        'v9_event_records', 'v9_recent_picks', 'v9_input_aliases', 'v9_tracking_start'
+    ]);
+    const keys = [];
+    for (let i = 0; i < storage.length; i++) keys.push(storage.key(i));
+    keys.forEach((key) => {
+        if (kind === 'all' ? /^v9_[A-Za-z0-9_]+$/.test(key) : recordKeys.has(key)) storage.removeItem(key);
+    });
+    if (kind === 'records') storage.setItem('v9_tracking_start', String(now));
+}
+
+function requestTimebookReset(kind) {
+    const all = kind === 'all';
+    if (!all && kind !== 'records') return;
+    const title = all ? '全部恢复初始数据' : '清空记录';
+    const message = all
+        ? '这会清空本机所有时间线、事件、类别、场景和设置，恢复首次使用状态。请先导出备份。'
+        : '这会清空本机时间线和事件记录，保留类别、场景、快捷入口和设置。请先导出备份。';
+    showConfirm(title, message, '删除', (ok) => {
+        if (!ok) return;
+        resetTimebookStorage(kind);
+        location.reload();
+    }, '取消');
+}
+
 function exportTimebookBackup() {
     const backup = collectTimebookBackup();
     const json = JSON.stringify(backup, null, 2);

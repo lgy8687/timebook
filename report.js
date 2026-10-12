@@ -1,9 +1,9 @@
 /**
- * 报表 v2.7 — 支持周报、月报历史周期浏览
+ * 报表 v2.8 — 支持周报、月报历史周期浏览
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.7';
+    const REPORT_VERSION = 'v2.8';
 
     let state = {
         period: 'day',
@@ -39,7 +39,7 @@
         const names = [...new Set(items.map((item) => item.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
         const colors = new Map();
         names.forEach((name, index) => {
-            colors.set(name, name === '自由时间' ? '#ffffff' : ACTIVITY_COLORS[index % ACTIVITY_COLORS.length]);
+            colors.set(name, name === '自由时间' ? '#ffffff' : (name === '未记录时间' ? '#cbd5e1' : ACTIVITY_COLORS[index % ACTIVITY_COLORS.length]));
         });
         return colors;
     }
@@ -67,15 +67,16 @@
 
     function buildRingSegments(items, cx, cy, r0, r1, total, keyCat, useItemColor) {
         let angle = 0;
-        return items.filter((item) => item.hours > 0).map((item) => {
-            const sweep = (item.hours / total) * 360;
+        return items.filter((item) => (item.exactHours ?? item.hours) > 0).map((item) => {
+            const hours = item.exactHours ?? item.hours;
+            const sweep = (hours / total) * 360;
             const path = arcPath(cx, cy, r0, r1, angle, angle + sweep);
             const seg = {
                 path,
                 cat: item[keyCat] || item.name,
                 name: item.name,
                 l1: item.l1,
-                hours: item.hours,
+                hours,
                 color: useItemColor ? reportColor(item.color, item.name) : colorForKey(`${item.l1 || ''}|${item.name}`, item.color),
             };
             angle += sweep;
@@ -195,7 +196,7 @@
                 const left = ((segStart - fromPct) / (toPct - fromPct)) * 100;
                 const width = ((segEnd - segStart) / (toPct - fromPct)) * 100;
                 const w = Math.max(width, 0.35);
-                segHtml += `<button type="button" class="timeline-block" style="left:${left}%;width:${w}%;background:${colorForKey(s.key || s.label, s.color)}" title="${esc(s.title)}"></button>`;
+                segHtml += `<button type="button" class="timeline-block" style="left:${left}%;width:${w}%;background:${reportColor(s.color, s.label)}" title="${esc(s.title)}"></button>`;
                 labels.push({ label: s.label, title: s.title, left: left + width / 2 });
             });
             if (tl.nowPct != null && tl.nowPct >= fromPct && tl.nowPct <= toPct) {
@@ -269,7 +270,7 @@
             document.getElementById('timeline-card-b')?.classList.add('hidden');
         }
 
-        const total = chartBundle.l1.reduce((s, x) => s + x.hours, 0);
+        const total = chartBundle.l1.reduce((s, x) => s + (x.exactHours ?? x.hours), 0);
         const isMain = state.chartView === 'main';
 
         document.getElementById('structure-title').textContent = '时间结构';
@@ -339,21 +340,23 @@
     function buildEmbeddedOuterSegments(l1, l2, cx, cy, total, activityColors) {
         let angle = 0;
         const rows = [];
-        l1.filter((item) => item.hours > 0).forEach((parent) => {
-            const parentSweep = (parent.hours / total) * 360;
-            const children = l2.filter((item) => item.l1 === parent.name && item.hours > 0);
-            const childHours = children.reduce((sum, item) => sum + item.hours, 0);
-            const scale = childHours > parent.hours && childHours > 0 ? parent.hours / childHours : 1;
+        l1.filter((item) => (item.exactHours ?? item.hours) > 0).forEach((parent) => {
+            const parentHours = parent.exactHours ?? parent.hours;
+            const parentSweep = (parentHours / total) * 360;
+            const children = l2.filter((item) => item.l1 === parent.name && (item.exactHours ?? item.hours) > 0);
+            const childHours = children.reduce((sum, item) => sum + (item.exactHours ?? item.hours), 0);
+            const scale = childHours > parentHours && childHours > 0 ? parentHours / childHours : 1;
             let childAngle = angle;
             children.forEach((item) => {
-                const sweep = (item.hours * scale / total) * 360;
+                const hours = item.exactHours ?? item.hours;
+                const sweep = (hours * scale / total) * 360;
                 if (sweep <= 0) return;
                 rows.push({
                     path: arcPath(cx, cy, 54, 80, childAngle, childAngle + sweep),
                     cat: parent.name,
                     name: item.name,
                     l1: parent.name,
-                    hours: item.hours,
+                    hours,
                     color: item.free ? '#ffffff' : (activityColors.get(item.name) || colorForKey(`l2|${parent.name}|${item.name}`, item.color)),
                     free: !!item.free,
                 });
@@ -404,11 +407,11 @@
     function renderLegend(l1, l2, total, isMain, activityColors) {
         const l1Box = document.getElementById('legend-l1');
         const l2Box = document.getElementById('legend-l2');
-        l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.hours, isMain ? reportColor(row.color, row.name) : colorForKey(`l1|${row.name}`, row.color), total, row.name)).join('');
+        l1Box.innerHTML = l1.map((row) => legendRow(row.name, null, row.exactHours ?? row.hours, isMain ? reportColor(row.color, row.name) : colorForKey(`l1|${row.name}`, row.color), total, row.name)).join('');
         l2Box.innerHTML = l2.map((row) => legendRow(
             row.name,
             isMain ? null : row.l1,
-            row.hours,
+            row.exactHours ?? row.hours,
             isMain ? (activityColors.get(row.name) || row.color) : colorForKey(`l2|${row.l1 || ''}|${row.name}`, row.color),
             total,
             isMain ? row.name : row.l1
