@@ -349,6 +349,32 @@
                 </div>
                 <div id="config-panel-data" class="config-panel hidden space-y-3">
                     <h3 class="config-panel-title">数据管理</h3>
+                    <div class="timebook-sync-panel">
+                        <div class="timebook-sync-heading">
+                            <strong>云端同步</strong>
+                            <span id="sync-status" role="status">尚未连接</span>
+                        </div>
+                        <p class="config-panel-hint">使用 Supabase 账号同步不同设备的数据。首次连接时，请明确选择以本机数据或云端数据为准。</p>
+                        <div id="sync-auth-form" class="timebook-sync-auth">
+                            <label>邮箱<input id="sync-email" type="email" autocomplete="email" placeholder="name@example.com"></label>
+                            <label>密码<input id="sync-password" type="password" autocomplete="current-password" placeholder="至少 8 位"></label>
+                            <div class="timebook-sync-actions">
+                                <button type="button" onclick="timebookSyncSignIn()">登录</button>
+                                <button type="button" onclick="timebookSyncSignUp()">注册</button>
+                            </div>
+                        </div>
+                        <div id="sync-connected" class="hidden">
+                            <div id="sync-account" class="timebook-sync-account"></div>
+                            <div id="sync-choice" class="timebook-sync-actions hidden">
+                                <button type="button" onclick="timebookSyncPush(true)">上传本机数据</button>
+                                <button type="button" onclick="timebookSyncPull(true)">下载云端数据</button>
+                            </div>
+                            <div id="sync-active-actions" class="timebook-sync-actions hidden">
+                                <button type="button" onclick="timebookSyncNow()">立即同步</button>
+                                <button type="button" onclick="timebookSyncSignOut()">退出账号</button>
+                            </div>
+                        </div>
+                    </div>
                     <div class="space-y-2">
                         <button type="button" onclick="exportTimebookBackup()" class="w-full py-3 text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg">导出备份</button>
                         <button type="button" onclick="document.getElementById('backup-file-input').click()" class="w-full py-3 text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg">导入备份</button>
@@ -712,6 +738,9 @@
     <script src="ui-theme.js?v=5.24"></script>
     <script src="app.js?v=5.32"></script>
     <script src="backup.js?v=5"></script>
+    <script src="sync-config.js?v=1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="sync.js?v=1"></script>
     <script src="dev-appearance.js?v=4.67"></script>
 </body>
 </html>
