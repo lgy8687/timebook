@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.22">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.32">
+    <link rel="stylesheet" href="design-system.css?v=5.33">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
     <div id="zone-frame" aria-hidden="true"></div>
@@ -42,7 +42,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.32</div>
+            <div id="cache-buster" class="version-below-daybar">v5.33</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -353,7 +353,7 @@
                         <button type="button" onclick="exportTimebookBackup()" class="w-full py-3 text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg">导出备份</button>
                         <button type="button" onclick="document.getElementById('backup-file-input').click()" class="w-full py-3 text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg">导入备份</button>
                         <input id="backup-file-input" type="file" accept=".json,application/json" class="hidden" onchange="importTimebookBackup(this)">
-                        <p class="text-xs text-slate-400">备份只保存在你选择的文件中；导入会替换本机记录。</p>
+                        <p class="text-xs text-slate-400">导入可按日期选择；完整恢复会替换本机记录。</p>
                     </div>
                     <div class="space-y-2 border-t border-slate-100 pt-3">
                         <button type="button" onclick="requestTimebookReset('records')" class="w-full py-3 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg">清空记录</button>
@@ -547,6 +547,28 @@
         </div>
     </div>
 
+    <div id="backup-import-modal" class="backup-import-modal hidden" onclick="if(event.target===this)closeBackupImportPicker()">
+        <section class="backup-import-card" role="dialog" aria-modal="true" aria-labelledby="backup-import-title" onclick="event.stopPropagation()">
+            <header class="backup-import-head">
+                <div>
+                    <h3 id="backup-import-title">按日期导入</h3>
+                    <p>只导入选中的日期。只导入一天时，起止日期选同一天。</p>
+                </div>
+                <button type="button" aria-label="关闭" onclick="closeBackupImportPicker()">×</button>
+            </header>
+            <div class="backup-import-dates">
+                <label>开始日期<input id="backup-import-from" type="date" onchange="updateBackupImportPreview()"></label>
+                <label>结束日期<input id="backup-import-to" type="date" onchange="updateBackupImportPreview()"></label>
+            </div>
+            <p id="backup-import-preview" class="backup-import-preview"></p>
+            <button type="button" class="backup-import-full" onclick="restorePendingBackupWhole()">完整恢复备份…</button>
+            <footer class="backup-import-actions">
+                <button type="button" onclick="closeBackupImportPicker()">取消</button>
+                <button id="backup-import-selected-btn" type="button" onclick="importSelectedBackupDates()">按日期导入</button>
+            </footer>
+        </section>
+    </div>
+
     <div id="event-modal" class="event-modal hidden" onclick="if(event.target===this)closeEventModal()">
         <div class="event-modal-card" onclick="event.stopPropagation()">
             <div class="event-modal-head">
@@ -689,7 +711,7 @@
     <script src="report.js?v=2.9"></script>
     <script src="ui-theme.js?v=5.24"></script>
     <script src="app.js?v=5.32"></script>
-    <script src="backup.js?v=4"></script>
+    <script src="backup.js?v=5"></script>
     <script src="dev-appearance.js?v=4.67"></script>
 </body>
 </html>

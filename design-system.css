@@ -306,6 +306,23 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .calendar-supplement-row strong { display: block; overflow-wrap: anywhere; color: var(--ui-ink); font-size: var(--ui-body); font-weight: 600; }
 .calendar-supplement-row span { color: var(--ui-muted); font-size: var(--ui-caption); }
 .calendar-supplement-row button { min-width: 36px; min-height: 36px; color: var(--ui-accent); font-size: var(--ui-caption); font-weight: 600; }
+.backup-import-modal { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.46); backdrop-filter: blur(5px); }
+.backup-import-modal.hidden { display: none; }
+.backup-import-card { width: min(100%, 440px); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 20px; border: 1px solid rgba(220,227,236,.9); border-radius: 16px; background: #fff; box-shadow: 0 24px 60px rgba(15,23,42,.2); }
+.backup-import-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.backup-import-head h3 { color: var(--ui-ink); font-size: 17px; line-height: 1.4; font-weight: 700; }
+.backup-import-head p { margin-top: 5px; color: var(--ui-muted); font-size: var(--ui-caption); line-height: 1.55; }
+.backup-import-head > button { width: 34px; height: 34px; flex: none; border-radius: 9px; background: var(--ui-surface); color: var(--ui-muted); font-size: 21px; line-height: 1; }
+.backup-import-dates { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.backup-import-dates label { display: grid; gap: 6px; min-width: 0; color: var(--ui-muted); font-size: var(--ui-caption); font-weight: 600; }
+.backup-import-dates input { width: 100%; min-width: 0; height: 44px; padding: 0 9px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-ink); font-size: 14px; }
+.backup-import-preview { min-height: 42px; margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: #f1f5f8; color: var(--ui-ink); font-size: var(--ui-caption); line-height: 1.6; }
+.backup-import-full { margin-top: 12px; padding: 5px 0; color: var(--ui-muted); font-size: var(--ui-caption); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.backup-import-actions { display: flex; gap: 9px; margin-top: 18px; }
+.backup-import-actions button { flex: 1; min-height: 44px; border: 1px solid var(--ui-border); border-radius: 8px; background: #fff; color: var(--ui-muted); font-size: var(--ui-body); font-weight: 600; }
+.backup-import-actions button:last-child { border-color: var(--ui-accent); background: var(--ui-accent); color: #fff; }
+.backup-import-actions button:disabled { border-color: var(--ui-border); background: #e8edf2; color: #94a3b8; cursor: not-allowed; }
+@media (max-width: 360px) { .backup-import-card { padding: 16px; } .backup-import-dates { grid-template-columns: 1fr; } }
 @media (max-width: 360px) {
     .config-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .category-selected-list { grid-template-columns: 1fr; }
