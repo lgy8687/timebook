@@ -143,6 +143,7 @@ parallelShortcuts = parallelShortcuts.map(s => ({ ...s, customIcon: s.customIcon
 let logs = safeJSON('v9_logs') || [];
 let current = safeJSON('v9_current') || null;
 let recordMode = localStorage.getItem('v9_record_mode') === 'journal' ? 'journal' : 'continuous';
+let showUnassignedMain = localStorage.getItem('v9_show_unassigned_main') !== 'false';
 const savedUnlocatedLogs = safeJSON('v9_unlocated_logs', []);
 let unlocatedLogs = (Array.isArray(savedUnlocatedLogs) ? savedUnlocatedLogs : [])
     .filter((item) => item && /^\d{4}-\d{2}-\d{2}$/.test(item.date) && Number.isFinite(item.durationMs) && item.durationMs > 0);
@@ -1346,12 +1347,10 @@ function renderHomeHistory() {
 
     historicalDays.forEach((dateStr) => {
         const dayLogs = logs.filter((log) => logTouchesDate(log, dateStr));
-        if (!dayLogs.length) return;
+        if (!dayLogs.length && !unlocatedLogs.some((item) => item.date === dateStr)
+            && !eventRecords.some((item) => formatBeijingDate(item.occurredAt) === dateStr)) return;
 
-        const header = document.createElement('div');
-        header.className = 'log-day-header log-day-header--history';
-        header.innerText = formatDateHeaderLabel(dateStr);
-        list.appendChild(header);
+        list.appendChild(buildLogDayHeader(dateStr, true));
 
         const normalLogs = dayLogs
             .filter((log) => !log.parallel && !log.sceneActivity)
@@ -1361,7 +1360,84 @@ function renderHomeHistory() {
             renderMainLogTree(list, log, dayLogs, parallelLogs);
         });
         appendUnattachedParallelLogs(list, parallelLogs, normalLogs.concat(dayLogs.filter((log) => log.sceneActivity)));
+        renderUnassignedMain(list, dateStr);
     });
+}
+
+function getUnassignedTail(dateStr, now = nowSecondMs()) {
+    const dayStart = beijingDateStrToDayStart(dateStr);
+    const dayEnd = Math.min(dayStart + DAY_MS, now);
+    if (recordMode !== 'journal' || dayEnd <= dayStart) return null;
+    const entries = logs.filter((log) => !log.parallel && !log.sceneActivity && logTouchesDate(log, dateStr));
+    if (current && current.startTime < dayEnd) entries.push({ ...current, endTime: now });
+    const start = entries.reduce((latest, log) => Math.max(latest, Math.min(dayEnd, logEndMs(log))), dayStart);
+    return start < dayEnd ? { start, end: dayEnd } : null;
+}
+
+function buildLogDayHeader(dateStr, history = false, withControl = true) {
+    const header = document.createElement('div');
+    header.className = `log-day-header${history ? ' log-day-header--history' : ''}`;
+    const label = document.createElement('span');
+    label.innerText = formatDateHeaderLabel(dateStr);
+    header.appendChild(label);
+    if (recordMode === 'journal' && withControl) {
+        const control = document.createElement('label');
+        control.className = 'unassigned-visibility';
+        const caption = document.createElement('span');
+        caption.innerText = showUnassignedMain ? '主线' : '隐藏';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = showUnassignedMain;
+        input.setAttribute('aria-label', '显示未分配主线');
+        input.addEventListener('change', () => {
+            showUnassignedMain = input.checked;
+            localStorage.setItem('v9_show_unassigned_main', String(showUnassignedMain));
+            renderHomeHistory();
+        });
+        control.append(caption, input);
+        header.appendChild(control);
+    }
+    return header;
+}
+
+function renderUnassignedMain(list, dateStr) {
+    if (!showUnassignedMain || recordMode !== 'journal') return;
+    const tail = getUnassignedTail(dateStr);
+    if (!tail) return;
+    const assigned = unlocatedLogs.filter((item) => item.date === dateStr);
+    const allocatedMs = assigned.reduce((sum, item) => sum + item.durationMs, 0);
+    const totalMs = Math.max(tail.end - tail.start, allocatedMs);
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'unassigned-main-card';
+    card.setAttribute('aria-label', `${formatDateHeaderLabel(dateStr)}未分配主线，补录`);
+    card.addEventListener('click', () => openUnassignedBackfill(dateStr));
+    const head = document.createElement('div');
+    head.className = 'unassigned-main-head';
+    head.innerHTML = `<span>${formatBeijingClockSec(tail.start)}</span><strong>未分配</strong><span>${formatDuration(tail.end - tail.start)}</span>`;
+    const track = document.createElement('div');
+    track.className = 'unassigned-main-track';
+    assigned.forEach((item) => {
+        const part = document.createElement('span');
+        part.className = 'unassigned-main-part';
+        part.style.width = `${item.durationMs / totalMs * 100}%`;
+        part.style.backgroundColor = safeColor(getCat(item.l1)?.color || '#94a3b8');
+        part.title = `${item.l2 || item.l1} ${formatDuration(item.durationMs)}（未指定时段）`;
+        const name = document.createElement('span');
+        name.innerText = item.l2 || item.l1;
+        part.appendChild(name);
+        track.appendChild(part);
+    });
+    const remaining = document.createElement('span');
+    remaining.className = 'unassigned-main-part unassigned-main-part--empty';
+    remaining.style.width = `${Math.max(0, (tail.end - tail.start - allocatedMs) / totalMs) * 100}%`;
+    remaining.title = `未分配 ${formatDuration(Math.max(0, tail.end - tail.start - allocatedMs))}`;
+    const remainingName = document.createElement('span');
+    remainingName.innerText = '未分配';
+    remaining.appendChild(remainingName);
+    track.appendChild(remaining);
+    card.append(head, track);
+    list.appendChild(card);
 }
 
 function renderCalendarPage() {
@@ -1460,12 +1536,22 @@ function renderCalendarDaySummary() {
 
 let calendarBackfillKind = null;
 let calendarBackfillEditingId = null;
+let calendarBackfillTarget = null;
 
-function openCalendarBackfill() {
+function openUnassignedBackfill(dateStr) {
+    const tail = getUnassignedTail(dateStr);
+    if (!tail) return;
+    viewDate = dateStr;
+    openCalendarBackfill(tail);
+}
+
+function openCalendarBackfill(target = null) {
     if (viewDate > getTodayDateStr()) return;
+    calendarBackfillTarget = target;
     calendarBackfillEditingId = null;
     document.getElementById('calendar-backfill-date-label').innerText = formatDateHeaderLabel(viewDate);
     document.querySelectorAll('#calendar-backfill-options .journal-only').forEach((button) => button.classList.toggle('hidden', recordMode !== 'journal'));
+    document.querySelector('#calendar-backfill-options button:last-child').classList.toggle('hidden', !!target);
     showCalendarBackfillForm(null);
     document.getElementById('calendar-backfill-modal').classList.remove('hidden');
 }
@@ -1474,6 +1560,7 @@ function closeCalendarBackfill() {
     document.getElementById('calendar-backfill-modal').classList.add('hidden');
     calendarBackfillKind = null;
     calendarBackfillEditingId = null;
+    calendarBackfillTarget = null;
 }
 
 function fillCalendarBackfillSelect(id, items) {
@@ -1513,14 +1600,22 @@ function showCalendarBackfillForm(kind) {
         renderCalendarBackfillSubs();
         document.getElementById('calendar-backfill-note').value = '';
         if (kind === 'interval') {
-            document.getElementById('calendar-backfill-start-date').value = viewDate;
-            document.getElementById('calendar-backfill-end-date').value = viewDate;
-            document.getElementById('calendar-backfill-start-time').value = '09:00:00';
-            document.getElementById('calendar-backfill-end-time').value = '10:00:00';
+            const targetStart = calendarBackfillTarget?.start;
+            const availableEnd = calendarBackfillTarget
+                ? Math.max(targetStart, calendarBackfillTarget.end - getUnlocatedMsForDay(viewDate))
+                : null;
+            const targetEnd = calendarBackfillTarget ? Math.min(targetStart + HOUR_MS, availableEnd) : null;
+            document.getElementById('calendar-backfill-start-date').value = calendarBackfillTarget ? formatBeijingDate(calendarBackfillTarget.start) : viewDate;
+            document.getElementById('calendar-backfill-end-date').value = calendarBackfillTarget ? formatBeijingDate(targetEnd) : viewDate;
+            document.getElementById('calendar-backfill-start-time').value = calendarBackfillTarget ? formatBeijingClockSec(calendarBackfillTarget.start) : '09:00:00';
+            document.getElementById('calendar-backfill-end-time').value = calendarBackfillTarget ? formatBeijingClockSec(targetEnd) : '10:00:00';
         } else {
             document.getElementById('calendar-backfill-hours').value = '1';
             document.getElementById('calendar-backfill-minutes').value = '0';
-            document.getElementById('calendar-backfill-remaining').innerText = `当天可分配 ${formatDuration(Math.max(0, getRemainingDayMs(viewDate)))}`;
+            const targetRemaining = calendarBackfillTarget
+                ? calendarBackfillTarget.end - calendarBackfillTarget.start - getUnlocatedMsForDay(viewDate)
+                : getRemainingDayMs(viewDate);
+            document.getElementById('calendar-backfill-remaining').innerText = `可分配 ${formatDuration(Math.max(0, targetRemaining))}`;
         }
     }
 }
@@ -1552,7 +1647,9 @@ function saveCalendarBackfill() {
             showConfirm('时长不合法', '请输入大于 0 且不超过 24 小时的时长。', '知道了', () => {});
             return;
         }
-        if (durationMs > getRemainingDayMs(viewDate, calendarBackfillEditingId)) {
+        const tail = calendarBackfillTarget ? getUnassignedTail(viewDate) : null;
+        const targetRemaining = tail ? tail.end - tail.start - getUnlocatedMsForDay(viewDate, calendarBackfillEditingId) : Infinity;
+        if (durationMs > getRemainingDayMs(viewDate, calendarBackfillEditingId) || durationMs > targetRemaining) {
             showConfirm('时间总数不够分配', '当天已有的时间段和未指定时长合计不能超过可用时间。', '知道了', () => {});
             return;
         }
@@ -1568,6 +1665,13 @@ function saveCalendarBackfill() {
         if (start == null || end == null || start < dayStart || start >= dayStart + DAY_MS || start >= end || end - start > DAY_MS || end > nowSecondMs()) {
             showConfirm('时间不合法', '开始时间须在所选日期，结束时间须在其后 24 小时内且已经过去。', '知道了', () => {});
             return;
+        }
+        if (calendarBackfillTarget) {
+            const tail = getUnassignedTail(viewDate);
+            if (!tail || start < tail.start || end > tail.end || tail.end - end < getUnlocatedMsForDay(viewDate)) {
+                showConfirm('时间总数不够分配', '请在未分配时段内补录，并保留已分配但未指定时刻的时长。', '知道了', () => {});
+                return;
+            }
         }
         const conflict = mainRecordOverlaps(start, end)[0];
         if (conflict) {
@@ -4265,10 +4369,7 @@ function renderLogs(listId, dateStr) {
         list.appendChild(pWrap);
     }
 
-    const header = document.createElement('div');
-    header.className = 'log-day-header';
-    header.innerText = formatDateHeaderLabel(dateStr);
-    list.appendChild(header);
+    list.appendChild(buildLogDayHeader(dateStr, false, listId === 'log-list'));
 
     const dayLogs = logs.filter((l) => logTouchesDate(l, dateStr));
     const normalLogs = dayLogs.filter((l) => !l.parallel && !l.sceneActivity).sort((a, b) => b.startTime - a.startTime);
@@ -4278,8 +4379,9 @@ function renderLogs(listId, dateStr) {
         renderMainLogTree(list, log, dayLogs, parallelLogs);
     });
     appendUnattachedParallelLogs(list, parallelLogs, normalLogs.concat(dayLogs.filter((log) => log.sceneActivity)));
+    if (listId === 'log-list') renderUnassignedMain(list, dateStr);
 
-    if (dayLogs.length === 0 && !(isDateToday(dateStr) && (current || parallelCurrent))) {
+    if (dayLogs.length === 0 && !(isDateToday(dateStr) && (current || parallelCurrent)) && !(listId === 'log-list' && getUnassignedTail(dateStr))) {
         const empty = document.createElement('div');
         empty.className = 'text-center text-[11px] text-slate-400 py-6';
         empty.innerText = '该日暂无流水';
@@ -6079,7 +6181,8 @@ function tick() {
     const todayStr = formatBeijingDate(now);
     if (todayStr !== lastBeijingDateStr) {
         lastBeijingDateStr = todayStr;
-        if (ensureDayRolloversBefore(now)) renderAll();
+        ensureDayRolloversBefore(now);
+        renderAll();
     }
     if (sec !== lastSecondTs) {
         lastSecondTs = sec;
@@ -6109,6 +6212,10 @@ function tick() {
             if (badge && !badge._pinned) badge.classList.add('hidden');
         }
         renderDayRemain();
+        if (recordMode === 'journal' && showUnassignedMain && !current && !eventParentSelecting
+            && sec % 60 === 0 && document.getElementById('page-record')?.classList.contains('active')) {
+            renderHomeHistory();
+        }
 
         // 进行中的记录纳入日报统计，但报表不必每秒重绘；每 15 分钟更新一次。
         const reportBucket = Math.floor(now / REPORT_REFRESH_MS);

@@ -20,6 +20,7 @@ const calendarBudgetSource = app.slice(app.indexOf('function getMainOccupiedMsFo
 const unlocatedChartSource = app.slice(app.indexOf('function mergeUnlocatedIntoChart('), app.indexOf('\nfunction buildMainComposition(', app.indexOf('function mergeUnlocatedIntoChart(')));
 const eventReportSource = app.slice(app.indexOf('function buildEventReport('), app.indexOf('\nfunction buildLiveReportDay(', app.indexOf('function buildEventReport(')));
 const calendarSaveSource = app.slice(app.indexOf('function saveCalendarBackfill('), app.indexOf('\nfunction editCalendarSupplement(', app.indexOf('function saveCalendarBackfill(')));
+const tailSource = app.slice(app.indexOf('function getUnassignedTail('), app.indexOf('\nfunction buildLogDayHeader(', app.indexOf('function getUnassignedTail(')));
 
 function storage(values) {
     const valuesMap = new Map(Object.entries(values));
@@ -99,6 +100,53 @@ test('calendar backfill budget respects both days of a cross-midnight interval',
     assert.equal(context.intervalExceedsDayBudget(start, start + 2 * 3600000), true);
 });
 
+test('unassigned main begins after the last recorded main, without adding earlier gaps', () => {
+    const context = {
+        DAY_MS: DAY, recordMode: 'journal',
+        logs: [
+            { startTime: start + 8 * 3600000, endTime: start + 9 * 3600000 },
+            { startTime: start + 12 * 3600000, endTime: start + 13 * 3600000 },
+            { startTime: start + 14 * 3600000, endTime: start + 20 * 3600000, parallel: true },
+        ],
+        current: null,
+        nowSecondMs: () => start + DAY + 3600000,
+        beijingDateStrToDayStart: () => start,
+        logTouchesDate: () => true,
+        logEndMs: (log) => log.endTime,
+    };
+    vm.createContext(context);
+    vm.runInContext(tailSource, context);
+    const tail = context.getUnassignedTail('2026-10-13');
+    assert.equal(tail.start, start + 13 * 3600000);
+    assert.equal(tail.end, start + DAY);
+    context.recordMode = 'continuous';
+    assert.equal(context.getUnassignedTail('2026-10-13'), null);
+});
+
+test('unassigned main backfill keeps existing untimed duration when adding an exact interval', () => {
+    const inputs = {
+        'calendar-backfill-start-date': '2026-10-13', 'calendar-backfill-start-time': '18:00:00',
+        'calendar-backfill-end-date': '2026-10-13', 'calendar-backfill-end-time': '23:30:00',
+    };
+    const prompts = [];
+    const context = {
+        calendarBackfillKind: 'interval', calendarBackfillTarget: { start: start + 10 * 3600000, end: start + DAY },
+        recordMode: 'journal', viewDate: '2026-10-13', DAY_MS: DAY,
+        logs: [], document: { getElementById: (id) => ({ value: inputs[id] }) },
+        parseTimeOnBeijingDateParts: (date, time) => Date.parse(`${date}T${time}+08:00`),
+        beijingDateStrToDayStart: () => start,
+        nowSecondMs: () => start + DAY + 3600000,
+        getUnassignedTail: () => ({ start: start + 10 * 3600000, end: start + DAY }),
+        getUnlocatedMsForDay: () => 2 * 3600000,
+        showConfirm: (title) => prompts.push(title),
+    };
+    vm.createContext(context);
+    vm.runInContext(calendarSaveSource, context);
+    context.saveCalendarBackfill();
+    assert.deepEqual(prompts, ['时间总数不够分配']);
+    assert.equal(context.logs.length, 0);
+});
+
 test('untimed time replaces unrecorded hours without inventing a timeline interval', () => {
     const unrecorded = { name: '未记录时间', exactHours: 20, hours: 20, color: '#cbd5e1' };
     const work = { name: '工作', exactHours: 4, hours: 4, color: '#345678' };
@@ -148,7 +196,7 @@ test('calendar interval save blocks overlap and exhausted time before writing a 
     const prompts = [];
     const store = storage({});
     const context = {
-        calendarBackfillKind: 'interval', recordMode: 'journal', viewDate: '2026-10-13',
+        calendarBackfillKind: 'interval', calendarBackfillTarget: null, recordMode: 'journal', viewDate: '2026-10-13',
         DAY_MS: DAY, logs: [], localStorage: store,
         document: { getElementById: (id) => ({ value: inputs[id] }) },
         parseTimeOnBeijingDateParts: (date, time) => Date.parse(`${date}T${time}+08:00`),

@@ -98,9 +98,12 @@ test('same-category split stays visible as separate main records in history', ()
     context.mergeAdjacentSameActivity();
     const visible = [];
     const list = { appendChild() {} };
+    context.recordMode = 'continuous';
+    context.showUnassignedMain = false;
+    context.unlocatedLogs = [];
     context.document = {
         getElementById() { return list; },
-        createElement() { return {}; }
+        createElement() { return { appendChild() {} }; }
     };
     context.renderLogs = () => {};
     context.getTodayDateStr = () => '1970-01-02';

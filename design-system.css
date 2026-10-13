@@ -251,6 +251,22 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .calendar-backfill-actions { display: flex; gap: 8px; margin-top: 18px; }
 .calendar-backfill-actions button { flex: 1; min-height: 44px; border-radius: 8px; background: var(--ui-surface); color: var(--ui-muted); font-size: var(--ui-body); font-weight: 600; }
 .calendar-backfill-actions button:last-child { background: var(--ui-accent); color: #fff; }
+.log-day-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.log-day-header > span { min-width: 0; }
+.unassigned-visibility { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; color: #64748b; font-size: 11px; font-weight: 700; cursor: pointer; }
+.unassigned-visibility input { appearance: none; width: 32px; height: 18px; margin: 0; border-radius: 99px; background: #cbd5e1; position: relative; transition: background .16s; }
+.unassigned-visibility input::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .16s; }
+.unassigned-visibility input:checked { background: #64748b; }
+.unassigned-visibility input:checked::after { transform: translateX(14px); }
+.unassigned-visibility input:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
+.unassigned-main-card { display: block; width: 100%; min-height: 70px; margin: 8px 0; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; }
+.unassigned-main-head { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.unassigned-main-head strong { flex: 1; color: #334155; font-size: 14px; text-align: center; }
+.unassigned-main-track { display: flex; overflow: hidden; width: 100%; height: 22px; margin-top: 8px; border-radius: 4px; background: #f1f5f9; }
+.unassigned-main-part { display: flex; align-items: center; justify-content: center; min-width: 0; height: 100%; container-type: inline-size; color: #fff; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.unassigned-main-part > span { overflow: hidden; text-overflow: clip; white-space: nowrap; }
+.unassigned-main-part--empty { color: #475569; background: #f1f5f9; }
+@container (max-width: 64px) { .unassigned-main-part > span { display: none; } }
 .calendar-supplement-row { display: flex; align-items: center; gap: 8px; min-height: 58px; padding: 9px 12px; border-bottom: 1px solid var(--ui-border); background: #fff; }
 .calendar-supplement-row:first-child { border-radius: 8px 8px 0 0; }
 .calendar-supplement-row:last-child { border-radius: 0 0 8px 8px; border-bottom: 0; }
