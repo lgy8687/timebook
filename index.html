@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.22">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.24">
+    <link rel="stylesheet" href="design-system.css?v=5.25">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
     <div id="zone-frame" aria-hidden="true"></div>
@@ -42,7 +42,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.24</div>
+            <div id="cache-buster" class="version-below-daybar">v5.25</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -590,6 +590,7 @@
                     <span class="time-edit-separator" aria-hidden="true">:</span>
                     <input id="es-s" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="秒" autocomplete="off">
                 </div>
+                <button id="edit-continue-previous" type="button" class="edit-continue-previous hidden" onclick="continueEditFromPrevious()">接续上一条结束时间</button>
                 <div class="time-edit-group flex items-center bg-slate-50 rounded-2xl px-4 py-2">
                     <span id="edit-end-label" class="text-[10px] font-bold text-slate-400 mr-2">结束</span>
                     <input id="ee-h" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="时" autocomplete="off">
@@ -600,6 +601,7 @@
                 </div>
                 <input type="text" id="edit-note-input" class="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="备注" autocomplete="off">
             </div>
+            <button id="edit-current-backfill" type="button" class="edit-current-backfill hidden" onclick="openBackfillFromCurrentEdit()">补录并行</button>
             <div class="flex space-x-3 mt-4">
                 <button onclick="closeEdit()" class="flex-1 py-3 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
                 <button onclick="confirmEdit()" class="flex-1 py-3 text-sm font-bold text-white bg-indigo-600 rounded-2xl">确定</button>
@@ -632,7 +634,7 @@
     <script src="report-metrics.js?v=1.9"></script>
     <script src="report.js?v=2.8"></script>
     <script src="ui-theme.js?v=5.24"></script>
-    <script src="app.js?v=5.24"></script>
+    <script src="app.js?v=5.25"></script>
     <script src="backup.js?v=3"></script>
     <script src="dev-appearance.js?v=4.67"></script>
 </body>

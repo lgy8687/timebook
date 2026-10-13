@@ -14,6 +14,8 @@ const modeSource = app.slice(app.indexOf('function setRecordMode('), app.indexOf
 const executeSource = app.slice(app.indexOf('function executeRecord('), app.indexOf('\nfunction doExecuteRecord(', app.indexOf('function executeRecord(')));
 const shortcutSource = app.slice(app.indexOf('function renderShortcuts()'), app.indexOf('\nfunction renderParallelShortcuts()', app.indexOf('function renderShortcuts()')));
 const timeFieldSource = app.slice(app.indexOf('function initTimeField('), app.indexOf('\nfunction setFieldColor(', app.indexOf('function initTimeField(')));
+const openEditSource = app.slice(app.indexOf('function openEdit('), app.indexOf('\nfunction updateEditCatDisplay(', app.indexOf('function openEdit(')));
+const activeMainEditSource = app.slice(app.indexOf('function confirmActiveMainEdit('), app.indexOf('\nfunction confirmActiveParallelEdit(', app.indexOf('function confirmActiveMainEdit(')));
 
 function storage(values) {
     const valuesMap = new Map(Object.entries(values));
@@ -161,6 +163,98 @@ test('backfill time fields keep focus while entering two digits', () => {
     listeners.input.call(field);
     assert.equal(selections, 1);
     assert.equal(nextFocuses, 0);
+});
+
+test('active journal editor offers the latest previous main end as its start', () => {
+    const active = { id: 'active', startTime: start + 10 * 3600000, l1: '生活', l2: '休息' };
+    const elements = new Map();
+    const fieldSets = [];
+    const element = (id) => {
+        if (!elements.has(id)) elements.set(id, {
+            classList: { add() {}, remove() {}, toggle() {} },
+            style: {}, value: '', disabled: false,
+        });
+        return elements.get(id);
+    };
+    const context = {
+        current: active, DAY_MS: DAY, logs: [
+            { id: 'older', startTime: start + 2 * 3600000, endTime: start + 5 * 3600000 },
+            { id: 'previous', startTime: start + 6 * 3600000, endTime: start + 8 * 3600000 },
+            { id: 'parallel', parallel: true, startTime: start + 8 * 3600000, endTime: start + 9 * 3600000 },
+        ], parallelHistory: [], parallelCurrent: null,
+        nowSecondMs: () => start + 12 * 3600000,
+        beijingDateStrToDayStart: () => start,
+        formatBeijingDate: () => '2026-10-13',
+        formatBeijingClockSec: () => '08:00:00',
+        logEndMs: (item) => item.endTime,
+        formatDuration: () => '02:00:00',
+        setTimeInFields: (prefix, date) => fieldSets.push([prefix, date.getTime()]),
+        updateEditCatDisplay() {},
+        document: { getElementById: element },
+    };
+    vm.createContext(context);
+    vm.runInContext(openEditSource, context);
+    context.openEdit(0, 'current');
+    assert.equal(context.editTarget.previousEnd, start + 8 * 3600000);
+    assert.equal(element('ee-h').disabled, true);
+    assert.equal(element('edit-continue-previous').innerText, '接续上一条结束时间 08:00:00');
+    context.continueEditFromPrevious();
+    assert.deepEqual(fieldSets.at(-1), ['es', start + 8 * 3600000]);
+});
+
+test('editing an active journal main preserves its id and rejects overlap', () => {
+    const active = { id: 'active', startTime: start + 10 * 3600000, l1: '生活', l2: '休息' };
+    const previous = { id: 'previous', startTime: start + 6 * 3600000, endTime: start + 8 * 3600000 };
+    const store = storage({});
+    const prompts = [];
+    let selectedStart = start + 7 * 3600000;
+    const context = {
+        recordMode: 'journal', current: active, logs: [previous], parallelHistory: [], parallelCurrent: null,
+        editTarget: { source: 'current', id: 'active' }, editOldL1: '生活', editOldL2: '休息',
+        nowSecondMs: () => start + 12 * 3600000,
+        formatBeijingDate: () => '2026-10-13',
+        parseTimeOnBeijingDate: () => selectedStart,
+        mainRecordOverlaps: (from, to) => previous.endTime > from && previous.startTime < to ? [previous] : [],
+        getCat: () => ({ color: '#123456' }),
+        showConfirm: (title, message) => prompts.push([title, message]),
+        document: { getElementById: () => ({ value: '更新备注' }) },
+        localStorage: store, closeEdit() {}, renderAll() {}, rememberInputAlias() {},
+    };
+    vm.createContext(context);
+    vm.runInContext(activeMainEditSource, context);
+    context.confirmActiveMainEdit();
+    assert.equal(active.startTime, start + 10 * 3600000);
+    assert.equal(store.getItem('v9_current'), null);
+    assert.equal(prompts[0][0], '时间段发生重叠');
+    selectedStart = start + 8 * 3600000;
+    context.confirmActiveMainEdit();
+    assert.equal(active.id, 'active');
+    assert.equal(active.startTime, selectedStart);
+    assert.equal(active.endTime, undefined);
+    assert.equal(JSON.parse(store.getItem('v9_current')).id, 'active');
+});
+
+test('active journal main cannot be shortened past a child parallel start', () => {
+    const active = { id: 'active', startTime: start + 8 * 3600000, l1: '生活', l2: '休息' };
+    const child = { id: 'child', parentId: 'active', parallel: true, startTime: start + 9 * 3600000 };
+    const prompts = [];
+    const store = storage({});
+    const context = {
+        recordMode: 'journal', current: active, logs: [], parallelHistory: [child], parallelCurrent: null,
+        editTarget: { source: 'current', id: 'active' }, editOldL1: '生活', editOldL2: '休息',
+        nowSecondMs: () => start + 12 * 3600000,
+        formatBeijingDate: () => '2026-10-13',
+        parseTimeOnBeijingDate: () => start + 10 * 3600000,
+        mainRecordOverlaps: () => [],
+        showConfirm: (title) => prompts.push(title),
+        localStorage: store,
+    };
+    vm.createContext(context);
+    vm.runInContext(activeMainEditSource, context);
+    context.confirmActiveMainEdit();
+    assert.deepEqual(prompts, ['并行超出主线']);
+    assert.equal(active.startTime, start + 8 * 3600000);
+    assert.equal(store.getItem('v9_current'), null);
 });
 
 test('switching mode waits for confirmation and preserves active parallel state', () => {

@@ -186,6 +186,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 }
 #confirm-ok-btn.bg-red-500 { background: var(--ui-danger) !important; }
 :is(#confirm-modal, #prompt-modal, #edit-modal, #merge-direction-modal) button.text-slate-400 { color: var(--ui-muted); }
+.edit-continue-previous { width: 100%; min-height: 38px; padding: 7px 10px; border: 1px solid #d5e1ec; border-radius: 8px; background: #f3f7fa; color: var(--ui-accent); font-size: var(--ui-body); font-weight: 600; }
+#edit-modal .edit-current-backfill:not(.hidden) { display: block; margin: 8px 0 0 auto; padding: 6px 2px; border: 0; background: transparent; color: var(--ui-accent); font-size: var(--ui-caption); font-weight: 600; }
 #prompt-input, #edit-note-input, #drawer-note { font-size: 16px; border-radius: 8px; }
 #drawer > div > .p-6 { padding: 16px; }
 #drawer-l1 > button, #drawer-l2 > button { min-height: 48px; font-size: var(--ui-body); line-height: 1.4; font-weight: 600; overflow-wrap: anywhere; }

@@ -1931,10 +1931,17 @@ function showConfirm(title, message, okText, callback, cancelText) {
 function openEdit(index, source = 'logs') {
     editIndex = index;
     const collection = source === 'parallelHistory' ? parallelHistory : logs;
-    const log = source === 'parallelCurrent' ? parallelCurrent : collection[index];
+    const log = source === 'parallelCurrent' ? parallelCurrent : source === 'current' ? current : collection[index];
     if (!log) return;
-    const liveEnd = source === 'parallelCurrent' ? nowSecondMs() : null;
-    editTarget = { source, id: log.id, liveEnd };
+    const activeMain = source === 'current';
+    const liveEnd = source === 'parallelCurrent' || activeMain ? nowSecondMs() : null;
+    const dayStart = beijingDateStrToDayStart(formatBeijingDate(log.startTime));
+    const previousEnd = activeMain ? logs
+        .filter((item) => !item.parallel && !item.sceneActivity)
+        .map((item) => logEndMs(item))
+        .filter((end) => end >= dayStart && end <= log.startTime)
+        .sort((a, b) => b - a)[0] : null;
+    editTarget = { source, id: log.id, liveEnd, previousEnd };
     _backfillRange = null;
     editOldL1 = log.l1;
     editOldL2 = log.l2;
@@ -1957,14 +1964,27 @@ function openEdit(index, source = 'logs') {
     ['ee-h', 'ee-m', 'ee-s'].forEach((fieldId) => {
         const field = document.getElementById(fieldId);
         if (!field) return;
-        field.disabled = activeParallel || fixedMidnightEnd;
-        field.classList.toggle('opacity-40', activeParallel || fixedMidnightEnd);
+        field.disabled = activeParallel || activeMain || fixedMidnightEnd;
+        field.classList.toggle('opacity-40', activeParallel || activeMain || fixedMidnightEnd);
     });
     const endLabel = document.getElementById('edit-end-label');
-    if (endLabel) endLabel.innerText = activeParallel ? '实时结束' : fixedMidnightEnd ? '结转结束（24:00 固定）' : '结束';
+    if (endLabel) endLabel.innerText = activeParallel || activeMain ? '实时结束' : fixedMidnightEnd ? '结转结束（24:00 固定）' : '结束';
+    const continueButton = document.getElementById('edit-continue-previous');
+    continueButton.classList.toggle('hidden', !activeMain || previousEnd == null);
+    if (previousEnd != null) continueButton.innerText = `接续上一条结束时间 ${formatBeijingClockSec(previousEnd)}`;
+    document.getElementById('edit-current-backfill').classList.toggle('hidden', !activeMain);
     document.getElementById('edit-note-input').value = log.note || '';
     updateEditCatDisplay(log.l1, log.l2);
     document.getElementById('edit-modal').classList.remove('hidden');
+}
+function continueEditFromPrevious() {
+    if (editTarget?.source !== 'current' || editTarget.previousEnd == null) return;
+    setTimeInFields('es', new Date(editTarget.previousEnd));
+}
+function openBackfillFromCurrentEdit() {
+    if (editTarget?.source !== 'current' || current?.id !== editTarget.id) return;
+    closeEdit();
+    openBackfillDrawer(current, { liveParent: true });
 }
 function updateEditCatDisplay(l1, l2) {
     const d = document.getElementById('edit-cat-display');
@@ -2251,6 +2271,10 @@ function confirmEdit() {
         confirmActiveParallelEdit();
         return;
     }
+    if (editTarget.source === 'current') {
+        confirmActiveMainEdit();
+        return;
+    }
     const target = { ...editTarget };
     const selectedL1 = editOldL1;
     const selectedL2 = editOldL2;
@@ -2318,6 +2342,38 @@ function confirmEdit() {
         renderAll();
     };
     applyEditedRange(log, newStart, newEnd, finish);
+}
+
+function confirmActiveMainEdit() {
+    const target = editTarget;
+    if (!target || target.source !== 'current' || !current || current.id !== target.id || recordMode !== 'journal' || current.scene) return;
+    const newStart = parseTimeOnBeijingDate('es', formatBeijingDate(current.startTime));
+    const now = nowSecondMs();
+    if (newStart == null || newStart >= now) {
+        showConfirm('时间不合法', '开始时间必须早于当前时间。', '知道了', () => {});
+        return;
+    }
+    if (mainRecordOverlaps(newStart, now, new Set([current.id]), false).length) {
+        showConfirm('时间段发生重叠', '开始时间不能早于上一条主线的结束时间。', '知道了', () => {});
+        return;
+    }
+    const earlierParallel = logs.concat(parallelHistory, parallelCurrent ? [parallelCurrent] : []).some((item) => item.parallel
+        && String(item.parentId) === String(current.id) && item.startTime < newStart);
+    if (earlierParallel) {
+        showConfirm('并行超出主线', '请先调整这条主线下面的并行时间。', '知道了', () => {});
+        return;
+    }
+    current.startTime = newStart;
+    if (editOldL1) {
+        current.l1 = editOldL1;
+        current.l2 = editOldL2;
+        current.color = getCat(editOldL1)?.color || current.color;
+    }
+    current.note = document.getElementById('edit-note-input').value;
+    if (current.l1) rememberInputAlias(current.note, current.l1, current.l2);
+    localStorage.setItem('v9_current', JSON.stringify(current));
+    closeEdit();
+    renderAll();
 }
 
 function confirmActiveParallelEdit() {
@@ -3842,13 +3898,14 @@ function renderLogs(listId, dateStr) {
         appendLogFlowNote(body, current);
         inner.append(bar, body);
         liveCard.appendChild(inner);
-        liveCard.title = '补录一段已结束的并行活动';
+        liveCard.title = recordMode === 'journal' && !current.scene ? '修改当前主线' : '补录一段已结束的并行活动';
         liveCard.addEventListener('click', () => {
             if (eventParentSelecting) {
                 selectEventParent(current);
                 return;
             }
             if (current?.scene) openSceneParallelBackfillDrawer(current);
+            else if (recordMode === 'journal') openEdit(0, 'current');
             else openBackfillDrawer(current, { liveParent: true });
         });
         liveWrap.appendChild(liveCard);
