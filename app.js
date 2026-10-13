@@ -1664,6 +1664,7 @@ function renderCalendarDaySummary() {
 let calendarBackfillKind = null;
 let calendarBackfillEditingId = null;
 let calendarBackfillTarget = null;
+let calendarBackfillFromCalendar = false;
 
 function openUnassignedBackfill(dateStr, gapStart) {
     const gap = getDayUnassignedSegments(dateStr).find((item) => item.start === gapStart);
@@ -1752,12 +1753,13 @@ function openUnassignedEdit(dateStr, gapStart) {
 
 function openCalendarBackfill(target = null) {
     if (viewDate > getTodayDateStr()) return;
+    calendarBackfillFromCalendar = !target;
     calendarBackfillTarget = target;
     calendarBackfillEditingId = null;
     document.getElementById('calendar-backfill-date-label').innerText = formatDateHeaderLabel(viewDate);
     document.querySelectorAll('#calendar-backfill-options .journal-only').forEach((button) => button.classList.toggle('hidden', recordMode !== 'journal'));
-    document.querySelector('#calendar-backfill-options button:last-child').classList.toggle('hidden', !!target);
-    document.getElementById('calendar-backfill-options').classList.toggle('calendar-backfill-options--target', !!target);
+    document.querySelector('#calendar-backfill-options button:last-child').classList.toggle('hidden', !calendarBackfillFromCalendar);
+    document.getElementById('calendar-backfill-options').classList.toggle('calendar-backfill-options--target', !!calendarBackfillTarget);
     showCalendarBackfillForm(null);
     document.getElementById('calendar-backfill-modal').classList.remove('hidden');
 }
@@ -1767,6 +1769,63 @@ function closeCalendarBackfill() {
     calendarBackfillKind = null;
     calendarBackfillEditingId = null;
     calendarBackfillTarget = null;
+    calendarBackfillFromCalendar = false;
+}
+
+function getGapAvailableMs(dateStr, gap) {
+    return Math.max(0, gap.end - gap.start - getAllocatedInGap(dateStr, gap));
+}
+
+function formatBackfillGapClock(dateStr, ms) {
+    return ms === beijingDateStrToDayStart(dateStr) + DAY_MS ? '24:00:00' : formatBeijingClockSec(ms);
+}
+
+function renderCalendarBackfillTargets() {
+    const host = document.getElementById('calendar-backfill-target-picker');
+    host.replaceChildren();
+    const title = document.createElement('div');
+    title.className = 'calendar-backfill-target-heading';
+    title.innerText = '选择归属时段';
+    host.appendChild(title);
+    const gaps = getDayUnassignedSegments(viewDate)
+        .filter((gap) => getGapAvailableMs(viewDate, gap) > 0)
+        .sort((a, b) => a.start - b.start);
+    gaps.forEach((gap) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'calendar-backfill-target-choice';
+        const times = document.createElement('span');
+        times.className = 'calendar-backfill-target-times';
+        times.innerText = `${formatBeijingClockSec(gap.start)} — ${formatBackfillGapClock(viewDate, gap.end)}`;
+        const remaining = document.createElement('span');
+        remaining.className = 'calendar-backfill-target-available';
+        remaining.innerText = `可分配 ${formatDuration(getGapAvailableMs(viewDate, gap))}`;
+        button.append(times, remaining);
+        button.addEventListener('click', () => {
+            calendarBackfillTarget = getDayUnassignedSegments(viewDate).find((item) => item.start === gap.start) || null;
+            if (calendarBackfillTarget) showCalendarBackfillForm(null);
+        });
+        host.appendChild(button);
+    });
+    if (!gaps.length) {
+        const empty = document.createElement('p');
+        empty.className = 'calendar-backfill-target-empty';
+        empty.innerText = '当天没有可补录的未分配时段。';
+        host.appendChild(empty);
+    }
+    if (calendarBackfillFromCalendar) {
+        const eventButton = document.createElement('button');
+        eventButton.type = 'button';
+        eventButton.className = 'calendar-backfill-event-choice';
+        eventButton.innerText = '补录事件次数';
+        eventButton.addEventListener('click', () => showCalendarBackfillForm('event'));
+        host.appendChild(eventButton);
+    }
+}
+
+function showCalendarBackfillTargets() {
+    calendarBackfillTarget = null;
+    showCalendarBackfillForm(null);
 }
 
 function fillCalendarBackfillSelect(id, items) {
@@ -1812,6 +1871,14 @@ function normalizeCalendarClockInput(input) {
     if (input.value !== '') input.value = input.value.padStart(2, '0');
 }
 
+function initCalendarBackfillClockFields() {
+    document.querySelectorAll('.calendar-backfill-time-parts input').forEach((input) => {
+        input.addEventListener('focus', () => input.select());
+        input.addEventListener('click', () => input.select());
+        input.addEventListener('touchend', () => setTimeout(() => input.select(), 0), { passive: true });
+    });
+}
+
 function readCalendarBackfillClock(prefix, dayStart, allow24 = false) {
     const parts = ['h', 'm', 's'].map((part) => document.getElementById(`${prefix}-${part}`).value.trim());
     if (parts.some((part) => !/^\d{1,2}$/.test(part))) return null;
@@ -1836,9 +1903,18 @@ function updateCalendarBackfillEndDayHint() {
 
 function showCalendarBackfillForm(kind) {
     if (kind && kind !== 'event' && recordMode !== 'journal') return;
-    if (!kind) calendarBackfillEditingId = null;
     calendarBackfillKind = kind;
-    document.getElementById('calendar-backfill-options').classList.toggle('hidden', !!kind);
+    const pickingTarget = !kind && recordMode === 'journal' && !calendarBackfillTarget;
+    document.getElementById('calendar-backfill-target-picker').classList.toggle('hidden', !pickingTarget);
+    if (pickingTarget) renderCalendarBackfillTargets();
+    document.getElementById('calendar-backfill-options').classList.toggle('hidden', !!kind || pickingTarget);
+    document.getElementById('calendar-backfill-options').classList.toggle('calendar-backfill-options--target', !!calendarBackfillTarget);
+    const targetRow = document.getElementById('calendar-backfill-target-row');
+    targetRow.classList.toggle('hidden', !calendarBackfillTarget || kind === 'event');
+    if (calendarBackfillTarget) {
+        document.getElementById('calendar-backfill-target-label').innerText = `归属 ${formatBeijingClockSec(calendarBackfillTarget.start)}—${formatBackfillGapClock(viewDate, calendarBackfillTarget.end)}`;
+        document.getElementById('calendar-backfill-change-target').classList.toggle('hidden', !calendarBackfillFromCalendar);
+    }
     document.getElementById('calendar-backfill-form').classList.toggle('hidden', !kind);
     document.getElementById('calendar-backfill-category-fields').classList.toggle('hidden', !kind || kind === 'event');
     document.getElementById('calendar-backfill-event-fields').classList.toggle('hidden', kind !== 'event');
@@ -1856,14 +1932,9 @@ function showCalendarBackfillForm(kind) {
         updateCalendarBackfillCategory();
         document.getElementById('calendar-backfill-note').value = '';
         if (kind === 'interval') {
-            const targetStart = calendarBackfillTarget?.start;
-            const availableEnd = calendarBackfillTarget
-                ? Math.max(targetStart, calendarBackfillTarget.end - getAllocatedInGap(viewDate, calendarBackfillTarget))
-                : null;
-            const targetEnd = calendarBackfillTarget ? Math.min(targetStart + HOUR_MS, availableEnd) : null;
             const dayStart = beijingDateStrToDayStart(viewDate);
             const start = calendarBackfillTarget ? calendarBackfillTarget.start : dayStart + 9 * HOUR_MS;
-            const end = calendarBackfillTarget ? targetEnd : dayStart + 10 * HOUR_MS;
+            const end = calendarBackfillTarget ? calendarBackfillTarget.end : dayStart + 10 * HOUR_MS;
             setTimeInFields('calendar-backfill-start', new Date(start));
             setTimeInFields('calendar-backfill-end', new Date(end), { show24: end === dayStart + DAY_MS });
             updateCalendarBackfillEndDayHint();
@@ -1940,6 +2011,11 @@ function saveCalendarBackfill() {
                 showConfirm('时间总数不够分配', '请在未分配时段内补录，并保留已分配但未指定时刻的时长。', '知道了', () => {});
                 return;
             }
+            const reservedMs = getAllocatedInGap(viewDate, gap);
+            if (end - start > gap.end - gap.start - reservedMs) {
+                showConfirm('有时间已被占用', `这条未分配主线已有 ${formatDuration(reservedMs)} 的补录，请缩短所选时段并为它留出时间。`, '知道了', () => {});
+                return;
+            }
         }
         const conflict = mainRecordOverlaps(start, end)[0];
         if (conflict) {
@@ -1981,11 +2057,14 @@ function saveCalendarBackfill() {
 }
 
 function editCalendarSupplement(kind, id) {
+    const record = kind === 'event' ? eventRecords.find((item) => item.id === id) : unlocatedLogs.find((item) => item.id === id);
+    if (!record) return;
     openCalendarBackfill();
+    if (kind === 'untimed') {
+        calendarBackfillTarget = getDayUnassignedSegments(viewDate).find((gap) => gap.start === record.gapStart) || calendarBackfillTarget;
+    }
     showCalendarBackfillForm(kind);
     calendarBackfillEditingId = id;
-    const record = kind === 'event' ? eventRecords.find((item) => item.id === id) : unlocatedLogs.find((item) => item.id === id);
-    if (!record) return closeCalendarBackfill();
     if (kind === 'event') {
         document.getElementById('calendar-backfill-event-type').value = String(record.typeId);
         document.getElementById('calendar-backfill-event-count').value = String(record.count || 1);
@@ -5558,6 +5637,7 @@ function isTimeInParentRange() {
     const max = id.endsWith('-h') ? 23 : 59;
     initTimeField(el, max);
 });
+initCalendarBackfillClockFields();
 
 function getSegmentsInRange(rangeStart, rangeEnd, now = nowSecondMs()) {
     const currentLog = current ? { ...current, endTime: now, live: true } : null;
@@ -6578,6 +6658,10 @@ function tick() {
     if (sec !== lastSecondTs) {
         lastSecondTs = sec;
         const liveUnassigned = getActiveUnassignedSegment(todayStr, now);
+        if (liveUnassigned && !eventParentSelecting && document.getElementById('page-record')?.classList.contains('active')
+            && !document.querySelector('#log-list #live-unassigned-duration')) {
+            renderHomeHistory();
+        }
 
         updateClockCenterLabels(clockNow);
 

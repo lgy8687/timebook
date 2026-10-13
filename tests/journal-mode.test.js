@@ -80,6 +80,30 @@ test('cross-day gaps keep a complete 24-hour day and shrink after backfill', () 
     assert.equal(total(original) - total(backfilled), 2 * 3600000);
 });
 
+test('an unassigned main carries across midnight as two date-bounded gaps', () => {
+    const now = start + DAY + 5 * 60000;
+    const context = {
+        DAY_MS: DAY, recordMode: 'journal', current: null,
+        logs: [{ id: 'last-main', startTime: start + 23 * 3600000, endTime: start + 23.5 * 3600000 }],
+        unlocatedLogs: [], localStorage: storage({ v9_tracking_start: String(start) }),
+        nowSecondMs: () => now,
+        formatBeijingDate: (ms) => new Date(ms + 8 * 3600000).toISOString().slice(0, 10),
+        beijingDateStrToDayStart: (date) => Date.parse(`${date}T00:00:00+08:00`),
+        logTouchesDate: (log, date) => log.startTime < Date.parse(`${date}T00:00:00+08:00`) + DAY
+            && log.endTime > Date.parse(`${date}T00:00:00+08:00`),
+        logEndMs: (log) => log.endTime,
+    };
+    vm.createContext(context);
+    vm.runInContext(gapSource, context);
+    vm.runInContext(unassignedSource, context);
+    const yesterday = context.getDayUnassignedSegments('2026-10-13', now).at(-1);
+    const today = context.getActiveUnassignedSegment('2026-10-14', now);
+    assert.equal(yesterday.start, start + 23.5 * 3600000);
+    assert.equal(yesterday.end, start + DAY);
+    assert.equal(today.start, start + DAY);
+    assert.equal(today.end, now);
+});
+
 test('calendar backfill budget respects both days of a cross-midnight interval', () => {
     const context = {
         DAY_MS: DAY, HOUR_MS: 3600000,
@@ -167,6 +191,8 @@ test('unassigned main backfill keeps existing untimed duration when adding an ex
         getDayUnassignedSegments: (_date, _now, extraMain = []) => extraMain.length
             ? [{ start, end: start + 10 * 3600000 }, { start: start + 23.5 * 3600000, end: start + DAY }]
             : [{ start, end: start + 10 * 3600000 }, { start: start + 10 * 3600000, end: start + DAY }],
+        getAllocatedInGap: () => 2 * 3600000,
+        formatDuration: () => '2:00:00',
         unassignedScopeEnd: (_date, gap) => gap.end,
         mainRecordOverlaps: () => [], intervalExceedsDayBudget: () => false,
         formatBeijingDate: () => '2026-10-13',
@@ -177,7 +203,7 @@ test('unassigned main backfill keeps existing untimed duration when adding an ex
     vm.runInContext(assignSource, context);
     vm.runInContext(calendarSaveSource, context);
     context.saveCalendarBackfill();
-    assert.deepEqual(prompts, ['时间总数不够分配']);
+    assert.deepEqual(prompts, ['有时间已被占用']);
     assert.equal(context.logs.length, 0);
 });
 

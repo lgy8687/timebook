@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.22">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.31">
+    <link rel="stylesheet" href="design-system.css?v=5.32">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
     <div id="zone-frame" aria-hidden="true"></div>
@@ -42,7 +42,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.31</div>
+            <div id="cache-buster" class="version-below-daybar">v5.32</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -421,6 +421,11 @@
                 <div><h3 id="calendar-backfill-title">补录</h3><span id="calendar-backfill-date-label"></span></div>
                 <button type="button" class="calendar-backfill-close" aria-label="关闭" onclick="closeCalendarBackfill()">×</button>
             </div>
+            <div id="calendar-backfill-target-picker" class="calendar-backfill-target-picker hidden"></div>
+            <div id="calendar-backfill-target-row" class="calendar-backfill-target-row hidden">
+                <span id="calendar-backfill-target-label"></span>
+                <button id="calendar-backfill-change-target" type="button" onclick="showCalendarBackfillTargets()">更换</button>
+            </div>
             <div id="calendar-backfill-options" class="calendar-backfill-options">
                 <button type="button" class="calendar-backfill-choice journal-only" onclick="showCalendarBackfillForm('interval')">指定时段</button>
                 <button type="button" class="calendar-backfill-choice journal-only" onclick="showCalendarBackfillForm('untimed')">未指定时段</button>
@@ -683,7 +688,7 @@
     <script src="report-metrics.js?v=1.9"></script>
     <script src="report.js?v=2.9"></script>
     <script src="ui-theme.js?v=5.24"></script>
-    <script src="app.js?v=5.31"></script>
+    <script src="app.js?v=5.32"></script>
     <script src="backup.js?v=4"></script>
     <script src="dev-appearance.js?v=4.67"></script>
 </body>
