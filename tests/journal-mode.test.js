@@ -18,6 +18,8 @@ const openEditSource = app.slice(app.indexOf('function openEdit('), app.indexOf(
 const activeMainEditSource = app.slice(app.indexOf('function confirmActiveMainEdit('), app.indexOf('\nfunction confirmActiveParallelEdit(', app.indexOf('function confirmActiveMainEdit(')));
 const calendarBudgetSource = app.slice(app.indexOf('function getMainOccupiedMsForDay('), app.indexOf('\nfunction getCalendarDaySummary(', app.indexOf('function getMainOccupiedMsForDay(')));
 const unlocatedChartSource = app.slice(app.indexOf('function mergeUnlocatedIntoChart('), app.indexOf('\nfunction buildMainComposition(', app.indexOf('function mergeUnlocatedIntoChart(')));
+const reportSortSource = app.slice(app.indexOf('function compareReportDuration('), app.indexOf('\nfunction aggregateReportSegments(', app.indexOf('function compareReportDuration(')));
+const durationInputSource = app.slice(app.indexOf('function sanitizeCalendarDurationInput('), app.indexOf('\nfunction showCalendarBackfillForm(', app.indexOf('function sanitizeCalendarDurationInput(')));
 const eventReportSource = app.slice(app.indexOf('function buildEventReport('), app.indexOf('\nfunction buildLiveReportDay(', app.indexOf('function buildEventReport(')));
 const calendarSaveSource = app.slice(app.indexOf('function saveCalendarBackfill('), app.indexOf('\nfunction editCalendarSupplement(', app.indexOf('function saveCalendarBackfill(')));
 const unassignedSource = app.slice(app.indexOf('function getDayUnassignedSegments('), app.indexOf('\nfunction buildLogDayHeader(', app.indexOf('function getDayUnassignedSegments(')));
@@ -194,11 +196,38 @@ test('untimed time replaces unrecorded hours without inventing a timeline interv
         msToReportHours: (ms) => Math.round(ms / 360000) / 10,
     };
     vm.createContext(context);
+    vm.runInContext(reportSortSource, context);
     vm.runInContext(unlocatedChartSource, context);
     assert.equal(context.mergeUnlocatedIntoChart(chart, start, start + DAY), 2 * 3600000);
     assert.equal(chart.l1.find((item) => item.name === '未记录时间').exactHours, 18);
     assert.equal(chart.l1.find((item) => item.name === '工作').exactHours, 6);
     assert.equal(chart.l1.reduce((sum, item) => sum + item.exactHours, 0), 24);
+    assert.equal(chart.l1.at(-1).name, '未记录时间');
+    assert.equal(chart.l2.at(-1).name, '未记录时间');
+});
+
+test('report duration sorting always puts unrecorded last', () => {
+    const context = {};
+    vm.createContext(context);
+    vm.runInContext(reportSortSource, context);
+    const rows = [{ name: '未记录时间', ms: 20 }, { name: '工作', ms: 2 }, { name: '生活', ms: 5 }];
+    assert.deepEqual(Array.from(rows.sort(context.compareReportDuration), (row) => row.name), ['生活', '工作', '未记录时间']);
+    assert.deepEqual(Array.from(rows.sort((a, b) => context.compareReportDuration(a, b, true)), (row) => row.name), ['工作', '生活', '未记录时间']);
+});
+
+test('untimed backfill entry limits hours and minutes while typing', () => {
+    const context = {};
+    vm.createContext(context);
+    vm.runInContext(durationInputSource, context);
+    const minutes = { value: '065880' };
+    context.sanitizeCalendarDurationInput(minutes, 59);
+    assert.equal(minutes.value, '6');
+    minutes.value = '99';
+    context.sanitizeCalendarDurationInput(minutes, 59);
+    assert.equal(minutes.value, '59');
+    const hours = { value: '45' };
+    context.sanitizeCalendarDurationInput(hours, 24);
+    assert.equal(hours.value, '24');
 });
 
 test('date-only event supplements count occurrences but not time', () => {

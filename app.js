@@ -1786,6 +1786,11 @@ function renderCalendarBackfillSubs() {
     fillCalendarBackfillSelect('calendar-backfill-l2', subs.map((name) => ({ value: name, label: name || cat?.name || '未分类' })));
 }
 
+function sanitizeCalendarDurationInput(input, max) {
+    const digits = input.value.replace(/\D/g, '').slice(0, 2);
+    input.value = digits === '' ? '' : String(Math.min(Number(digits), max));
+}
+
 function showCalendarBackfillForm(kind) {
     if (kind && kind !== 'event' && recordMode !== 'journal') return;
     if (!kind) calendarBackfillEditingId = null;
@@ -1817,7 +1822,7 @@ function showCalendarBackfillForm(kind) {
             document.getElementById('calendar-backfill-start-time').value = calendarBackfillTarget ? formatBeijingClockSec(calendarBackfillTarget.start) : '09:00:00';
             document.getElementById('calendar-backfill-end-time').value = calendarBackfillTarget ? formatBeijingClockSec(targetEnd) : '10:00:00';
         } else {
-            document.getElementById('calendar-backfill-hours').value = '1';
+            document.getElementById('calendar-backfill-hours').value = '0';
             document.getElementById('calendar-backfill-minutes').value = '0';
             const targetRemaining = calendarBackfillTarget
                 ? calendarBackfillTarget.end - calendarBackfillTarget.start - getAllocatedInGap(viewDate, calendarBackfillTarget)
@@ -1850,7 +1855,7 @@ function saveCalendarBackfill() {
         const durationMs = (hours * 60 + minutes) * 60000;
         const l1 = document.getElementById('calendar-backfill-l1').value;
         const l2 = document.getElementById('calendar-backfill-l2').value;
-        if (!getCat(l1) || !Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || minutes < 0 || minutes > 59 || durationMs <= 0 || durationMs > DAY_MS) {
+        if (!getCat(l1) || !Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 24 || minutes < 0 || minutes > 59 || durationMs <= 0 || durationMs > DAY_MS) {
             showConfirm('时长不合法', '请输入大于 0 且不超过 24 小时的时长。', '知道了', () => {});
             return;
         }
@@ -5570,6 +5575,14 @@ function msToReportHours(ms) {
     return Math.round((ms / 3600000) * 10) / 10;
 }
 
+function compareReportDuration(a, b, ascending = false) {
+    if (a.name === '未记录时间') return b.name === '未记录时间' ? 0 : 1;
+    if (b.name === '未记录时间') return -1;
+    const aMs = a.ms ?? a.exactHours ?? a.hours ?? 0;
+    const bMs = b.ms ?? b.exactHours ?? b.hours ?? 0;
+    return (ascending ? aMs - bMs : bMs - aMs) || a.name.localeCompare(b.name, 'zh-CN');
+}
+
 function aggregateReportSegments(segments, keyFn) {
     const map = new Map();
     segments.forEach((l) => {
@@ -5584,7 +5597,7 @@ function aggregateReportSegments(segments, keyFn) {
         old.ms += ms;
         map.set(key, old);
     });
-    return [...map.values()].sort((a, b) => b.ms - a.ms);
+    return [...map.values()].sort(compareReportDuration);
 }
 
 function reportMainGroup(log) {
@@ -5685,14 +5698,14 @@ function buildMainChartComposition(mainSegs, parallelSegs, rangeStart, rangeEnd)
 
     return {
         l1: [...groups.values()]
-            .sort((a, b) => b.ms - a.ms)
+            .sort(compareReportDuration)
             .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), exactHours: item.ms / HOUR_MS, color: item.color })),
         // 供圆环定位的分片保留父块；供“活动明细”展示的总表则完全去掉一级目录。
         l2Slices: [...detailSlices.values()]
-            .sort((a, b) => b.ms - a.ms)
+            .sort(compareReportDuration)
             .map((item) => ({ l1: item.l1, name: item.name, hours: msToReportHours(item.ms), exactHours: item.ms / HOUR_MS, color: item.color, free: item.free })),
         l2: [...detailTotals.values()]
-            .sort((a, b) => b.ms - a.ms)
+            .sort(compareReportDuration)
             .map((item) => ({ name: item.name, hours: msToReportHours(item.ms), exactHours: item.ms / HOUR_MS, color: item.color })),
         sceneCoverage,
         sceneRange: { start: rangeStart, end: rangeEnd },
@@ -5730,7 +5743,7 @@ function mergeUnlocatedIntoChart(chart, rangeStart, rangeEnd) {
         add(chart.l2, (row) => row.name === name, () => ({ name, hours: 0, exactHours: 0, color }), item.durationMs);
     });
     ['l1', 'l2', 'l2Slices'].forEach((key) => {
-        chart[key] = chart[key].filter((row) => row.exactHours > 0).sort((a, b) => b.exactHours - a.exactHours);
+        chart[key] = chart[key].filter((row) => row.exactHours > 0).sort(compareReportDuration);
     });
     return totalMs;
 }
@@ -6069,7 +6082,7 @@ function buildYearCategoryComposition(segments, periodStart, periodEnd) {
         grouped.set(key, old);
     });
     return [...grouped.values()]
-        .sort((a, b) => a.ms - b.ms || a.name.localeCompare(b.name, 'zh-CN'))
+        .sort((a, b) => compareReportDuration(a, b, true))
         .map((part) => ({
             name: part.name,
             l1: part.l1,
