@@ -20,7 +20,9 @@ const calendarBudgetSource = app.slice(app.indexOf('function getMainOccupiedMsFo
 const unlocatedChartSource = app.slice(app.indexOf('function mergeUnlocatedIntoChart('), app.indexOf('\nfunction buildMainComposition(', app.indexOf('function mergeUnlocatedIntoChart(')));
 const eventReportSource = app.slice(app.indexOf('function buildEventReport('), app.indexOf('\nfunction buildLiveReportDay(', app.indexOf('function buildEventReport(')));
 const calendarSaveSource = app.slice(app.indexOf('function saveCalendarBackfill('), app.indexOf('\nfunction editCalendarSupplement(', app.indexOf('function saveCalendarBackfill(')));
-const tailSource = app.slice(app.indexOf('function getUnassignedTail('), app.indexOf('\nfunction buildLogDayHeader(', app.indexOf('function getUnassignedTail(')));
+const unassignedSource = app.slice(app.indexOf('function getDayUnassignedSegments('), app.indexOf('\nfunction buildLogDayHeader(', app.indexOf('function getDayUnassignedSegments(')));
+const assignSource = app.slice(app.indexOf('function assignUnlocatedToGaps('), app.indexOf('\nfunction getAllocatedInGap(', app.indexOf('function assignUnlocatedToGaps(')));
+const scopeSource = app.slice(app.indexOf('function unassignedScopeEnd('), app.indexOf('\nfunction assignUnlocatedToGaps(', app.indexOf('function unassignedScopeEnd(')));
 
 function storage(values) {
     const valuesMap = new Map(Object.entries(values));
@@ -100,7 +102,7 @@ test('calendar backfill budget respects both days of a cross-midnight interval',
     assert.equal(context.intervalExceedsDayBudget(start, start + 2 * 3600000), true);
 });
 
-test('unassigned main begins after the last recorded main, without adding earlier gaps', () => {
+test('unassigned main fills initial, middle, and trailing gaps without overlapping recorded main', () => {
     const context = {
         DAY_MS: DAY, recordMode: 'journal',
         logs: [
@@ -111,36 +113,65 @@ test('unassigned main begins after the last recorded main, without adding earlie
         current: null,
         nowSecondMs: () => start + DAY + 3600000,
         beijingDateStrToDayStart: () => start,
-        logTouchesDate: () => true,
+        formatBeijingDate: () => '2026-10-13',
+        getTodayDateStr: () => '2026-10-13',
+        unlocatedLogs: [], localStorage: storage({}),
+        logTouchesDate: (log) => !log.parallel,
         logEndMs: (log) => log.endTime,
     };
     vm.createContext(context);
-    vm.runInContext(tailSource, context);
-    const tail = context.getUnassignedTail('2026-10-13');
-    assert.equal(tail.start, start + 13 * 3600000);
-    assert.equal(tail.end, start + DAY);
+    vm.runInContext(gapSource, context);
+    vm.runInContext(unassignedSource, context);
+    const gaps = context.getDayUnassignedSegments('2026-10-13');
+    assert.deepEqual(Array.from(gaps, (gap) => [(gap.start - start) / 3600000, (gap.end - start) / 3600000]), [
+        [0, 8], [9, 12], [13, 24],
+    ]);
     context.recordMode = 'continuous';
-    assert.equal(context.getUnassignedTail('2026-10-13'), null);
+    assert.equal(context.getDayUnassignedSegments('2026-10-13').length, 0);
+});
+
+test('an untimed activity in the live gap stays assigned as that gap grows', () => {
+    const context = {
+        DAY_MS: DAY, current: null,
+        nowSecondMs: () => start + 12 * 3600000,
+        formatBeijingDate: () => '2026-10-13',
+        beijingDateStrToDayStart: () => start,
+    };
+    vm.createContext(context);
+    vm.runInContext(scopeSource, context);
+    vm.runInContext(assignSource, context);
+    const initial = { start: start + 10 * 3600000, end: start + 12 * 3600000 };
+    const record = { id: 'untimed', date: '2026-10-13', durationMs: 3600000,
+        gapStart: initial.start, gapEnd: context.unassignedScopeEnd('2026-10-13', initial) };
+    assert.equal(record.gapEnd, start + DAY);
+    const grown = { start: initial.start, end: start + 14 * 3600000 };
+    assert.equal(context.assignUnlocatedToGaps('2026-10-13', [grown], [record]).unplaced.length, 0);
 });
 
 test('unassigned main backfill keeps existing untimed duration when adding an exact interval', () => {
     const inputs = {
-        'calendar-backfill-start-date': '2026-10-13', 'calendar-backfill-start-time': '18:00:00',
+        'calendar-backfill-start-date': '2026-10-13', 'calendar-backfill-start-time': '10:00:00',
         'calendar-backfill-end-date': '2026-10-13', 'calendar-backfill-end-time': '23:30:00',
     };
     const prompts = [];
     const context = {
         calendarBackfillKind: 'interval', calendarBackfillTarget: { start: start + 10 * 3600000, end: start + DAY },
         recordMode: 'journal', viewDate: '2026-10-13', DAY_MS: DAY,
-        logs: [], document: { getElementById: (id) => ({ value: inputs[id] }) },
+        logs: [], unlocatedLogs: [{ id: 'reserved', date: '2026-10-13', durationMs: 2 * 3600000, gapStart: start + 10 * 3600000 }],
+        document: { getElementById: (id) => ({ value: inputs[id] }) },
         parseTimeOnBeijingDateParts: (date, time) => Date.parse(`${date}T${time}+08:00`),
         beijingDateStrToDayStart: () => start,
         nowSecondMs: () => start + DAY + 3600000,
-        getUnassignedTail: () => ({ start: start + 10 * 3600000, end: start + DAY }),
-        getUnlocatedMsForDay: () => 2 * 3600000,
+        getDayUnassignedSegments: (_date, _now, extraMain = []) => extraMain.length
+            ? [{ start, end: start + 10 * 3600000 }, { start: start + 23.5 * 3600000, end: start + DAY }]
+            : [{ start, end: start + 10 * 3600000 }, { start: start + 10 * 3600000, end: start + DAY }],
+        unassignedScopeEnd: (_date, gap) => gap.end,
+        mainRecordOverlaps: () => [], intervalExceedsDayBudget: () => false,
+        formatBeijingDate: () => '2026-10-13',
         showConfirm: (title) => prompts.push(title),
     };
     vm.createContext(context);
+    vm.runInContext(assignSource, context);
     vm.runInContext(calendarSaveSource, context);
     context.saveCalendarBackfill();
     assert.deepEqual(prompts, ['时间总数不够分配']);
@@ -197,11 +228,15 @@ test('calendar interval save blocks overlap and exhausted time before writing a 
     const store = storage({});
     const context = {
         calendarBackfillKind: 'interval', calendarBackfillTarget: null, recordMode: 'journal', viewDate: '2026-10-13',
-        DAY_MS: DAY, logs: [], localStorage: store,
+        DAY_MS: DAY, logs: [], unlocatedLogs: [], localStorage: store,
         document: { getElementById: (id) => ({ value: inputs[id] }) },
         parseTimeOnBeijingDateParts: (date, time) => Date.parse(`${date}T${time}+08:00`),
         beijingDateStrToDayStart: () => start,
         nowSecondMs: () => start + 12 * 3600000,
+        formatBeijingDate: () => '2026-10-13',
+        getDayUnassignedSegments: () => [],
+        unassignedScopeEnd: (_date, gap) => gap.end,
+        assignUnlocatedToGaps: () => ({ byGap: [], unplaced: [] }),
         mainRecordOverlaps: () => [{ l1: '生活', l2: '休息' }],
         intervalExceedsDayBudget: () => false,
         displayName: () => '休息',

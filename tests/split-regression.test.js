@@ -116,6 +116,11 @@ test('same-category split stays visible as separate main records in history', ()
     context.getParallelDisplayRecords = () => [];
     context.renderMainLogTree = (_list, log) => { visible.push(log); };
     context.appendUnattachedParallelLogs = () => {};
+    context.nowSecondMs = () => Date.parse('1970-01-02T12:00:00+08:00');
+    context.beijingDateStrToDayStart = (date) => Date.parse(date + 'T00:00:00+08:00');
+    context.DAY_MS = 86400000;
+    context.getDayUnassignedSegments = () => [];
+    context.assignUnlocatedToGaps = () => ({ byGap: [], unplaced: [] });
     vm.runInContext(homeHistorySource, context);
 
     context.renderHomeHistory();

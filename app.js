@@ -1341,37 +1341,83 @@ function renderHomeHistory() {
     renderLogs('log-list', getTodayDateStr());
 
     const today = getTodayDateStr();
-    const historicalDays = [...collectLogCalendarDays()]
-        .filter((dateStr) => dateStr < today)
-        .sort((a, b) => b.localeCompare(a));
+    const historicalDays = [];
+    const first = recordMode === 'journal' ? getTrackingStartMs() : null;
+    if (first != null) {
+        for (let day = beijingDateStrToDayStart(today) - DAY_MS;
+            day >= beijingDateStrToDayStart(formatBeijingDate(first)); day -= DAY_MS) {
+            historicalDays.push(formatBeijingDate(day));
+        }
+    } else {
+        historicalDays.push(...[...collectLogCalendarDays()].filter((dateStr) => dateStr < today).sort((a, b) => b.localeCompare(a)));
+    }
 
     historicalDays.forEach((dateStr) => {
         const dayLogs = logs.filter((log) => logTouchesDate(log, dateStr));
-        if (!dayLogs.length && !unlocatedLogs.some((item) => item.date === dateStr)
-            && !eventRecords.some((item) => formatBeijingDate(item.occurredAt) === dateStr)) return;
-
-        list.appendChild(buildLogDayHeader(dateStr, true));
+        list.appendChild(buildLogDayHeader(dateStr, true, false));
 
         const normalLogs = dayLogs
             .filter((log) => !log.parallel && !log.sceneActivity)
             .sort((a, b) => b.startTime - a.startTime);
         const parallelLogs = getParallelDisplayRecords(dayLogs.filter((log) => log.parallel));
-        normalLogs.forEach((log) => {
-            renderMainLogTree(list, log, dayLogs, parallelLogs);
-        });
+        renderDayMainRows(list, dateStr, normalLogs, dayLogs, parallelLogs);
         appendUnattachedParallelLogs(list, parallelLogs, normalLogs.concat(dayLogs.filter((log) => log.sceneActivity)));
-        renderUnassignedMain(list, dateStr);
     });
 }
 
-function getUnassignedTail(dateStr, now = nowSecondMs()) {
+function getDayUnassignedSegments(dateStr, now = nowSecondMs(), extraMain = []) {
     const dayStart = beijingDateStrToDayStart(dateStr);
     const dayEnd = Math.min(dayStart + DAY_MS, now);
-    if (recordMode !== 'journal' || dayEnd <= dayStart) return null;
-    const entries = logs.filter((log) => !log.parallel && !log.sceneActivity && logTouchesDate(log, dateStr));
+    if (recordMode !== 'journal' || dayEnd <= dayStart) return [];
+    const entries = logs.filter((log) => !log.parallel && !log.sceneActivity && logTouchesDate(log, dateStr)).concat(extraMain);
     if (current && current.startTime < dayEnd) entries.push({ ...current, endTime: now });
-    const start = entries.reduce((latest, log) => Math.max(latest, Math.min(dayEnd, logEndMs(log))), dayStart);
-    return start < dayEnd ? { start, end: dayEnd } : null;
+    const segments = entries.map((log) => ({
+        clippedStart: Math.max(dayStart, log.startTime),
+        clippedEnd: Math.min(dayEnd, logEndMs(log)),
+    }));
+    return getUnrecordedSegments(segments, dayStart, dayStart + DAY_MS, now)
+        .map((gap) => ({ start: gap.startTime, end: gap.endTime }));
+}
+
+function getActiveUnassignedSegment(dateStr = getTodayDateStr(), now = nowSecondMs()) {
+    if (current || recordMode !== 'journal') return null;
+    const gaps = getDayUnassignedSegments(dateStr, now);
+    return gaps.find((gap) => gap.end === now) || null;
+}
+
+function unassignedScopeEnd(dateStr, gap, now = nowSecondMs()) {
+    return dateStr === formatBeijingDate(now) && !current && gap.end === now
+        ? beijingDateStrToDayStart(dateStr) + DAY_MS
+        : gap.end;
+}
+
+function assignUnlocatedToGaps(dateStr, gaps, records = unlocatedLogs) {
+    const byGap = gaps.map(() => []);
+    const used = gaps.map(() => 0);
+    const unplaced = [];
+    const items = records.filter((item) => item.date === dateStr)
+        .sort((a, b) => Number(b.gapStart != null) - Number(a.gapStart != null));
+    items.forEach((item) => {
+        const choices = gaps.map((gap, index) => ({ gap, index }))
+            .filter(({ gap, index }) => gap.end - gap.start - used[index] >= item.durationMs
+                && (item.gapEnd == null || (gap.start >= item.gapStart && gap.end <= item.gapEnd)))
+            .sort((a, b) => {
+                const aPreferred = item.gapStart != null && (a.gap.start === item.gapStart || a.gap.start <= item.gapStart && a.gap.end > item.gapStart);
+                const bPreferred = item.gapStart != null && (b.gap.start === item.gapStart || b.gap.start <= item.gapStart && b.gap.end > item.gapStart);
+                return Number(bPreferred) - Number(aPreferred) || b.gap.start - a.gap.start;
+            });
+        const picked = choices[0];
+        if (!picked) { unplaced.push(item); return; }
+        byGap[picked.index].push(item);
+        used[picked.index] += item.durationMs;
+    });
+    return { byGap, unplaced };
+}
+
+function getAllocatedInGap(dateStr, gap) {
+    const gaps = getDayUnassignedSegments(dateStr);
+    const index = gaps.findIndex((item) => item.start === gap.start);
+    return (assignUnlocatedToGaps(dateStr, gaps).byGap[index] || []).reduce((sum, item) => sum + item.durationMs, 0);
 }
 
 function buildLogDayHeader(dateStr, history = false, withControl = true) {
@@ -1400,44 +1446,79 @@ function buildLogDayHeader(dateStr, history = false, withControl = true) {
     return header;
 }
 
-function renderUnassignedMain(list, dateStr) {
+function renderUnassignedMain(list, dateStr, gap, assigned = [], live = false) {
     if (!showUnassignedMain || recordMode !== 'journal') return;
-    const tail = getUnassignedTail(dateStr);
-    if (!tail) return;
-    const assigned = unlocatedLogs.filter((item) => item.date === dateStr);
     const allocatedMs = assigned.reduce((sum, item) => sum + item.durationMs, 0);
-    const totalMs = Math.max(tail.end - tail.start, allocatedMs);
+    const spanMs = gap.end - gap.start;
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'unassigned-main-card';
+    card.className = 'unassigned-main-card swipe-card log-flow-card--main-log';
     card.setAttribute('aria-label', `${formatDateHeaderLabel(dateStr)}未分配主线，补录`);
-    card.addEventListener('click', () => openUnassignedBackfill(dateStr));
-    const head = document.createElement('div');
-    head.className = 'unassigned-main-head';
-    head.innerHTML = `<span>${formatBeijingClockSec(tail.start)}</span><strong>未分配</strong><span>${formatDuration(tail.end - tail.start)}</span>`;
-    const track = document.createElement('div');
-    track.className = 'unassigned-main-track';
+    card.addEventListener('click', () => openUnassignedBackfill(dateStr, gap.start));
+    const inner = document.createElement('div');
+    inner.className = 'log-flow-inner';
+    inner.appendChild(buildLogFlowBar('#94a3b8', false));
+    const body = document.createElement('div');
+    body.className = 'log-flow-body';
+    const row = document.createElement('div');
+    row.className = 'log-flow-main';
+    const time = document.createElement('span');
+    time.className = 'log-flow-time';
+    time.innerText = formatBeijingClockSec(gap.start);
+    const parts = document.createElement('span');
+    parts.className = 'unassigned-main-parts';
     assigned.forEach((item) => {
         const part = document.createElement('span');
         part.className = 'unassigned-main-part';
-        part.style.width = `${item.durationMs / totalMs * 100}%`;
+        part.style.width = `${item.durationMs / spanMs * 100}%`;
         part.style.backgroundColor = safeColor(getCat(item.l1)?.color || '#94a3b8');
         part.title = `${item.l2 || item.l1} ${formatDuration(item.durationMs)}（未指定时段）`;
         const name = document.createElement('span');
         name.innerText = item.l2 || item.l1;
         part.appendChild(name);
-        track.appendChild(part);
+        parts.appendChild(part);
     });
     const remaining = document.createElement('span');
     remaining.className = 'unassigned-main-part unassigned-main-part--empty';
-    remaining.style.width = `${Math.max(0, (tail.end - tail.start - allocatedMs) / totalMs) * 100}%`;
-    remaining.title = `未分配 ${formatDuration(Math.max(0, tail.end - tail.start - allocatedMs))}`;
+    remaining.style.width = `${Math.max(0, (spanMs - allocatedMs) / spanMs) * 100}%`;
+    remaining.title = `未分配 ${formatDuration(Math.max(0, spanMs - allocatedMs))}`;
     const remainingName = document.createElement('span');
     remainingName.innerText = '未分配';
     remaining.appendChild(remainingName);
-    track.appendChild(remaining);
-    card.append(head, track);
+    parts.appendChild(remaining);
+    const duration = document.createElement('span');
+    duration.className = `log-flow-dur ${live ? 'log-flow-dur--live' : 'log-flow-dur--log'}`;
+    if (live) duration.id = 'live-unassigned-duration';
+    duration.innerText = formatDuration(spanMs);
+    row.append(time, parts, duration);
+    body.appendChild(row);
+    inner.appendChild(body);
+    card.appendChild(inner);
     list.appendChild(card);
+}
+
+function renderDayMainRows(list, dateStr, normalLogs, dayLogs, parallelLogs, skipGapStart = null) {
+    const now = nowSecondMs();
+    const gaps = getDayUnassignedSegments(dateStr, now);
+    const assignments = assignUnlocatedToGaps(dateStr, gaps);
+    const rows = normalLogs.map((log) => ({ start: log.startTime, log }))
+        .concat(gaps.map((gap, index) => ({ start: gap.start, gap, assigned: assignments.byGap[index] || [] }))
+            .filter((row) => row.gap.start !== skipGapStart))
+        .sort((a, b) => b.start - a.start);
+    rows.forEach((row) => {
+        if (row.log) renderMainLogTree(list, row.log, dayLogs, parallelLogs);
+        else renderUnassignedMain(list, dateStr, row.gap, row.assigned);
+    });
+    if (showUnassignedMain && recordMode === 'journal') {
+        assignments.unplaced.forEach((item) => {
+            const pending = document.createElement('button');
+            pending.type = 'button';
+            pending.className = 'unassigned-pending';
+            pending.innerText = `${item.l2 || item.l1} ${formatDuration(item.durationMs)} · 待选择未分配时段`;
+            pending.addEventListener('click', () => { viewDate = dateStr; editCalendarSupplement('untimed', item.id); });
+            list.appendChild(pending);
+        });
+    }
 }
 
 function renderCalendarPage() {
@@ -1538,11 +1619,11 @@ let calendarBackfillKind = null;
 let calendarBackfillEditingId = null;
 let calendarBackfillTarget = null;
 
-function openUnassignedBackfill(dateStr) {
-    const tail = getUnassignedTail(dateStr);
-    if (!tail) return;
+function openUnassignedBackfill(dateStr, gapStart) {
+    const gap = getDayUnassignedSegments(dateStr).find((item) => item.start === gapStart);
+    if (!gap) return;
     viewDate = dateStr;
-    openCalendarBackfill(tail);
+    openCalendarBackfill(gap);
 }
 
 function openCalendarBackfill(target = null) {
@@ -1602,7 +1683,7 @@ function showCalendarBackfillForm(kind) {
         if (kind === 'interval') {
             const targetStart = calendarBackfillTarget?.start;
             const availableEnd = calendarBackfillTarget
-                ? Math.max(targetStart, calendarBackfillTarget.end - getUnlocatedMsForDay(viewDate))
+                ? Math.max(targetStart, calendarBackfillTarget.end - getAllocatedInGap(viewDate, calendarBackfillTarget))
                 : null;
             const targetEnd = calendarBackfillTarget ? Math.min(targetStart + HOUR_MS, availableEnd) : null;
             document.getElementById('calendar-backfill-start-date').value = calendarBackfillTarget ? formatBeijingDate(calendarBackfillTarget.start) : viewDate;
@@ -1613,7 +1694,7 @@ function showCalendarBackfillForm(kind) {
             document.getElementById('calendar-backfill-hours').value = '1';
             document.getElementById('calendar-backfill-minutes').value = '0';
             const targetRemaining = calendarBackfillTarget
-                ? calendarBackfillTarget.end - calendarBackfillTarget.start - getUnlocatedMsForDay(viewDate)
+                ? calendarBackfillTarget.end - calendarBackfillTarget.start - getAllocatedInGap(viewDate, calendarBackfillTarget)
                 : getRemainingDayMs(viewDate);
             document.getElementById('calendar-backfill-remaining').innerText = `可分配 ${formatDuration(Math.max(0, targetRemaining))}`;
         }
@@ -1647,16 +1728,28 @@ function saveCalendarBackfill() {
             showConfirm('时长不合法', '请输入大于 0 且不超过 24 小时的时长。', '知道了', () => {});
             return;
         }
-        const tail = calendarBackfillTarget ? getUnassignedTail(viewDate) : null;
-        const targetRemaining = tail ? tail.end - tail.start - getUnlocatedMsForDay(viewDate, calendarBackfillEditingId) : Infinity;
-        if (durationMs > getRemainingDayMs(viewDate, calendarBackfillEditingId) || durationMs > targetRemaining) {
+        const gap = calendarBackfillTarget
+            ? getDayUnassignedSegments(viewDate).find((item) => item.start === calendarBackfillTarget.start)
+            : null;
+        const candidate = { id: calendarBackfillEditingId || genId(), date: viewDate, durationMs, l1, l2,
+            note: document.getElementById('calendar-backfill-note').value.trim(), ...(gap ? { gapStart: gap.start, gapEnd: unassignedScopeEnd(viewDate, gap) } : {}) };
+        const existingRecords = unlocatedLogs.filter((item) => item.id !== calendarBackfillEditingId);
+        const nextRecords = existingRecords.concat(candidate);
+        const gaps = getDayUnassignedSegments(viewDate);
+        const before = assignUnlocatedToGaps(viewDate, gaps, existingRecords);
+        const assignments = assignUnlocatedToGaps(viewDate, gaps, nextRecords);
+        const assignedIndex = assignments.byGap.findIndex((items) => items.includes(candidate));
+        if (durationMs > getRemainingDayMs(viewDate, calendarBackfillEditingId) || (calendarBackfillTarget && !gap)
+            || assignedIndex < 0 || (gap && gaps[assignedIndex].start !== gap.start)
+            || assignments.unplaced.some((item) => item !== candidate && !before.unplaced.includes(item))) {
             showConfirm('时间总数不够分配', '当天已有的时间段和未指定时长合计不能超过可用时间。', '知道了', () => {});
             return;
         }
         const record = unlocatedLogs.find((item) => item.id === calendarBackfillEditingId);
-        const update = { date: viewDate, durationMs, l1, l2, note: document.getElementById('calendar-backfill-note').value.trim() };
+        const update = { ...candidate, gapStart: gaps[assignedIndex].start,
+            gapEnd: unassignedScopeEnd(viewDate, gaps[assignedIndex]) };
         if (record) Object.assign(record, update);
-        else unlocatedLogs.push({ id: genId(), ...update });
+        else unlocatedLogs.push(update);
         localStorage.setItem('v9_unlocated_logs', JSON.stringify(unlocatedLogs));
     } else if (calendarBackfillKind === 'interval') {
         const start = parseTimeOnBeijingDateParts(document.getElementById('calendar-backfill-start-date').value, document.getElementById('calendar-backfill-start-time').value);
@@ -1667,8 +1760,8 @@ function saveCalendarBackfill() {
             return;
         }
         if (calendarBackfillTarget) {
-            const tail = getUnassignedTail(viewDate);
-            if (!tail || start < tail.start || end > tail.end || tail.end - end < getUnlocatedMsForDay(viewDate)) {
+            const gap = getDayUnassignedSegments(viewDate).find((item) => item.start === calendarBackfillTarget.start);
+            if (!gap || start < gap.start || end > gap.end) {
                 showConfirm('时间总数不够分配', '请在未分配时段内补录，并保留已分配但未指定时刻的时长。', '知道了', () => {});
                 return;
             }
@@ -1682,11 +1775,28 @@ function saveCalendarBackfill() {
             showConfirm('时间总数不够分配', '指定时段会占用当天剩余时间，请先调整未指定时长。', '知道了', () => {});
             return;
         }
+        const scopedRecords = unlocatedLogs.map((item) => ({ ...item }));
+        for (let day = beijingDateStrToDayStart(formatBeijingDate(start)); day < end; day += DAY_MS) {
+            const date = formatBeijingDate(day);
+            const beforeGaps = getDayUnassignedSegments(date);
+            const before = assignUnlocatedToGaps(date, beforeGaps, scopedRecords);
+            before.byGap.forEach((items, index) => items.forEach((item) => {
+                item.gapStart = beforeGaps[index].start;
+                item.gapEnd = unassignedScopeEnd(date, beforeGaps[index]);
+            }));
+            const after = assignUnlocatedToGaps(date, getDayUnassignedSegments(date, nowSecondMs(), [{ startTime: start, endTime: end }]), scopedRecords);
+            if (after.unplaced.length > before.unplaced.length) {
+                showConfirm('时间总数不够分配', '这段补录会挤掉该未分配时段内已分配的活动，请缩短时段。', '知道了', () => {});
+                return;
+            }
+        }
         const l1 = document.getElementById('calendar-backfill-l1').value;
         const l2 = document.getElementById('calendar-backfill-l2').value;
         if (!getCat(l1)) return;
         logs.unshift({ id: genId(), startTime: start, endTime: end, duration: Math.round((end - start) / 60000), l1, l2, note: document.getElementById('calendar-backfill-note').value.trim(), color: getCat(l1).color, parallel: false, journal: true });
         localStorage.setItem('v9_logs', JSON.stringify(logs));
+        unlocatedLogs = scopedRecords;
+        localStorage.setItem('v9_unlocated_logs', JSON.stringify(unlocatedLogs));
     } else return;
     closeCalendarBackfill();
     renderAll();
@@ -4272,6 +4382,12 @@ function renderLogs(listId, dateStr) {
             renderSceneActivityTree(list, current, todaySceneLogs, todayParallel);
         }
     }
+    const liveUnassigned = isDateToday(dateStr) ? getActiveUnassignedSegment(dateStr) : null;
+    if (liveUnassigned) {
+        const gaps = getDayUnassignedSegments(dateStr);
+        const assigned = assignUnlocatedToGaps(dateStr, gaps).byGap[gaps.findIndex((gap) => gap.start === liveUnassigned.start)] || [];
+        renderUnassignedMain(list, dateStr, liveUnassigned, assigned, true);
+    }
 
     // ── 辅助：渲染并行使卡片（主线卡片样式，无缩进） ──
     function createLiveParallelCard(parent, parallel, isActive, idx) {
@@ -4375,13 +4491,10 @@ function renderLogs(listId, dateStr) {
     const normalLogs = dayLogs.filter((l) => !l.parallel && !l.sceneActivity).sort((a, b) => b.startTime - a.startTime);
     const parallelLogs = getParallelDisplayRecords(dayLogs.filter((l) => l.parallel));
 
-    normalLogs.forEach((log) => {
-        renderMainLogTree(list, log, dayLogs, parallelLogs);
-    });
+    renderDayMainRows(list, dateStr, normalLogs, dayLogs, parallelLogs, liveUnassigned?.start ?? null);
     appendUnattachedParallelLogs(list, parallelLogs, normalLogs.concat(dayLogs.filter((log) => log.sceneActivity)));
-    if (listId === 'log-list') renderUnassignedMain(list, dateStr);
 
-    if (dayLogs.length === 0 && !(isDateToday(dateStr) && (current || parallelCurrent)) && !(listId === 'log-list' && getUnassignedTail(dateStr))) {
+    if (dayLogs.length === 0 && !(isDateToday(dateStr) && (current || parallelCurrent || liveUnassigned)) && !getDayUnassignedSegments(dateStr).length) {
         const empty = document.createElement('div');
         empty.className = 'text-center text-[11px] text-slate-400 py-6';
         empty.innerText = '该日暂无流水';
@@ -5209,7 +5322,7 @@ function getTrackingStartMs() {
     unlocatedLogs.forEach((item) => starts.push(beijingDateStrToDayStart(item.date)));
     if (Number.isFinite(saved) && saved > 0) starts.push(saved);
     const valid = starts.filter(Number.isFinite);
-    return valid.length ? Math.min(...valid) : null;
+    return valid.length ? Math.min(...valid) : beijingDateStrToDayStart(getTodayDateStr());
 }
 
 function getUnrecordedSegments(mainSegments, rangeStart, rangeEnd, now = nowSecondMs()) {
@@ -6186,6 +6299,7 @@ function tick() {
     }
     if (sec !== lastSecondTs) {
         lastSecondTs = sec;
+        const liveUnassigned = getActiveUnassignedSegment(todayStr, now);
 
         updateClockCenterLabels(clockNow);
 
@@ -6195,6 +6309,10 @@ function tick() {
             if (el) el.innerText = formatDuration(diff);
             const liveDur = document.getElementById('live-main-duration');
             if (liveDur) liveDur.innerText = formatDuration(diff);
+        } else if (liveUnassigned) {
+            const duration = formatDuration(now - liveUnassigned.start);
+            setText('header-timer', duration);
+            setText('live-unassigned-duration', duration);
         } else {
             setText('header-timer', '00:00:00');
         }
@@ -6228,6 +6346,10 @@ function tick() {
             document.getElementById('status-light').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
             setText('header-l2', displayName(current));
             setText('header-memo', current.note || "");
+        } else if (liveUnassigned) {
+            document.getElementById('status-light').className = 'w-2.5 h-2.5 rounded-full bg-slate-400 animate-pulse shrink-0';
+            setText('header-l2', '未分配');
+            setText('header-memo', '');
         } else {
             document.getElementById('status-light').className = "w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0";
             setText('header-l2', "等待开启...");

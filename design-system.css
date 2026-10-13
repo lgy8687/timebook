@@ -259,13 +259,13 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .unassigned-visibility input:checked { background: #64748b; }
 .unassigned-visibility input:checked::after { transform: translateX(14px); }
 .unassigned-visibility input:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
-.unassigned-main-card { display: block; width: 100%; min-height: 70px; margin: 8px 0; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; }
-.unassigned-main-head { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.unassigned-main-head strong { flex: 1; color: #334155; font-size: 14px; text-align: center; }
-.unassigned-main-track { display: flex; overflow: hidden; width: 100%; height: 22px; margin-top: 8px; border-radius: 4px; background: #f1f5f9; }
-.unassigned-main-part { display: flex; align-items: center; justify-content: center; min-width: 0; height: 100%; container-type: inline-size; color: #fff; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.unassigned-main-card.swipe-card.log-flow-card--main-log { display: block; width: 100%; margin-bottom: .5rem; border: 1px solid #dce3e9; border-radius: 1rem; background: #e9eef2; text-align: left; cursor: pointer; }
+.unassigned-main-card .log-flow-inner { min-height: var(--tb-log-inner-min-h); }
+.unassigned-main-parts { display: flex; flex: 1; min-width: 0; height: 30px; overflow: hidden; border-radius: 5px; }
+.unassigned-main-part { display: flex; align-items: center; justify-content: center; min-width: 0; height: 100%; padding: 0 2px; container-type: inline-size; color: #fff; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .unassigned-main-part > span { overflow: hidden; text-overflow: clip; white-space: nowrap; }
-.unassigned-main-part--empty { color: #475569; background: #f1f5f9; }
+.unassigned-main-part--empty { color: #475569; background: transparent; }
+.unassigned-pending { display: block; width: 100%; min-height: 40px; padding: 8px 12px; margin: 4px 0 8px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #f8fafc; color: #64748b; text-align: left; font-size: 11px; }
 @container (max-width: 64px) { .unassigned-main-part > span { display: none; } }
 .calendar-supplement-row { display: flex; align-items: center; gap: 8px; min-height: 58px; padding: 9px 12px; border-bottom: 1px solid var(--ui-border); background: #fff; }
 .calendar-supplement-row:first-child { border-radius: 8px 8px 0 0; }
