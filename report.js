@@ -1,9 +1,9 @@
 /**
- * 报表 v2.8 — 支持周报、月报历史周期浏览
+ * 报表 v2.9 — 未指定时段只计入类别汇总
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.8';
+    const REPORT_VERSION = 'v2.9';
 
     let state = {
         period: 'day',
@@ -220,7 +220,7 @@
                 return `<div class="timeline-bar-row">
                     <span class="timeline-bar-label">${esc(b.label)}</span>
                     <div class="timeline-bar-track">${(b.segments || []).map((s) => `<span class="timeline-bar-segment" style="width:${Math.max(0, s.width)}%;background:${reportColor(s.color, s.l1 || s.name)}" title="${esc(s.title || s.name)}"></span>`).join('')}</div>
-                    <span class="timeline-bar-val">${esc(String(b.hours))}h</span>
+                    <span class="timeline-bar-val"${b.unlocatedHours ? ` title="含未指定时段 ${esc(String(b.unlocatedHours))}h"` : ''}>${esc(String(b.hours))}h</span>
                 </div>`;
             }).join('')}</div>`;
             scaleEl.classList.add('hidden');

@@ -143,6 +143,9 @@ parallelShortcuts = parallelShortcuts.map(s => ({ ...s, customIcon: s.customIcon
 let logs = safeJSON('v9_logs') || [];
 let current = safeJSON('v9_current') || null;
 let recordMode = localStorage.getItem('v9_record_mode') === 'journal' ? 'journal' : 'continuous';
+const savedUnlocatedLogs = safeJSON('v9_unlocated_logs', []);
+let unlocatedLogs = (Array.isArray(savedUnlocatedLogs) ? savedUnlocatedLogs : [])
+    .filter((item) => item && /^\d{4}-\d{2}-\d{2}$/.test(item.date) && Number.isFinite(item.durationMs) && item.durationMs > 0);
 function toSecondMs(value) {
     const n = Number(value);
     return Number.isFinite(n) ? Math.floor(n / 1000) * 1000 : n;
@@ -189,7 +192,7 @@ eventTypes = eventTypes
     }));
 eventRecords = eventRecords
     .filter((item) => item && item.typeId && Number.isFinite(Number(item.occurredAt)))
-    .map((item) => ({ ...item, occurredAt: Number(item.occurredAt), parentId: item.parentId || null }));
+    .map((item) => ({ ...item, occurredAt: Number(item.occurredAt), parentId: item.parentId || null, count: Number.isInteger(item.count) && item.count > 0 ? item.count : 1 }));
 if (eventTypes.length) localStorage.setItem('v9_event_types', JSON.stringify(eventTypes));
 if (eventRecords.length) localStorage.setItem('v9_event_records', JSON.stringify(eventRecords));
 if (current) localStorage.setItem('v9_current', JSON.stringify(current));
@@ -1016,6 +1019,8 @@ function collectLogCalendarDays() {
         }
     };
     logs.forEach(addLogDays);
+    unlocatedLogs.forEach((item) => days.add(item.date));
+    eventRecords.forEach((item) => days.add(formatBeijingDate(item.occurredAt)));
     if (current) {
         let d = formatBeijingDate(current.startTime);
         const today = getTodayDateStr();
@@ -1363,6 +1368,44 @@ function renderCalendarPage() {
     renderFlowCalendar();
     renderCalendarDaySummary();
     renderLogs('calendar-log-list', viewDate);
+    renderCalendarBackfillRecords();
+}
+
+function getMainOccupiedMsForDay(dateStr, excludeId = null, now = nowSecondMs()) {
+    const dayStart = beijingDateStrToDayStart(dateStr);
+    const dayEnd = dayStart + DAY_MS;
+    const intervals = logs.filter((item) => !item.parallel && !item.sceneActivity && (excludeId == null || item.id !== excludeId))
+        .concat(current && (excludeId == null || current.id !== excludeId) ? [{ ...current, endTime: now }] : [])
+        .map((item) => ({ start: Math.max(dayStart, item.startTime), end: Math.min(dayEnd, logEndMs(item)) }))
+        .filter((item) => item.end > item.start)
+        .sort((a, b) => a.start - b.start);
+    let covered = 0;
+    let end = dayStart;
+    intervals.forEach((item) => {
+        covered += Math.max(0, item.end - Math.max(end, item.start));
+        end = Math.max(end, item.end);
+    });
+    return covered;
+}
+
+function getUnlocatedMsForDay(dateStr, excludeId = null) {
+    return unlocatedLogs.filter((item) => item.date === dateStr && (excludeId == null || item.id !== excludeId))
+        .reduce((sum, item) => sum + item.durationMs, 0);
+}
+
+function getRemainingDayMs(dateStr, excludeId = null, now = nowSecondMs()) {
+    const dayStart = beijingDateStrToDayStart(dateStr);
+    const elapsed = Math.max(0, Math.min(DAY_MS, now - dayStart));
+    return elapsed - getMainOccupiedMsForDay(dateStr, excludeId, now) - getUnlocatedMsForDay(dateStr, excludeId);
+}
+
+function intervalExceedsDayBudget(start, end, excludeId = null, now = nowSecondMs()) {
+    for (let day = beijingDateStrToDayStart(formatBeijingDate(start)); day < end; day += DAY_MS) {
+        const date = formatBeijingDate(day);
+        const added = Math.max(0, Math.min(day + DAY_MS, end) - Math.max(day, start));
+        if (added > getRemainingDayMs(date, excludeId, now)) return true;
+    }
+    return false;
 }
 
 function getCalendarDaySummary(dateStr) {
@@ -1382,9 +1425,16 @@ function getCalendarDaySummary(dateStr) {
         item.ms += end - start;
         byCategory.set(key, item);
     });
+    const unlocated = unlocatedLogs.filter((item) => item.date === dateStr);
+    unlocated.forEach((record) => {
+        const key = record.l1 || '未分类';
+        const item = byCategory.get(key) || { name: key, ms: 0, color: getCat(key)?.color || '#94a3b8' };
+        item.ms += record.durationMs;
+        byCategory.set(key, item);
+    });
     return {
-        totalMs: segments.reduce((sum, item) => sum + item.end - item.start, 0),
-        count: segments.length,
+        totalMs: segments.reduce((sum, item) => sum + item.end - item.start, 0) + unlocated.reduce((sum, item) => sum + item.durationMs, 0),
+        count: segments.length + unlocated.length + eventRecords.filter((item) => item.dateOnly && formatBeijingDate(item.occurredAt) === dateStr).length,
         categories: [...byCategory.values()].sort((a, b) => b.ms - a.ms)
     };
 }
@@ -1402,10 +1452,202 @@ function renderCalendarDaySummary() {
     host.innerHTML = `
         <div class="calendar-summary-top">
             <div><span class="calendar-summary-kicker">当天复盘</span><strong>${dateLabel}</strong></div>
-            <div class="calendar-summary-total"><b>${total}</b><span>${summary.count} 段活动</span></div>
+            <div class="calendar-summary-total"><b>${total}</b><span>${summary.count} 项记录</span></div>
         </div>
-        <div class="calendar-summary-chips">${categories || '<span class="calendar-summary-empty">当天暂无记录</span>'}</div>
-        <div class="calendar-summary-flow-label">当天流水</div>`;
+        <div class="calendar-summary-chips">${categories || '<span class="calendar-summary-empty">暂无时间记录</span>'}</div>
+        <div class="calendar-summary-footer"><span>当天流水</span><button type="button" onclick="openCalendarBackfill()" aria-label="补录" title="补录">＋</button></div>`;
+}
+
+let calendarBackfillKind = null;
+let calendarBackfillEditingId = null;
+
+function openCalendarBackfill() {
+    if (viewDate > getTodayDateStr()) return;
+    calendarBackfillEditingId = null;
+    document.getElementById('calendar-backfill-date-label').innerText = formatDateHeaderLabel(viewDate);
+    document.querySelectorAll('#calendar-backfill-options .journal-only').forEach((button) => button.classList.toggle('hidden', recordMode !== 'journal'));
+    showCalendarBackfillForm(null);
+    document.getElementById('calendar-backfill-modal').classList.remove('hidden');
+}
+
+function closeCalendarBackfill() {
+    document.getElementById('calendar-backfill-modal').classList.add('hidden');
+    calendarBackfillKind = null;
+    calendarBackfillEditingId = null;
+}
+
+function fillCalendarBackfillSelect(id, items) {
+    const select = document.getElementById(id);
+    select.replaceChildren();
+    items.forEach(({ value, label }) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.innerText = label;
+        select.appendChild(option);
+    });
+}
+
+function renderCalendarBackfillSubs() {
+    const cat = getCat(document.getElementById('calendar-backfill-l1').value);
+    const subs = cat?.subs?.length ? cat.subs : [''];
+    fillCalendarBackfillSelect('calendar-backfill-l2', subs.map((name) => ({ value: name, label: name || cat?.name || '未分类' })));
+}
+
+function showCalendarBackfillForm(kind) {
+    if (kind && kind !== 'event' && recordMode !== 'journal') return;
+    if (!kind) calendarBackfillEditingId = null;
+    calendarBackfillKind = kind;
+    document.getElementById('calendar-backfill-options').classList.toggle('hidden', !!kind);
+    document.getElementById('calendar-backfill-form').classList.toggle('hidden', !kind);
+    document.getElementById('calendar-backfill-category-fields').classList.toggle('hidden', !kind || kind === 'event');
+    document.getElementById('calendar-backfill-event-fields').classList.toggle('hidden', kind !== 'event');
+    document.getElementById('calendar-backfill-interval-fields').classList.toggle('hidden', kind !== 'interval');
+    document.getElementById('calendar-backfill-untimed-fields').classList.toggle('hidden', kind !== 'untimed');
+    document.getElementById('calendar-backfill-note-field').classList.toggle('hidden', !kind || kind === 'event');
+    if (!kind) return;
+    if (kind === 'event') {
+        fillCalendarBackfillSelect('calendar-backfill-event-type', eventTypes.map((item) => ({ value: String(item.id), label: `${item.icon} ${item.name}` })));
+        document.getElementById('calendar-backfill-event-count').value = '1';
+    } else {
+        fillCalendarBackfillSelect('calendar-backfill-l1', cats.filter((cat) => cat.name !== '场景').map((cat) => ({ value: cat.name, label: `${cat.icon} ${cat.name}` })));
+        renderCalendarBackfillSubs();
+        document.getElementById('calendar-backfill-note').value = '';
+        if (kind === 'interval') {
+            document.getElementById('calendar-backfill-start-date').value = viewDate;
+            document.getElementById('calendar-backfill-end-date').value = viewDate;
+            document.getElementById('calendar-backfill-start-time').value = '09:00:00';
+            document.getElementById('calendar-backfill-end-time').value = '10:00:00';
+        } else {
+            document.getElementById('calendar-backfill-hours').value = '1';
+            document.getElementById('calendar-backfill-minutes').value = '0';
+            document.getElementById('calendar-backfill-remaining').innerText = `当天可分配 ${formatDuration(Math.max(0, getRemainingDayMs(viewDate)))}`;
+        }
+    }
+}
+
+function saveCalendarBackfill() {
+    if (calendarBackfillKind !== 'event' && recordMode !== 'journal') return;
+    if (calendarBackfillKind === 'event') {
+        const typeId = document.getElementById('calendar-backfill-event-type').value;
+        const count = Number(document.getElementById('calendar-backfill-event-count').value);
+        if (!eventTypeById(typeId) || !Number.isInteger(count) || count < 1 || count > 999) {
+            showConfirm('事件资料不完整', '请选择事件，并输入 1 到 999 的次数。', '知道了', () => {});
+            return;
+        }
+        const record = eventRecords.find((item) => item.id === calendarBackfillEditingId);
+        if (record) {
+            const type = eventTypeById(typeId);
+            Object.assign(record, { typeId: type.id, typeName: type.name, icon: type.icon, color: type.color, count });
+            saveEventRecords();
+        } else {
+            saveEventRecord({ typeId, occurredAt: beijingDateStrToDayStart(viewDate), parentId: null, count, dateOnly: true });
+        }
+    } else if (calendarBackfillKind === 'untimed') {
+        const hours = Number(document.getElementById('calendar-backfill-hours').value);
+        const minutes = Number(document.getElementById('calendar-backfill-minutes').value);
+        const durationMs = (hours * 60 + minutes) * 60000;
+        const l1 = document.getElementById('calendar-backfill-l1').value;
+        const l2 = document.getElementById('calendar-backfill-l2').value;
+        if (!getCat(l1) || !Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || minutes < 0 || minutes > 59 || durationMs <= 0 || durationMs > DAY_MS) {
+            showConfirm('时长不合法', '请输入大于 0 且不超过 24 小时的时长。', '知道了', () => {});
+            return;
+        }
+        if (durationMs > getRemainingDayMs(viewDate, calendarBackfillEditingId)) {
+            showConfirm('时间总数不够分配', '当天已有的时间段和未指定时长合计不能超过可用时间。', '知道了', () => {});
+            return;
+        }
+        const record = unlocatedLogs.find((item) => item.id === calendarBackfillEditingId);
+        const update = { date: viewDate, durationMs, l1, l2, note: document.getElementById('calendar-backfill-note').value.trim() };
+        if (record) Object.assign(record, update);
+        else unlocatedLogs.push({ id: genId(), ...update });
+        localStorage.setItem('v9_unlocated_logs', JSON.stringify(unlocatedLogs));
+    } else if (calendarBackfillKind === 'interval') {
+        const start = parseTimeOnBeijingDateParts(document.getElementById('calendar-backfill-start-date').value, document.getElementById('calendar-backfill-start-time').value);
+        const end = parseTimeOnBeijingDateParts(document.getElementById('calendar-backfill-end-date').value, document.getElementById('calendar-backfill-end-time').value);
+        const dayStart = beijingDateStrToDayStart(viewDate);
+        if (start == null || end == null || start < dayStart || start >= dayStart + DAY_MS || start >= end || end - start > DAY_MS || end > nowSecondMs()) {
+            showConfirm('时间不合法', '开始时间须在所选日期，结束时间须在其后 24 小时内且已经过去。', '知道了', () => {});
+            return;
+        }
+        const conflict = mainRecordOverlaps(start, end)[0];
+        if (conflict) {
+            showConfirm('时间段发生重叠', `这段时间与「${displayName(conflict)}」重叠。`, '知道了', () => {});
+            return;
+        }
+        if (intervalExceedsDayBudget(start, end)) {
+            showConfirm('时间总数不够分配', '指定时段会占用当天剩余时间，请先调整未指定时长。', '知道了', () => {});
+            return;
+        }
+        const l1 = document.getElementById('calendar-backfill-l1').value;
+        const l2 = document.getElementById('calendar-backfill-l2').value;
+        if (!getCat(l1)) return;
+        logs.unshift({ id: genId(), startTime: start, endTime: end, duration: Math.round((end - start) / 60000), l1, l2, note: document.getElementById('calendar-backfill-note').value.trim(), color: getCat(l1).color, parallel: false, journal: true });
+        localStorage.setItem('v9_logs', JSON.stringify(logs));
+    } else return;
+    closeCalendarBackfill();
+    renderAll();
+}
+
+function editCalendarSupplement(kind, id) {
+    openCalendarBackfill();
+    showCalendarBackfillForm(kind);
+    calendarBackfillEditingId = id;
+    const record = kind === 'event' ? eventRecords.find((item) => item.id === id) : unlocatedLogs.find((item) => item.id === id);
+    if (!record) return closeCalendarBackfill();
+    if (kind === 'event') {
+        document.getElementById('calendar-backfill-event-type').value = String(record.typeId);
+        document.getElementById('calendar-backfill-event-count').value = String(record.count || 1);
+    } else {
+        document.getElementById('calendar-backfill-l1').value = record.l1;
+        renderCalendarBackfillSubs();
+        document.getElementById('calendar-backfill-l2').value = record.l2 || '';
+        document.getElementById('calendar-backfill-hours').value = String(Math.floor(record.durationMs / HOUR_MS));
+        document.getElementById('calendar-backfill-minutes').value = String(Math.floor((record.durationMs % HOUR_MS) / 60000));
+        document.getElementById('calendar-backfill-note').value = record.note || '';
+        document.getElementById('calendar-backfill-remaining').innerText = `当天可分配 ${formatDuration(Math.max(0, getRemainingDayMs(viewDate, id)))}`;
+    }
+}
+
+function deleteCalendarSupplement(kind, id) {
+    showConfirm('删除补录', '删除后无法撤销。', '删除', (ok) => {
+        if (!ok) return;
+        if (kind === 'event') {
+            eventRecords = eventRecords.filter((item) => item.id !== id);
+            saveEventRecords();
+        } else {
+            unlocatedLogs = unlocatedLogs.filter((item) => item.id !== id);
+            localStorage.setItem('v9_unlocated_logs', JSON.stringify(unlocatedLogs));
+        }
+        renderAll();
+    });
+}
+
+function renderCalendarBackfillRecords() {
+    const host = document.getElementById('calendar-backfill-records');
+    if (!host) return;
+    const untimed = unlocatedLogs.filter((item) => item.date === viewDate)
+        .map((item) => ({ kind: 'untimed', id: item.id, label: `${item.l2 || item.l1} · ${formatDuration(item.durationMs)}`, note: '未指定时段' }));
+    const events = eventRecords.filter((item) => item.dateOnly && formatBeijingDate(item.occurredAt) === viewDate)
+        .map((item) => {
+            const type = eventTypeById(item.typeId);
+            return { kind: 'event', id: item.id, label: `${type?.icon || item.icon || '•'} ${type?.name || item.typeName} · ${item.count || 1} 次`, note: '事件次数' };
+        });
+    const rows = untimed.concat(events);
+    host.replaceChildren();
+    rows.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'calendar-supplement-row';
+        const text = document.createElement('div');
+        text.innerHTML = `<strong>${escHtml(item.label)}</strong><span>${item.note}</span>`;
+        const edit = document.createElement('button');
+        edit.type = 'button'; edit.innerText = '编辑'; edit.addEventListener('click', () => editCalendarSupplement(item.kind, item.id));
+        const del = document.createElement('button');
+        del.type = 'button'; del.innerText = '删除'; del.addEventListener('click', () => deleteCalendarSupplement(item.kind, item.id));
+        row.appendChild(text);
+        if (item.kind === 'event' || recordMode === 'journal') row.appendChild(edit);
+        row.appendChild(del);
+        host.appendChild(row);
+    });
 }
 
 function initViewDateState() {
@@ -2187,6 +2429,10 @@ function applyEditedRange(log, newStart, newEnd, done) {
             showConfirm('时间段发生重叠', `调整后的时间与「${displayName(conflicts[0])}」重叠。`, '知道了', () => {});
             return;
         }
+        if (intervalExceedsDayBudget(effectiveStart, effectiveEnd, log.id)) {
+            showConfirm('时间总数不够分配', '调整后会超过当天剩余的未记录时间。', '知道了', () => {});
+            return;
+        }
         log.startTime = effectiveStart;
         log.endTime = effectiveEnd;
         log.duration = Math.max(1, Math.round((effectiveEnd - effectiveStart) / 60000));
@@ -2355,6 +2601,10 @@ function confirmActiveMainEdit() {
     }
     if (mainRecordOverlaps(newStart, now, new Set([current.id]), false).length) {
         showConfirm('时间段发生重叠', '开始时间不能早于上一条主线的结束时间。', '知道了', () => {});
+        return;
+    }
+    if (intervalExceedsDayBudget(newStart, now, current.id, now)) {
+        showConfirm('时间总数不够分配', '调整后会超过当天剩余的未记录时间。', '知道了', () => {});
         return;
     }
     const earlierParallel = logs.concat(parallelHistory, parallelCurrent ? [parallelCurrent] : []).some((item) => item.parallel
@@ -3618,7 +3868,7 @@ let eventParentSelecting = false;
 let eventParentCandidate = null;
 
 function eventTypeById(id) {
-    return eventTypes.find((item) => item.id === id) || null;
+    return eventTypes.find((item) => String(item.id) === String(id)) || null;
 }
 
 function setEventStage(stage) {
@@ -3673,7 +3923,7 @@ function chooseEventType(typeId) {
     setEventStage('confirm');
 }
 
-function saveEventRecord({ typeId, occurredAt, parentId }) {
+function saveEventRecord({ typeId, occurredAt, parentId, count = 1, dateOnly = false }) {
     const type = eventTypeById(typeId);
     if (!type || !Number.isFinite(occurredAt)) return false;
     eventRecords.unshift({
@@ -3684,6 +3934,8 @@ function saveEventRecord({ typeId, occurredAt, parentId }) {
         color: type.color,
         occurredAt: toSecondMs(occurredAt),
         parentId: parentId || null,
+        count,
+        dateOnly,
         createdAt: nowSecondMs(),
     });
     saveEventRecords();
@@ -4852,6 +5104,7 @@ function getTrackingStartMs() {
     const saved = Number(localStorage.getItem('v9_tracking_start'));
     const starts = logs.filter((log) => !log.parallel && !log.sceneActivity).map((log) => Number(log.startTime));
     if (current) starts.push(Number(current.startTime));
+    unlocatedLogs.forEach((item) => starts.push(beijingDateStrToDayStart(item.date)));
     if (Number.isFinite(saved) && saved > 0) starts.push(saved);
     const valid = starts.filter(Number.isFinite);
     return valid.length ? Math.min(...valid) : null;
@@ -5022,6 +5275,42 @@ function buildMainChartComposition(mainSegs, parallelSegs, rangeStart, rangeEnd)
     };
 }
 
+function mergeUnlocatedIntoChart(chart, rangeStart, rangeEnd) {
+    const entries = unlocatedLogs.filter((item) => {
+        const dayStart = beijingDateStrToDayStart(item.date);
+        return dayStart >= rangeStart && dayStart < rangeEnd;
+    });
+    const totalMs = entries.reduce((sum, item) => sum + item.durationMs, 0);
+    if (!totalMs) return 0;
+    const reduceUnrecorded = (rows, key) => {
+        const item = rows.find((row) => row[key] === '未记录时间');
+        if (!item) return;
+        item.exactHours = Math.max(0, item.exactHours - totalMs / HOUR_MS);
+        item.hours = msToReportHours(item.exactHours * HOUR_MS);
+    };
+    reduceUnrecorded(chart.l1, 'name');
+    reduceUnrecorded(chart.l2, 'name');
+    reduceUnrecorded(chart.l2Slices, 'name');
+    const add = (rows, match, create, ms) => {
+        const row = rows.find(match) || create();
+        if (!rows.includes(row)) rows.push(row);
+        row.exactHours = (row.exactHours || 0) + ms / HOUR_MS;
+        row.hours = msToReportHours(row.exactHours * HOUR_MS);
+    };
+    entries.forEach((item) => {
+        const name = item.l2 || item.l1;
+        const color = getCat(item.l1)?.color || '#94a3b8';
+        add(chart.l1, (row) => row.name === item.l1, () => ({ name: item.l1, hours: 0, exactHours: 0, color }), item.durationMs);
+        add(chart.l2Slices, (row) => row.l1 === item.l1 && row.name === name,
+            () => ({ l1: item.l1, name, hours: 0, exactHours: 0, color }), item.durationMs);
+        add(chart.l2, (row) => row.name === name, () => ({ name, hours: 0, exactHours: 0, color }), item.durationMs);
+    });
+    ['l1', 'l2', 'l2Slices'].forEach((key) => {
+        chart[key] = chart[key].filter((row) => row.exactHours > 0).sort((a, b) => b.exactHours - a.exactHours);
+    });
+    return totalMs;
+}
+
 function buildMainComposition(segments, periodStart, periodEnd) {
     const clipped = segments
         .filter((l) => l.clippedEnd > periodStart && l.clippedStart < periodEnd)
@@ -5094,7 +5383,7 @@ function buildEventReport(rangeStart, rangeEnd, period) {
                 days: new Set(),
                 latest: 0,
             };
-            item.count += 1;
+            item.count += record.count || 1;
             item.days.add(formatBeijingDate(record.occurredAt));
             item.latest = Math.max(item.latest, record.occurredAt);
             byType.set(key, item);
@@ -5120,15 +5409,16 @@ function buildLiveReportDay() {
     const mainSegs = recordedMainSegs.concat(unrecorded);
     const coreMainSegs = recordedCore.concat(unrecorded);
     const paraSegs = all.filter((l) => l.parallel);
-    const mainMs = recordedCore.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
+    const recordedMainMs = recordedCore.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
     const accountedMs = coreMainSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
     const paraMs = paraSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
 
     const chartComposition = buildMainChartComposition(mainSegs, paraSegs, dayStart, dayStart + DAY_MS);
+    const unlocatedMs = mergeUnlocatedIntoChart(chartComposition, dayStart, now);
     const { l1, l2, l2Slices, sceneCoverage, sceneRange } = chartComposition;
 
     const topL1 = l1[0];
-    const mainHours = msToReportHours(mainMs);
+    const mainHours = msToReportHours(recordedMainMs + unlocatedMs);
     const focusPct = topL1 && accountedMs
         ? (Math.round(((topL1.exactHours ?? topL1.hours) / (accountedMs / HOUR_MS)) * 1000) / 10) + '%'
         : '0%';
@@ -5184,7 +5474,7 @@ function buildLiveReportDay() {
         events: buildEventReport(dayStart, now, 'day'),
         timeline: {
             title: '24 小时时间轴',
-            hint: '仅主线 · 当日真实记录',
+            hint: '指定时段按时间定位；未指定补录只计入类别汇总',
             kind: 'day',
             scale: ['00:00', '06:00', '12:00', '18:00', '24:00'],
             segments: timelineSegs,
@@ -5194,12 +5484,12 @@ function buildLiveReportDay() {
             meta: {
                 title: formatBeijingDate(now),
                 range: '当日主线',
-                footnote: '所有周期均基于本地真实记录。',
+                footnote: '指定时段与未指定补录共同计入类别汇总。',
             },
             summary: [
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
                 { icon: '🔀', label: '活动切换', value: String(Math.max(0, recordedCore.length - 1)), sub: '次' },
-                { icon: '📋', label: '流水条数', value: String(recordedCore.length), sub: '条' },
+                { icon: '📋', label: '流水条数', value: String(recordedCore.length + unlocatedLogs.filter((item) => item.date === formatBeijingDate(now)).length), sub: '条' },
             ],
             l1,
             l2,
@@ -5279,6 +5569,10 @@ function resolveReportCategoryAverage(slot, periodData, view) {
         if (crossesIntoPeriod && slot.carry === 'previous') return;
         totalMs += crossesIntoPeriod ? record.endTime - record.startTime : record.clippedEnd - record.clippedStart;
     });
+    totalMs += unlocatedLogs.filter((item) => {
+        const dayStart = beijingDateStrToDayStart(item.date);
+        return dayStart >= range.start && dayStart < observedEnd && (l1 ? item.l1 === l1 && (!l2 || item.l2 === l2) : item.l1 === category);
+    }).reduce((sum, item) => sum + item.durationMs, 0);
     // 其他类别按实际已经过的时长折算；睡眠有独立的完整自然日规则。
     const days = Math.max(1, (observedEnd - range.start) / DAY_MS);
     return {
@@ -5319,7 +5613,9 @@ function resolveSystemSleepAverage(slot, range, now) {
         const wakeDay = beijingDateStrToDayStart(formatBeijingDate(night.end));
         return wakeDay === todayStart && night.end <= now;
     });
-    const includeToday = isRealtime && todaySleeps.length > 0;
+    const todayUnlocated = unlocatedLogs.filter((item) => isSystemSleepSelection(item.l1, item.l2)
+        && beijingDateStrToDayStart(item.date) === todayStart);
+    const includeToday = isRealtime && (todaySleeps.length > 0 || todayUnlocated.length > 0);
     const days = completedDays + (includeToday ? 1 : 0);
     if (!days) return { value: '—', label: '睡眠日均' };
     nights.forEach((night) => {
@@ -5329,6 +5625,11 @@ function resolveSystemSleepAverage(slot, range, now) {
         const isIncludedToday = includeToday && wakeDay === todayStart;
         if (isCompletedDay || isIncludedToday) totalMs += night.end - night.start;
     });
+    totalMs += unlocatedLogs.filter((item) => {
+        if (!isSystemSleepSelection(item.l1, item.l2)) return false;
+        const dayStart = beijingDateStrToDayStart(item.date);
+        return (dayStart >= range.start && dayStart < completedEnd) || (includeToday && dayStart === todayStart);
+    }).reduce((sum, item) => sum + item.durationMs, 0);
     return {
         value: formatDuration(Math.round(totalMs / days / 1000) * 1000),
         label: '睡眠日均',
@@ -5369,14 +5670,15 @@ function buildLiveReportPeriod(period, options = {}) {
     const mainSegs = recordedMainSegs.concat(unrecorded);
     const coreMainSegs = recordedCore.concat(unrecorded);
     const paraSegs = all.filter((l) => l.parallel);
-    const mainMs = recordedCore.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
+    const recordedMainMs = recordedCore.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const accountedMs = coreMainSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const paraMs = paraSegs.reduce((sum, l) => sum + l.clippedEnd - l.clippedStart, 0);
     const chartComposition = buildMainChartComposition(mainSegs, paraSegs, range.start, range.end);
+    const unlocatedMs = mergeUnlocatedIntoChart(chartComposition, range.start, summaryEnd);
     const { l1, l2, l2Slices, sceneCoverage, sceneRange } = chartComposition;
     const paraAgg = aggregateReportSegments(paraSegs, displayName);
     const paraL1 = paraAgg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
-    const mainHours = msToReportHours(mainMs);
+    const mainHours = msToReportHours(recordedMainMs + unlocatedMs);
     const topL1 = l1[0];
     const focusPct = topL1 && accountedMs ? (Math.round(((topL1.exactHours ?? topL1.hours) / (accountedMs / HOUR_MS)) * 1000) / 10) + '%' : '0%';
     const paraRatio = mainHours ? (Math.round((msToReportHours(paraMs) / mainHours) * 1000) / 10) + '%' : '0%';
@@ -5397,9 +5699,13 @@ function buildLiveReportPeriod(period, options = {}) {
             ? buildYearCategoryComposition(daySegs, periodStart, periodEnd)
             : buildMainComposition(daySegs, periodStart, periodEnd);
         const totalMs = segments.reduce((sum, part) => sum + (part.width / 100) * (periodEnd - periodStart), 0);
+        const unlocatedBarMs = unlocatedLogs.filter((item) => {
+            const dayStart = beijingDateStrToDayStart(item.date);
+            return dayStart >= periodStart && dayStart < Math.min(periodEnd, summaryEnd);
+        }).reduce((sum, item) => sum + item.durationMs, 0);
         const fullDate = formatBeijingDate(periodStart);
         const label = period === 'year' ? fullDate.slice(0, 7).replace('-', '/') : fullDate.slice(5).replace('-', '/');
-        bars.push({ label, hours: msToReportHours(totalMs), segments });
+        bars.push({ label, hours: msToReportHours(totalMs + unlocatedBarMs), unlocatedHours: msToReportHours(unlocatedBarMs), segments });
         periodStart = nextPeriodStart;
     }
     const isCurrentPeriod = range.start <= now && range.end > now;
@@ -5409,13 +5715,16 @@ function buildLiveReportPeriod(period, options = {}) {
         _period: period,
         _range: { start: range.start, end: summaryEnd },
         events: buildEventReport(range.start, Math.min(range.end, now), period),
-        timeline: { title: period === 'week' ? `${periodTitle}每日时间构成` : period === 'month' ? `${periodTitle}每日时间构成` : '本年每月分类构成', hint: period === 'year' ? '按一级目录合并 · 每月从少到多排列' : '按分类分段 · 重叠时间自动去重', kind: 'bars', bars },
+        timeline: { title: period === 'week' ? `${periodTitle}每日时间构成` : period === 'month' ? `${periodTitle}每日时间构成` : '本年每月分类构成', hint: '时段按时间定位；未指定补录仅计入类别汇总', kind: 'bars', bars },
         main: {
-            meta: { title: periodTitle, range: period === 'week' ? '周报主线' : period === 'month' ? '月报主线' : '本年主线', footnote: '统计来自真实流水；当前活动按当前时间计入。' },
+            meta: { title: periodTitle, range: period === 'week' ? '周报主线' : period === 'month' ? '月报主线' : '本年主线', footnote: '指定时段按时间定位；未指定补录只计入时长。' },
             summary: [
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
                 { icon: '🔀', label: '活动切换', value: String(Math.max(0, recordedCore.length - 1)), sub: '次' },
-                { icon: '📋', label: '流水条数', value: String(recordedCore.length), sub: '条' },
+                { icon: '📋', label: '流水条数', value: String(recordedCore.length + unlocatedLogs.filter((item) => {
+                    const dayStart = beijingDateStrToDayStart(item.date);
+                    return dayStart >= range.start && dayStart < summaryEnd;
+                }).length), sub: '条' },
             ], l1, l2, l2Slices, sceneCoverage, sceneRange,
         },
         parallel: {
@@ -6139,6 +6448,10 @@ function handleFreeInput() {
         const conflicts = mainRecordOverlaps(startMs, endMs);
         if (conflicts.length) {
             showConfirm('时间段已被占用', `这段时间与「${displayName(conflicts[0])}」重叠，不能重复补记主线时间。`, '知道了', () => {});
+            return;
+        }
+        if (intervalExceedsDayBudget(startMs, endMs)) {
+            showConfirm('时间总数不够分配', '这段补录会超过当天剩余的未记录时间。', '知道了', () => {});
             return;
         }
         const cat = getCat(match.l1);

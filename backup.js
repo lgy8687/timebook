@@ -25,10 +25,11 @@ function parseTimebookBackup(text) {
     if (!entries.length || !entries.every(([key, value]) => /^v9_[A-Za-z0-9_]+$/.test(key) && typeof value === 'string')) {
         throw new Error('备份文件中的数据格式不正确。');
     }
-    if (!('v9_logs' in backup.data) && !('v9_current' in backup.data) && !('v9_event_records' in backup.data)) {
+    if (!('v9_logs' in backup.data) && !('v9_current' in backup.data) && !('v9_event_records' in backup.data)
+        && !('v9_unlocated_logs' in backup.data)) {
         throw new Error('备份文件中没有可恢复的记录。');
     }
-    const arrays = ['v9_logs', 'v9_parallel_history', 'v9_cats', 'v9_event_types', 'v9_event_records'];
+    const arrays = ['v9_logs', 'v9_parallel_history', 'v9_unlocated_logs', 'v9_cats', 'v9_event_types', 'v9_event_records'];
     for (const key of arrays) {
         if (key in backup.data && !Array.isArray(JSON.parse(backup.data[key]))) {
             throw new Error(`${key} 不是有效的记录列表。`);
@@ -63,7 +64,7 @@ function resetTimebookStorage(kind, storage = localStorage, now = Date.now()) {
     if (kind !== 'records' && kind !== 'all') throw new Error('未知的清空范围。');
     const recordKeys = new Set([
         'v9_logs', 'v9_current', 'v9_parallel', 'v9_parallel_history',
-        'v9_event_records', 'v9_recent_picks', 'v9_input_aliases', 'v9_tracking_start'
+        'v9_event_records', 'v9_unlocated_logs', 'v9_recent_picks', 'v9_input_aliases', 'v9_tracking_start'
     ]);
     const keys = [];
     for (let i = 0; i < storage.length; i++) keys.push(storage.key(i));

@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.22">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.25">
+    <link rel="stylesheet" href="design-system.css?v=5.26">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
     <div id="zone-frame" aria-hidden="true"></div>
@@ -42,7 +42,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.25</div>
+            <div id="cache-buster" class="version-below-daybar">v5.26</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -129,6 +129,7 @@
                 <div id="flow-calendar" class="flow-calendar"></div>
             </div>
             <div id="calendar-day-summary" class="calendar-day-summary"></div>
+            <div id="calendar-backfill-records"></div>
             <div id="calendar-log-list" class="space-y-3"></div>
         </section>
 
@@ -414,6 +415,46 @@
         </div>
     </div>
 
+    <div id="calendar-backfill-modal" class="calendar-backfill-modal hidden" onclick="if(event.target===this)closeCalendarBackfill()">
+        <div class="calendar-backfill-card" role="dialog" aria-modal="true" aria-labelledby="calendar-backfill-title" onclick="event.stopPropagation()">
+            <div class="calendar-backfill-head">
+                <div><h3 id="calendar-backfill-title">补录</h3><span id="calendar-backfill-date-label"></span></div>
+                <button type="button" class="calendar-backfill-close" aria-label="关闭" onclick="closeCalendarBackfill()">×</button>
+            </div>
+            <div id="calendar-backfill-options" class="calendar-backfill-options">
+                <button type="button" class="calendar-backfill-choice journal-only" onclick="showCalendarBackfillForm('interval')">指定时段</button>
+                <button type="button" class="calendar-backfill-choice journal-only" onclick="showCalendarBackfillForm('untimed')">未指定时段</button>
+                <button type="button" class="calendar-backfill-choice" onclick="showCalendarBackfillForm('event')">事件次数</button>
+            </div>
+            <div id="calendar-backfill-form" class="hidden">
+                <div id="calendar-backfill-category-fields">
+                    <label>一级目录<select id="calendar-backfill-l1" onchange="renderCalendarBackfillSubs()"></select></label>
+                    <label>活动<select id="calendar-backfill-l2"></select></label>
+                </div>
+                <div id="calendar-backfill-event-fields" class="hidden">
+                    <label>事件<select id="calendar-backfill-event-type"></select></label>
+                    <label>次数<input id="calendar-backfill-event-count" type="number" min="1" max="999" step="1" value="1" inputmode="numeric"></label>
+                </div>
+                <div id="calendar-backfill-interval-fields" class="hidden">
+                    <label>开始日期<input id="calendar-backfill-start-date" type="date"></label>
+                    <label>开始时间<input id="calendar-backfill-start-time" type="time" step="1"></label>
+                    <label>结束日期<input id="calendar-backfill-end-date" type="date"></label>
+                    <label>结束时间<input id="calendar-backfill-end-time" type="time" step="1"></label>
+                </div>
+                <div id="calendar-backfill-untimed-fields" class="hidden">
+                    <label>花费小时<input id="calendar-backfill-hours" type="number" min="0" max="24" step="1" value="1" inputmode="numeric"></label>
+                    <label>花费分钟<input id="calendar-backfill-minutes" type="number" min="0" max="59" step="1" value="0" inputmode="numeric"></label>
+                    <p id="calendar-backfill-remaining"></p>
+                </div>
+                <label id="calendar-backfill-note-field">备注<input id="calendar-backfill-note" type="text" maxlength="160" placeholder="选填"></label>
+                <div class="calendar-backfill-actions">
+                    <button type="button" onclick="showCalendarBackfillForm(null)">返回</button>
+                    <button type="button" onclick="saveCalendarBackfill()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="drawer" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex flex-col justify-end backdrop-blur-sm" onclick="if(event.target===this)closeDrawer()">
         <div class="bg-white w-full rounded-t-[40px] h-3/4 drawer-up flex flex-col">
             <div class="p-6 flex justify-between items-center shrink-0 border-b border-slate-50">
@@ -632,10 +673,10 @@
     <div id="tip"></div>
 
     <script src="report-metrics.js?v=1.9"></script>
-    <script src="report.js?v=2.8"></script>
+    <script src="report.js?v=2.9"></script>
     <script src="ui-theme.js?v=5.24"></script>
-    <script src="app.js?v=5.25"></script>
-    <script src="backup.js?v=3"></script>
+    <script src="app.js?v=5.26"></script>
+    <script src="backup.js?v=4"></script>
     <script src="dev-appearance.js?v=4.67"></script>
 </body>
 </html>

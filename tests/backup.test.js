@@ -31,6 +31,7 @@ test('exports all app data but no unrelated origin data', () => {
         v9_logs: '[{"id":"main","startTime":1}]',
         v9_current: '{"id":"live","startTime":2}',
         v9_parallel_history: '[]',
+        v9_unlocated_logs: '[{"date":"2026-10-13","durationMs":3600000}]',
         other_app_token: 'private'
     });
 
@@ -38,6 +39,7 @@ test('exports all app data but no unrelated origin data', () => {
     assert.equal(backup.data.v9_logs, sourceStorage.getItem('v9_logs'));
     assert.equal(backup.data.v9_current, sourceStorage.getItem('v9_current'));
     assert.equal(backup.data.v9_parallel_history, '[]');
+    assert.equal(backup.data.v9_unlocated_logs, sourceStorage.getItem('v9_unlocated_logs'));
     assert.equal('other_app_token' in backup.data, false);
 });
 
@@ -62,4 +64,11 @@ test('rejects a malformed backup before changing storage', () => {
 
     assert.throws(() => context.parseTimebookBackup(malformed));
     assert.equal(target.getItem('v9_logs'), '[{"id":"safe"}]');
+});
+
+test('accepts a backup containing only untimed supplements', () => {
+    const context = backupFunctions();
+    const sourceStorage = storage({ v9_unlocated_logs: '[{"date":"2026-10-13","durationMs":3600000}]' });
+    const backup = context.parseTimebookBackup(JSON.stringify(context.collectTimebookBackup(sourceStorage)));
+    assert.equal(backup.data.v9_unlocated_logs, sourceStorage.getItem('v9_unlocated_logs'));
 });

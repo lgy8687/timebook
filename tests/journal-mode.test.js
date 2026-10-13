@@ -16,6 +16,10 @@ const shortcutSource = app.slice(app.indexOf('function renderShortcuts()'), app.
 const timeFieldSource = app.slice(app.indexOf('function initTimeField('), app.indexOf('\nfunction setFieldColor(', app.indexOf('function initTimeField(')));
 const openEditSource = app.slice(app.indexOf('function openEdit('), app.indexOf('\nfunction updateEditCatDisplay(', app.indexOf('function openEdit(')));
 const activeMainEditSource = app.slice(app.indexOf('function confirmActiveMainEdit('), app.indexOf('\nfunction confirmActiveParallelEdit(', app.indexOf('function confirmActiveMainEdit(')));
+const calendarBudgetSource = app.slice(app.indexOf('function getMainOccupiedMsForDay('), app.indexOf('\nfunction getCalendarDaySummary(', app.indexOf('function getMainOccupiedMsForDay(')));
+const unlocatedChartSource = app.slice(app.indexOf('function mergeUnlocatedIntoChart('), app.indexOf('\nfunction buildMainComposition(', app.indexOf('function mergeUnlocatedIntoChart(')));
+const eventReportSource = app.slice(app.indexOf('function buildEventReport('), app.indexOf('\nfunction buildLiveReportDay(', app.indexOf('function buildEventReport(')));
+const calendarSaveSource = app.slice(app.indexOf('function saveCalendarBackfill('), app.indexOf('\nfunction editCalendarSupplement(', app.indexOf('function saveCalendarBackfill(')));
 
 function storage(values) {
     const valuesMap = new Map(Object.entries(values));
@@ -38,6 +42,7 @@ function gapContext(segments, nowHour = 24) {
     const context = {
         logs: [{ startTime: start + 2 * 3600000, parallel: false }],
         current: null,
+        unlocatedLogs: [],
         localStorage: storage({}),
         nowSecondMs: () => start + nowHour * 3600000,
         formatBeijingDate: () => '2026-10-13',
@@ -67,6 +72,127 @@ test('cross-day gaps keep a complete 24-hour day and shrink after backfill', () 
     const total = (items) => items.reduce((sum, item) => sum + item.clippedEnd - item.clippedStart, 0);
     assert.equal(total(original) + 3 * 3600000, 2 * DAY);
     assert.equal(total(original) - total(backfilled), 2 * 3600000);
+});
+
+test('calendar backfill budget respects both days of a cross-midnight interval', () => {
+    const context = {
+        DAY_MS: DAY, HOUR_MS: 3600000,
+        logs: [{ id: 'night', startTime: start + 22 * 3600000, endTime: start + 25 * 3600000 }],
+        current: null,
+        unlocatedLogs: [{ id: 'a', date: '2026-10-13', durationMs: 5 * 3600000 }, { id: 'b', date: '2026-10-14', durationMs: 3600000 }],
+        nowSecondMs: () => start + 2 * DAY,
+        beijingDateStrToDayStart: (date) => Date.parse(`${date}T00:00:00+08:00`),
+        formatBeijingDate: (ms) => new Date(ms + 8 * 3600000).toISOString().slice(0, 10),
+        logEndMs: (item) => item.endTime,
+    };
+    vm.createContext(context);
+    vm.runInContext(calendarBudgetSource, context);
+    assert.equal(context.getRemainingDayMs('2026-10-13'), 17 * 3600000);
+    assert.equal(context.getRemainingDayMs('2026-10-14'), 22 * 3600000);
+    assert.equal(context.intervalExceedsDayBudget(start, start + 17 * 3600000), false);
+    assert.equal(context.intervalExceedsDayBudget(start, start + 18 * 3600000), true);
+    assert.equal(context.intervalExceedsDayBudget(start + 20 * 3600000, start + DAY + 23 * 3600000), true);
+    context.nowSecondMs = () => start + 12 * 3600000;
+    context.logs = [{ id: 'morning', startTime: start + 8 * 3600000, endTime: start + 10 * 3600000 }];
+    context.unlocatedLogs = [{ id: 'untimed', date: '2026-10-13', durationMs: 9 * 3600000 }];
+    assert.equal(context.getRemainingDayMs('2026-10-13'), 3600000);
+    assert.equal(context.intervalExceedsDayBudget(start, start + 2 * 3600000), true);
+});
+
+test('untimed time replaces unrecorded hours without inventing a timeline interval', () => {
+    const unrecorded = { name: '未记录时间', exactHours: 20, hours: 20, color: '#cbd5e1' };
+    const work = { name: '工作', exactHours: 4, hours: 4, color: '#345678' };
+    const chart = {
+        l1: [{ ...unrecorded }, { ...work }],
+        l2: [{ ...unrecorded }, { name: '办公', exactHours: 4, hours: 4, color: '#345678' }],
+        l2Slices: [{ ...unrecorded, l1: '未记录时间' }, { l1: '工作', name: '办公', exactHours: 4, hours: 4, color: '#345678' }],
+    };
+    const context = {
+        HOUR_MS: 3600000,
+        unlocatedLogs: [{ date: '2026-10-13', l1: '工作', l2: '办公', durationMs: 2 * 3600000 }],
+        beijingDateStrToDayStart: () => start,
+        getCat: () => ({ color: '#345678' }),
+        msToReportHours: (ms) => Math.round(ms / 360000) / 10,
+    };
+    vm.createContext(context);
+    vm.runInContext(unlocatedChartSource, context);
+    assert.equal(context.mergeUnlocatedIntoChart(chart, start, start + DAY), 2 * 3600000);
+    assert.equal(chart.l1.find((item) => item.name === '未记录时间').exactHours, 18);
+    assert.equal(chart.l1.find((item) => item.name === '工作').exactHours, 6);
+    assert.equal(chart.l1.reduce((sum, item) => sum + item.exactHours, 0), 24);
+});
+
+test('date-only event supplements count occurrences but not time', () => {
+    const context = {
+        eventRecords: [
+            { typeId: 'water', occurredAt: start, count: 3 },
+            { typeId: 'water', occurredAt: start + 3600000, count: 1 },
+        ],
+        eventTypeById: () => ({ name: '喝水', icon: '•', color: '#123456' }),
+        formatBeijingDate: () => '2026-10-13',
+    };
+    vm.createContext(context);
+    vm.runInContext(eventReportSource, context);
+    const report = context.buildEventReport(start, start + DAY, 'day');
+    assert.equal(report.total, 4);
+    assert.equal(report.entries[0].count, 4);
+    assert.equal(report.entries[0].days, 1);
+});
+
+test('calendar interval save blocks overlap and exhausted time before writing a new main', () => {
+    const inputs = {
+        'calendar-backfill-start-date': '2026-10-13', 'calendar-backfill-start-time': '09:00:00',
+        'calendar-backfill-end-date': '2026-10-13', 'calendar-backfill-end-time': '10:00:00',
+        'calendar-backfill-l1': '工作', 'calendar-backfill-l2': '办公', 'calendar-backfill-note': '',
+    };
+    const prompts = [];
+    const store = storage({});
+    const context = {
+        calendarBackfillKind: 'interval', recordMode: 'journal', viewDate: '2026-10-13',
+        DAY_MS: DAY, logs: [], localStorage: store,
+        document: { getElementById: (id) => ({ value: inputs[id] }) },
+        parseTimeOnBeijingDateParts: (date, time) => Date.parse(`${date}T${time}+08:00`),
+        beijingDateStrToDayStart: () => start,
+        nowSecondMs: () => start + 12 * 3600000,
+        mainRecordOverlaps: () => [{ l1: '生活', l2: '休息' }],
+        intervalExceedsDayBudget: () => false,
+        displayName: () => '休息',
+        showConfirm: (title) => prompts.push(title),
+        getCat: () => ({ color: '#345678' }),
+        genId: () => 'new-main', closeCalendarBackfill() {}, renderAll() {},
+    };
+    vm.createContext(context);
+    vm.runInContext(calendarSaveSource, context);
+    context.saveCalendarBackfill();
+    assert.deepEqual(prompts, ['时间段发生重叠']);
+    context.mainRecordOverlaps = () => [];
+    context.intervalExceedsDayBudget = () => true;
+    context.saveCalendarBackfill();
+    assert.deepEqual(prompts, ['时间段发生重叠', '时间总数不够分配']);
+    context.intervalExceedsDayBudget = () => false;
+    context.saveCalendarBackfill();
+    assert.equal(context.logs.length, 1);
+    assert.equal(context.logs[0].journal, true);
+    assert.equal(JSON.parse(store.getItem('v9_logs'))[0].id, 'new-main');
+});
+
+test('calendar event supplements remain available in continuous mode', () => {
+    const saved = [];
+    const context = {
+        calendarBackfillKind: 'event', calendarBackfillEditingId: null,
+        recordMode: 'continuous', viewDate: '2026-10-13', eventRecords: [],
+        document: { getElementById: (id) => ({ value: id === 'calendar-backfill-event-count' ? '3' : 'water' }) },
+        eventTypeById: () => ({ id: 'water' }),
+        beijingDateStrToDayStart: () => start,
+        saveEventRecord: (item) => saved.push(item),
+        closeCalendarBackfill() {}, renderAll() {},
+    };
+    vm.createContext(context);
+    vm.runInContext(calendarSaveSource, context);
+    context.saveCalendarBackfill();
+    assert.equal(saved[0].count, 3);
+    assert.equal(saved[0].dateOnly, true);
+    assert.equal(saved[0].parentId, null);
 });
 
 test('ending a journal main records it and leaves no active main', () => {
@@ -215,6 +341,7 @@ test('editing an active journal main preserves its id and rejects overlap', () =
         formatBeijingDate: () => '2026-10-13',
         parseTimeOnBeijingDate: () => selectedStart,
         mainRecordOverlaps: (from, to) => previous.endTime > from && previous.startTime < to ? [previous] : [],
+        intervalExceedsDayBudget: () => false,
         getCat: () => ({ color: '#123456' }),
         showConfirm: (title, message) => prompts.push([title, message]),
         document: { getElementById: () => ({ value: '更新备注' }) },
@@ -246,6 +373,7 @@ test('active journal main cannot be shortened past a child parallel start', () =
         formatBeijingDate: () => '2026-10-13',
         parseTimeOnBeijingDate: () => start + 10 * 3600000,
         mainRecordOverlaps: () => [],
+        intervalExceedsDayBudget: () => false,
         showConfirm: (title) => prompts.push(title),
         localStorage: store,
     };
@@ -294,6 +422,7 @@ test('journal main can expand into a gap without moving adjacent records', () =>
         beijingDateStrToDayEnd: () => start + DAY,
         logEndMs: (item) => item.endTime,
         mainRecordOverlaps: (from, to, excluded) => [log, next].filter((item) => !excluded.has(item.id) && item.startTime < to && item.endTime > from),
+        intervalExceedsDayBudget: () => false,
         showConfirm() { throw new Error('An open gap should not need a prompt'); },
     };
     vm.createContext(context);
@@ -307,7 +436,7 @@ test('journal main can expand into a gap without moving adjacent records', () =>
 
 test('record reset keeps configuration; full reset clears only app data', () => {
     const values = {
-        v9_logs: '[]', v9_current: '{}', v9_event_records: '[]',
+        v9_logs: '[]', v9_current: '{}', v9_event_records: '[]', v9_unlocated_logs: '[]',
         v9_cats: 'categories', v9_scene_settings: 'scenes', v9_record_mode: 'journal',
         unrelated: 'keep',
     };
@@ -318,6 +447,7 @@ test('record reset keeps configuration; full reset clears only app data', () => 
     context.resetTimebookStorage('records', records, start);
     assert.equal(records.getItem('v9_logs'), null);
     assert.equal(records.getItem('v9_event_records'), null);
+    assert.equal(records.getItem('v9_unlocated_logs'), null);
     assert.equal(records.getItem('v9_cats'), 'categories');
     assert.equal(records.getItem('v9_record_mode'), 'journal');
     assert.equal(records.getItem('v9_tracking_start'), String(start));
