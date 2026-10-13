@@ -20,26 +20,26 @@ const UI_THEME_DEFAULTS = {
     dayRemainLabel: '#ffffff',
     dayRemainTrackH: 26,
     dayRemainLabelSize: 13,
-    sectionTitleSize: 16,
+    sectionTitleSize: 15,
     sectionTitleColor: '#334155',
     mainKeycapBg: '#ffffff',
     mainKeycapBorder: '#d1d5db',
     mainKeycapText: '#334155',
     mainKeycapPressedBg: '#f1f5f9',
     mainKeycapIconSize: 18,
-    mainKeycapLabelSize: 14,
+    mainKeycapLabelSize: 12,
     shortcutAddMainBg: '#eef2ff',
     shortcutAddMainColor: '#526a91',
     parallelIconColor: '#94a3b8',
     parallelLabelColor: '#64748b',
-    parallelLabelSize: 16,
+    parallelLabelSize: 13,
     parallelStatusColor: '#10b981',
     parallelKeycapBg: '#ffffff',
     parallelKeycapText: '#334155',
-    parallelKeycapBorderA: '#a6b6cc',
-    parallelKeycapBorderB: '#a6b6cc',
+    parallelKeycapBorderA: '#002FA7',
+    parallelKeycapBorderB: '#002FA7',
     parallelKeycapIconSize: 18,
-    parallelKeycapLabelSize: 14,
+    parallelKeycapLabelSize: 12,
     shortcutAddParallelBg: '#f1f5f9',
     shortcutAddParallelColor: '#475569',
     freeInputSize: 16,
@@ -85,7 +85,7 @@ const UI_THEME_DEFAULTS = {
     navInactive: '#64748b',
     navFabBg: '#4f46e5',
     reportTitleColor: '#334155',
-    reportTitleSize: 16,
+    reportTitleSize: 14,
     reportCardBg: '#ffffff',
     reportCardBorder: '#eef2f7',
     timelineBg: '#f1f5f9',
@@ -213,7 +213,23 @@ function themeKeyToCssVar(key) {
 function loadUiTheme() {
     const saved = _themeSafeJSON(UI_THEME_STORAGE_KEY, null);
     if (!saved || typeof saved !== 'object') return { ...UI_THEME_DEFAULTS };
-    return { ...UI_THEME_DEFAULTS, ...saved };
+    if (saved._compactDefaultsApplied) return { ...UI_THEME_DEFAULTS, ...saved };
+    const restored = { ...saved };
+    const previousDefaults = {
+        sectionTitleSize: 16,
+        mainKeycapLabelSize: 14,
+        parallelLabelSize: 16,
+        parallelKeycapBorderA: '#a6b6cc',
+        parallelKeycapBorderB: '#a6b6cc',
+        parallelKeycapLabelSize: 14,
+        reportTitleSize: 16
+    };
+    Object.entries(previousDefaults).forEach(([key, value]) => {
+        if (restored[key] === value) restored[key] = UI_THEME_DEFAULTS[key];
+    });
+    restored._compactDefaultsApplied = true;
+    saveUiTheme(restored);
+    return { ...UI_THEME_DEFAULTS, ...restored };
 }
 
 function saveUiTheme(cfg) {

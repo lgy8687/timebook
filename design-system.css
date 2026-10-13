@@ -1,8 +1,8 @@
 /* Shared visual rules. Category and scene colors remain data-driven. */
 :root {
-    --ui-title: 16px;
-    --ui-body: 14px;
-    --ui-caption: 12px;
+    --ui-title: 15px;
+    --ui-body: 13px;
+    --ui-caption: 11px;
     --ui-ink: #334155;
     --ui-muted: #64748b;
     --ui-accent: #526a91;
@@ -32,7 +32,7 @@ main > .tab-content { max-width: 760px; margin-inline: auto; }
 .free-note-input { min-width: 0; }
 #header-l2 { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .keycap-label { font-weight: 600; }
-.keycap--parallel-slot { border-width: 1px; box-shadow: 0 1px 3px rgba(15, 23, 42, .06); }
+.keycap--parallel-slot { border-width: 2px; box-shadow: 0 2px 4px rgba(15, 23, 42, .08); }
 .log-flow-name, .log-flow-dur { font-weight: 600; }
 button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
     outline: 2px solid var(--ui-accent);
@@ -111,6 +111,13 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 #page-report .seg-btn.active { background: var(--ui-accent); color: #fff; }
 .summary-view-toggle, .chart-mode-toggle { min-width: 132px; }
 .summary-block-head, .structure-head, .event-report-head { gap: 8px; margin-bottom: 12px; }
+.summary-block-head { margin-bottom: 7px; }
+.summary-block-title--main { color: #526a91; }
+.summary-block-title--parallel { color: #856b94; }
+.summary-block .summary-view-toggle { min-width: 128px; padding: 2px; background: #fff; }
+.summary-block .summary-view-btn { min-height: 32px; padding: 4px 8px; font-size: 12px; }
+#summary-block-main .summary-view-btn.is-active { background: #526a91; }
+#summary-block-parallel .summary-view-btn.is-active { background: #856b94; }
 .summary-control-row { min-height: 44px; }
 .summary-control-label, .clock-span-row label, .clock-toggle-label,
 .scene-settings-name, .category-sub-name, .category-selected-names strong {
@@ -182,7 +189,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 #prompt-input, #edit-note-input, #drawer-note { font-size: 16px; border-radius: 8px; }
 #drawer > div > .p-6 { padding: 16px; }
 #drawer-l1 > button, #drawer-l2 > button { min-height: 48px; font-size: var(--ui-body); line-height: 1.4; font-weight: 600; overflow-wrap: anywhere; }
-#drawer-l2 > button { min-height: 72px; padding: 10px 8px; border-radius: 8px; }
+#drawer-l2 > button { min-height: 64px; padding: 8px; border-radius: 8px; }
 #drawer-l2 > button.shortcut-choice-selected { background: var(--ui-accent-soft); color: var(--ui-accent); border-color: #a6b6cc; }
 #drawer-l2 > button > div:first-child { font-size: 20px; margin-bottom: 6px; }
 #drawer-l2 > button > div:last-child { font-size: var(--ui-body); }
@@ -207,10 +214,12 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .timeline-scale, .event-report-summary, .event-report-row strong { font-size: var(--ui-caption); }
 .legend-item { min-height: 40px; padding: 6px 0; }
 .legend-pct { width: 48px; }
-.stat-indigo { border-radius: 8px; padding: 12px 4px; border-top: 1px solid var(--ui-border); background: var(--ui-surface); box-shadow: none; }
-.stat-indigo-value { font-size: 16px; font-weight: 700; color: var(--ui-ink); overflow-wrap: anywhere; }
-.stat-indigo-label { font-size: var(--ui-caption); line-height: 1.5; color: var(--ui-muted); }
-.summary-block .cards-summary { gap: 8px; }
+.summary-block .stat-indigo { min-height: 66px; padding: 10px 5px 8px; overflow-wrap: anywhere; }
+.summary-block .stat-indigo-value { font-size: 16px; }
+.summary-block .stat-indigo-label { font-size: 11px; }
+#summary-block-main .stat-indigo { border-top-color: #829bb9; }
+#summary-block-parallel .stat-indigo { border-top-color: #a18baa; background: #fbf9fc; }
+.summary-block .cards-summary { gap: 6px; }
 .report-period-nav-range { font-size: var(--ui-caption); font-weight: 600; }
 .report-period-today { font-size: var(--ui-caption); background: var(--ui-accent-soft); color: var(--ui-accent); }
 .structure-card, .report-card-block, .event-report-block { padding: 16px; }

@@ -2509,6 +2509,11 @@ function executeRecord(l1, l2, tag, note) {
         openSceneParallelBackfillDrawer(current, { preset: { l1, l2: l2 || '' } });
         return;
     }
+    if (recordMode === 'journal' && isSameClassifiedMainActivity(l1, l2)) {
+        closeDrawer();
+        stopCurrentMain();
+        return;
+    }
     if (parallelCurrent) {
         const pName = displayName(parallelCurrent);
         showConfirm("⏎ 并行还在运行", `「${pName}」还在跑，是结束它还是结转到下一条主线？`, "一起结束", (ok) => {
@@ -2731,7 +2736,7 @@ function renderShortcuts() {
         item.addEventListener('pointercancel', clearPress);
         item.addEventListener('click', (e) => {
             if (longPressed) { e.preventDefault(); return; }
-            if (isSameClassifiedMainActivity(s.l1, s.l2)) return;
+            if (recordMode !== 'journal' && isSameClassifiedMainActivity(s.l1, s.l2)) return;
             pickerMode = 'record';
             executeRecord(s.l1, s.l2, "", "");
         });
@@ -4621,10 +4626,15 @@ function resetBackfillEditor() {
 }
 
 function initTimeField(el, max) {
-    el.addEventListener('touchstart', function() {
+    const backfillField = el.id.startsWith('ps-') || el.id.startsWith('pe-');
+    if (!backfillField) el.addEventListener('touchstart', function() {
         this.select();
     });
     el.addEventListener('focus', function() {
+        if (backfillField) {
+            this.select();
+            return;
+        }
         this.setSelectionRange(0, this.value.length);
         let tries = 0;
         const poll = setInterval(() => {
@@ -4643,7 +4653,7 @@ function initTimeField(el, max) {
     });
     el.addEventListener('input', function() {
         this.value = this.value.replace(/\D/g, '').slice(0, 2);
-        if (this.value.length >= 2) {
+        if (this.value.length >= 2 && !backfillField) {
             const all = this.parentElement.querySelectorAll('input[type="text"]');
             const idx = Array.from(all).indexOf(this);
             if (idx >= 0 && idx < all.length - 1) {

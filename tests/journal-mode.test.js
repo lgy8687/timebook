@@ -11,6 +11,9 @@ const stopSource = app.slice(app.indexOf('function stopCurrentMain()'), app.inde
 const editSource = app.slice(app.indexOf('function applyEditedRange('), app.indexOf('\nfunction commitEditedRange(', app.indexOf('function applyEditedRange(')));
 const resetSource = backup.slice(backup.indexOf('function resetTimebookStorage('), backup.indexOf('\nfunction requestTimebookReset(', backup.indexOf('function resetTimebookStorage(')));
 const modeSource = app.slice(app.indexOf('function setRecordMode('), app.indexOf('\nwindow.setRecordMode = setRecordMode;', app.indexOf('function setRecordMode(')));
+const executeSource = app.slice(app.indexOf('function executeRecord('), app.indexOf('\nfunction doExecuteRecord(', app.indexOf('function executeRecord(')));
+const shortcutSource = app.slice(app.indexOf('function renderShortcuts()'), app.indexOf('\nfunction renderParallelShortcuts()', app.indexOf('function renderShortcuts()')));
+const timeFieldSource = app.slice(app.indexOf('function initTimeField('), app.indexOf('\nfunction setFieldColor(', app.indexOf('function initTimeField(')));
 
 function storage(values) {
     const valuesMap = new Map(Object.entries(values));
@@ -82,6 +85,82 @@ test('ending a journal main records it and leaves no active main', () => {
     assert.equal(calls[0].options.endParallel, true);
     assert.equal(store.getItem('v9_current'), null);
     assert.equal(context.current, null);
+});
+
+test('selecting the active journal activity ends it instead of starting a new segment', () => {
+    const calls = [];
+    const context = {
+        recordMode: 'journal', parallelCurrent: null,
+        isSceneActive: () => false,
+        isSameClassifiedMainActivity: () => true,
+        closeDrawer: () => calls.push('close'),
+        stopCurrentMain: () => calls.push('stop'),
+        doExecuteRecord: () => calls.push('start'),
+    };
+    vm.createContext(context);
+    vm.runInContext(executeSource, context);
+    context.executeRecord('生活', '休息', '', '');
+    assert.deepEqual(calls, ['close', 'stop']);
+    context.recordMode = 'continuous';
+    context.executeRecord('生活', '休息', '', '');
+    assert.deepEqual(calls, ['close', 'stop', 'start']);
+});
+
+test('active shortcut remains tappable only in journal mode', () => {
+    const makeElement = () => ({
+        children: [], listeners: {},
+        classList: { toggle() {} },
+        append(...children) { this.children.push(...children); },
+        appendChild(child) { this.children.push(child); },
+        addEventListener(type, listener) { this.listeners[type] = listener; },
+    });
+    const shortcutBox = makeElement();
+    const section = makeElement();
+    const calls = [];
+    const context = {
+        recordMode: 'journal', current: { l1: '生活', l2: '休息' },
+        shortcuts: [{ l1: '生活', l2: '休息' }],
+        document: {
+            getElementById(id) { return id === 'home-shortcuts' ? shortcutBox : section; },
+            createElement: makeElement,
+        },
+        isSceneActive: () => false,
+        isSameClassifiedMainActivity: () => true,
+        resolveShortcutIcon: () => '·',
+        executeRecord: () => calls.push('tap'),
+    };
+    vm.createContext(context);
+    vm.runInContext(shortcutSource, context);
+    context.renderShortcuts();
+    shortcutBox.children.at(-1).children[0].listeners.click({ preventDefault() {} });
+    assert.deepEqual(calls, ['tap']);
+    context.recordMode = 'continuous';
+    context.renderShortcuts();
+    shortcutBox.children.at(-1).children[0].listeners.click({ preventDefault() {} });
+    assert.deepEqual(calls, ['tap']);
+});
+
+test('backfill time fields keep focus while entering two digits', () => {
+    const listeners = {};
+    let selections = 0;
+    let nextFocuses = 0;
+    const next = { focus: () => { nextFocuses++; } };
+    const field = {
+        id: 'ps-h', value: '08',
+        addEventListener(type, listener) { listeners[type] = listener; },
+        select() { selections++; },
+        parentElement: { querySelectorAll: () => [field, next] },
+    };
+    const context = { _backfillRange: null };
+    vm.createContext(context);
+    vm.runInContext(timeFieldSource, context);
+    context.initTimeField(field, 23);
+    assert.equal(listeners.touchstart, undefined);
+    listeners.focus.call(field);
+    field.value = '12';
+    listeners.input.call(field);
+    assert.equal(selections, 1);
+    assert.equal(nextFocuses, 0);
 });
 
 test('switching mode waits for confirmation and preserves active parallel state', () => {
