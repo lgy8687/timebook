@@ -1447,14 +1447,59 @@ function buildLogDayHeader(dateStr, history = false, withControl = true) {
 }
 
 function renderUnassignedMain(list, dateStr, gap, assigned = [], live = false) {
-    if (!showUnassignedMain || recordMode !== 'journal') return;
+    if (recordMode !== 'journal' || (!showUnassignedMain && !live && !assigned.length)) return;
     const allocatedMs = assigned.reduce((sum, item) => sum + item.durationMs, 0);
     const spanMs = gap.end - gap.start;
+    const wrap = document.createElement('div');
+    wrap.className = 'swipe-wrap';
+    const leftActions = document.createElement('div');
+    leftActions.className = 'swipe-actions left';
+    const deleteAction = document.createElement('div');
+    deleteAction.className = 'swipe-action-btn delete';
+    deleteAction.innerText = '删除';
+    leftActions.appendChild(deleteAction);
+    const rightActions = document.createElement('div');
+    rightActions.className = 'swipe-actions right';
+    const editAction = document.createElement('div');
+    editAction.className = 'swipe-action-btn edit';
+    editAction.innerText = '编辑';
+    rightActions.appendChild(editAction);
+    wrap.append(leftActions, rightActions);
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'unassigned-main-card swipe-card log-flow-card--main-log';
     card.setAttribute('aria-label', `${formatDateHeaderLabel(dateStr)}未分配主线，补录`);
-    card.addEventListener('click', () => openUnassignedBackfill(dateStr, gap.start));
+    let startX = 0, startY = 0, swiping = false, dx = 0, suppressClick = false;
+    card.addEventListener('touchstart', (event) => {
+        startX = event.touches[0].clientX;
+        startY = event.touches[0].clientY;
+        swiping = false;
+        dx = 0;
+    }, { passive: true });
+    card.addEventListener('touchmove', (event) => {
+        const x = event.touches[0].clientX - startX;
+        const y = event.touches[0].clientY - startY;
+        if (!swiping && Math.abs(x) > Math.abs(y) && Math.abs(x) > 10) swiping = true;
+        if (!swiping) return;
+        event.preventDefault();
+        dx = Math.max(-80, Math.min(80, x));
+        card.style.transform = `translateX(${dx}px)`;
+    }, { passive: false });
+    card.addEventListener('touchend', () => {
+        card.style.transform = '';
+        if (swiping) {
+            suppressClick = true;
+            setTimeout(() => { suppressClick = false; }, 350);
+            if (dx > 55) requestDeleteUnassignedGap(dateStr, gap.start);
+            else if (dx < -55) openUnassignedEdit(dateStr, gap.start);
+        }
+        swiping = false;
+        dx = 0;
+    }, { passive: true });
+    card.addEventListener('click', () => {
+        if (suppressClick) { suppressClick = false; return; }
+        openUnassignedBackfill(dateStr, gap.start);
+    });
     const inner = document.createElement('div');
     inner.className = 'log-flow-inner';
     inner.appendChild(buildLogFlowBar('#94a3b8', false));
@@ -1494,7 +1539,8 @@ function renderUnassignedMain(list, dateStr, gap, assigned = [], live = false) {
     body.appendChild(row);
     inner.appendChild(body);
     card.appendChild(inner);
-    list.appendChild(card);
+    wrap.appendChild(card);
+    list.appendChild(wrap);
 }
 
 function renderDayMainRows(list, dateStr, normalLogs, dayLogs, parallelLogs, skipGapStart = null) {
@@ -1509,7 +1555,7 @@ function renderDayMainRows(list, dateStr, normalLogs, dayLogs, parallelLogs, ski
         if (row.log) renderMainLogTree(list, row.log, dayLogs, parallelLogs);
         else renderUnassignedMain(list, dateStr, row.gap, row.assigned);
     });
-    if (showUnassignedMain && recordMode === 'journal') {
+    if (recordMode === 'journal') {
         assignments.unplaced.forEach((item) => {
             const pending = document.createElement('button');
             pending.type = 'button';
@@ -1626,6 +1672,84 @@ function openUnassignedBackfill(dateStr, gapStart) {
     openCalendarBackfill(gap);
 }
 
+function getUnassignedMergeNeighbors(dateStr, gap) {
+    const sameDay = logs.filter((item) => !item.parallel && !item.sceneActivity
+        && formatBeijingDate(item.startTime) === dateStr);
+    return {
+        up: (current && formatBeijingDate(current.startTime) === dateStr && current.startTime === gap.end ? current : null)
+            || sameDay.find((item) => item.startTime === gap.end) || null,
+        down: sameDay.find((item) => logEndMs(item) === gap.start) || null,
+    };
+}
+
+function requestDeleteUnassignedGap(dateStr, gapStart) {
+    const gaps = getDayUnassignedSegments(dateStr);
+    const index = gaps.findIndex((item) => item.start === gapStart);
+    if (index < 0) return;
+    const gap = gaps[index];
+    const assigned = assignUnlocatedToGaps(dateStr, gaps).byGap[index] || [];
+    if (assigned.length || unlocatedLogs.some((item) => item.date === dateStr && item.gapStart === gapStart)) {
+        showConfirm('不能删除未分配', '这段时间已有补录活动，请先删除活动，再删除未分配主线。', '知道了', () => {});
+        return;
+    }
+    if (getActiveUnassignedSegment(dateStr)?.start === gapStart) {
+        showConfirm('正在进行中', '请先开始下一条主线，待这段未分配时间结束后再删除。', '知道了', () => {});
+        return;
+    }
+    const neighbors = getUnassignedMergeNeighbors(dateStr, gap);
+    if (!neighbors.up && !neighbors.down) {
+        showConfirm('无法删除未分配', '这段时间没有可并入的相邻主线，须保留它才能维持 24 小时。', '知道了', () => {});
+        return;
+    }
+    showConfirm('确认删除', '删除这段未分配时间？时间会并入你选择的相邻主线。', '删除', (ok) => {
+        if (!ok) return;
+        showMergeDirection({ l2: '未分配' }, (direction) => {
+            if (!direction) return;
+            const latestGaps = getDayUnassignedSegments(dateStr);
+            const latestIndex = latestGaps.findIndex((item) => item.start === gapStart);
+            const latest = latestGaps[latestIndex];
+            if (!latest || latest.end !== gap.end) return;
+            if ((assignUnlocatedToGaps(dateStr, latestGaps).byGap[latestIndex] || []).length
+                || unlocatedLogs.some((item) => item.date === dateStr && item.gapStart === gapStart)) return;
+            const neighbor = getUnassignedMergeNeighbors(dateStr, latest)[direction];
+            if (!neighbor) return;
+            if (direction === 'up') neighbor.startTime = latest.start;
+            else neighbor.endTime = latest.end;
+            if (neighbor === current) localStorage.setItem('v9_current', JSON.stringify(current));
+            else {
+                neighbor.duration = Math.round((logEndMs(neighbor) - neighbor.startTime) / 60000);
+                localStorage.setItem('v9_logs', JSON.stringify(logs));
+            }
+            renderAll();
+        }, neighbors);
+    });
+}
+
+function openUnassignedEdit(dateStr, gapStart) {
+    const gap = getDayUnassignedSegments(dateStr).find((item) => item.start === gapStart);
+    if (!gap) return;
+    const live = getActiveUnassignedSegment(dateStr)?.start === gapStart;
+    editTarget = { source: 'unassigned', dateStr, gapStart, live };
+    editOldL1 = null;
+    editOldL2 = null;
+    document.getElementById('edit-log-preview').innerText = `未分配 — ${formatDuration(gap.end - gap.start)}`;
+    setTimeInFields('es', new Date(gap.start));
+    const endsAtMidnight = gap.end === beijingDateStrToDayEnd(dateStr);
+    setTimeInFields('ee', new Date(gap.end), { show24: endsAtMidnight });
+    ['ee-h', 'ee-m', 'ee-s'].forEach((id) => {
+        const field = document.getElementById(id);
+        field.disabled = live || endsAtMidnight;
+        field.classList.toggle('opacity-40', live || endsAtMidnight);
+    });
+    document.getElementById('edit-end-label').innerText = live ? '实时结束' : endsAtMidnight ? '结转结束（24:00 固定）' : '结束';
+    document.getElementById('edit-parallel-date-row').classList.add('hidden');
+    document.getElementById('edit-continue-previous').classList.add('hidden');
+    document.getElementById('edit-current-backfill').classList.add('hidden');
+    document.getElementById('edit-note-input').value = '';
+    updateEditCatDisplay(null, null);
+    document.getElementById('edit-modal').classList.remove('hidden');
+}
+
 function openCalendarBackfill(target = null) {
     if (viewDate > getTodayDateStr()) return;
     calendarBackfillTarget = target;
@@ -1633,6 +1757,7 @@ function openCalendarBackfill(target = null) {
     document.getElementById('calendar-backfill-date-label').innerText = formatDateHeaderLabel(viewDate);
     document.querySelectorAll('#calendar-backfill-options .journal-only').forEach((button) => button.classList.toggle('hidden', recordMode !== 'journal'));
     document.querySelector('#calendar-backfill-options button:last-child').classList.toggle('hidden', !!target);
+    document.getElementById('calendar-backfill-options').classList.toggle('calendar-backfill-options--target', !!target);
     showCalendarBackfillForm(null);
     document.getElementById('calendar-backfill-modal').classList.remove('hidden');
 }
@@ -1672,6 +1797,7 @@ function showCalendarBackfillForm(kind) {
     document.getElementById('calendar-backfill-interval-fields').classList.toggle('hidden', kind !== 'interval');
     document.getElementById('calendar-backfill-untimed-fields').classList.toggle('hidden', kind !== 'untimed');
     document.getElementById('calendar-backfill-note-field').classList.toggle('hidden', !kind || kind === 'event');
+    renderUnassignedBackfillActivities();
     if (!kind) return;
     if (kind === 'event') {
         fillCalendarBackfillSelect('calendar-backfill-event-type', eventTypes.map((item) => ({ value: String(item.id), label: `${item.icon} ${item.name}` })));
@@ -1833,7 +1959,34 @@ function deleteCalendarSupplement(kind, id) {
             localStorage.setItem('v9_unlocated_logs', JSON.stringify(unlocatedLogs));
         }
         renderAll();
+        renderUnassignedBackfillActivities();
     });
+}
+
+function renderUnassignedBackfillActivities() {
+    const host = document.getElementById('calendar-backfill-linked');
+    if (!host) return;
+    host.replaceChildren();
+    host.classList.toggle('hidden', !calendarBackfillTarget || !!calendarBackfillKind);
+    if (!calendarBackfillTarget || calendarBackfillKind) return;
+    const gaps = getDayUnassignedSegments(viewDate);
+    const index = gaps.findIndex((gap) => gap.start === calendarBackfillTarget.start);
+    const items = assignUnlocatedToGaps(viewDate, gaps).byGap[index] || [];
+    items.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'calendar-supplement-row';
+        const label = document.createElement('div');
+        const name = document.createElement('strong');
+        name.innerText = `${item.l2 || item.l1} · ${formatDuration(item.durationMs)}`;
+        label.appendChild(name);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.innerText = '删除';
+        remove.addEventListener('click', () => deleteCalendarSupplement('untimed', item.id));
+        row.append(label, remove);
+        host.appendChild(row);
+    });
+    host.classList.toggle('hidden', !items.length);
 }
 
 function renderCalendarBackfillRecords() {
@@ -2444,6 +2597,7 @@ function openBackfillFromCurrentEdit() {
 }
 function updateEditCatDisplay(l1, l2) {
     const d = document.getElementById('edit-cat-display');
+    if (!l1) { d.innerText = '选择分类'; return; }
     const cat = getCat(l1);
     const icon = cat?.icon || '📌';
     d.innerText = l2 ? `${icon} ${l1} / ${l2}` : `${icon} ${l1}`;
@@ -2727,6 +2881,10 @@ function commitEditedRange(log, newStart, newEnd, previous, next, swallowPreviou
 
 function confirmEdit() {
     if (!editTarget) return;
+    if (editTarget.source === 'unassigned') {
+        confirmUnassignedEdit();
+        return;
+    }
     if (editTarget.source === 'parallelCurrent') {
         confirmActiveParallelEdit();
         return;
@@ -2802,6 +2960,58 @@ function confirmEdit() {
         renderAll();
     };
     applyEditedRange(log, newStart, newEnd, finish);
+}
+
+function confirmUnassignedEdit() {
+    const target = editTarget;
+    if (!target || target.source !== 'unassigned' || recordMode !== 'journal') return;
+    const cat = getCat(editOldL1);
+    if (!cat || editOldL1 === '场景') {
+        showConfirm('请选择活动', '请先选择这段时间要记录的活动。', '知道了', () => {});
+        return;
+    }
+    const now = nowSecondMs();
+    const gap = getDayUnassignedSegments(target.dateStr, now).find((item) => item.start === target.gapStart);
+    if (!gap) return;
+    const live = target.live && getActiveUnassignedSegment(target.dateStr, now)?.start === gap.start;
+    const start = parseTimeOnBeijingDate('es', target.dateStr);
+    const end = live ? now : parseTimeOnBeijingDate('ee', target.dateStr);
+    if (start == null || end == null || start < gap.start || start >= end || end > gap.end || end > now) {
+        showConfirm('时间不合法', '请选择未分配主线内已经过去的时间，且开始时间须早于结束时间。', '知道了', () => {});
+        return;
+    }
+    if (mainRecordOverlaps(start, end).length || intervalExceedsDayBudget(start, end, null, now)) {
+        showConfirm('时间段发生冲突', '这段时间与已有主线或已分配时长冲突，请缩短时段。', '知道了', () => {});
+        return;
+    }
+    const scopedRecords = unlocatedLogs.map((item) => ({ ...item }));
+    const beforeGaps = getDayUnassignedSegments(target.dateStr, now);
+    const before = assignUnlocatedToGaps(target.dateStr, beforeGaps, scopedRecords);
+    before.byGap.forEach((items, index) => items.forEach((item) => {
+        item.gapStart = beforeGaps[index].start;
+        item.gapEnd = unassignedScopeEnd(target.dateStr, beforeGaps[index]);
+    }));
+    const afterGaps = getDayUnassignedSegments(target.dateStr, now, [{ startTime: start, endTime: end }]);
+    const after = assignUnlocatedToGaps(target.dateStr, afterGaps, scopedRecords);
+    if (after.unplaced.length > before.unplaced.length) {
+        showConfirm('时间总数不够分配', '这段修改会挤掉已补录的活动，请缩短时段或先删除活动。', '知道了', () => {});
+        return;
+    }
+    const entry = { id: genId(), startTime: start, l1: editOldL1, l2: editOldL2 || '',
+        note: document.getElementById('edit-note-input').value.trim(), tag: '', color: cat.color, journal: true };
+    if (live) {
+        current = entry;
+        localStorage.setItem('v9_current', JSON.stringify(current));
+    } else {
+        entry.endTime = end;
+        entry.duration = Math.round((end - start) / 60000);
+        logs.unshift(entry);
+        localStorage.setItem('v9_logs', JSON.stringify(logs));
+    }
+    unlocatedLogs = scopedRecords;
+    localStorage.setItem('v9_unlocated_logs', JSON.stringify(unlocatedLogs));
+    closeEdit();
+    renderAll();
 }
 
 function confirmActiveMainEdit() {
@@ -2978,8 +3188,7 @@ function closeMergeDirection(result) {
 function chooseMergeDirection(direction) {
     closeMergeDirection(direction);
 }
-function showMergeDirection(target, callback) {
-    const neighbors = getDeleteMergeNeighbors(target);
+function showMergeDirection(target, callback, neighbors = getDeleteMergeNeighbors(target)) {
     const modal = document.getElementById('merge-direction-modal');
     const message = document.getElementById('merge-direction-message');
     const upBtn = document.getElementById('merge-up-btn');
@@ -6330,7 +6539,7 @@ function tick() {
             if (badge && !badge._pinned) badge.classList.add('hidden');
         }
         renderDayRemain();
-        if (recordMode === 'journal' && showUnassignedMain && !current && !eventParentSelecting
+        if (recordMode === 'journal' && !current && !eventParentSelecting
             && sec % 60 === 0 && document.getElementById('page-record')?.classList.contains('active')) {
             renderHomeHistory();
         }
