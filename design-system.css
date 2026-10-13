@@ -241,6 +241,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .calendar-backfill-head span { color: var(--ui-muted); font-size: var(--ui-caption); }
 .calendar-backfill-close { width: 32px; height: 32px; border-radius: 8px; background: var(--ui-surface); color: var(--ui-muted); font-size: 21px; }
 .calendar-backfill-options { display: grid; gap: 8px; }
+.calendar-backfill-options.hidden { display: none; }
 .calendar-backfill-options--target { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .calendar-backfill-options--target .calendar-backfill-choice { text-align: center; }
 .calendar-backfill-linked { margin-top: 12px; border-top: 1px solid var(--ui-border); }
@@ -249,6 +250,15 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .calendar-backfill-choice { min-height: 52px; width: 100%; padding: 10px 14px; border: 1px solid var(--ui-border); border-radius: 8px; background: #fff; color: var(--ui-ink); text-align: left; font-size: var(--ui-body); font-weight: 700; }
 .calendar-backfill-choice.hidden { display: none; }
 #calendar-backfill-form > div:not(.calendar-backfill-actions):not(.hidden) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+#calendar-backfill-form #calendar-backfill-category-fields, #calendar-backfill-form #calendar-backfill-interval-fields { grid-template-columns: minmax(0, 1fr); }
+.calendar-backfill-category-button { min-height: 46px; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-ink); text-align: left; font-size: var(--ui-body); font-weight: 600; }
+.calendar-backfill-category-button span { color: var(--ui-muted); font-size: 20px; }
+.calendar-backfill-time-row { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 46px; padding: 0 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-muted); font-size: var(--ui-caption); font-weight: 600; }
+.calendar-backfill-time-row > span { flex: 0 0 32px; }
+.calendar-backfill-time-parts { display: flex; align-items: center; gap: 3px; min-width: 0; }
+#calendar-backfill-form .calendar-backfill-time-parts input { width: 31px; min-width: 0; height: 34px; padding: 0; border: 0; background: transparent; color: var(--ui-ink); text-align: center; font-size: 16px; font-variant-numeric: tabular-nums; }
+.calendar-backfill-time-parts b { color: var(--ui-muted); font-size: 14px; font-weight: 400; }
+.calendar-backfill-time-row em { margin-left: auto; color: var(--ui-accent); font-size: var(--ui-caption); font-style: normal; white-space: nowrap; }
 #calendar-backfill-form label { display: flex; flex-direction: column; min-width: 0; gap: 5px; color: var(--ui-muted); font-size: var(--ui-caption); font-weight: 600; }
 #calendar-backfill-form input, #calendar-backfill-form select { width: 100%; min-width: 0; height: 42px; padding: 0 10px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-ink); font-size: 16px; }
 #calendar-backfill-note-field { margin-top: 10px; }

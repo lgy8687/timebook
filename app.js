@@ -1780,15 +1780,58 @@ function fillCalendarBackfillSelect(id, items) {
     });
 }
 
-function renderCalendarBackfillSubs() {
-    const cat = getCat(document.getElementById('calendar-backfill-l1').value);
-    const subs = cat?.subs?.length ? cat.subs : [''];
-    fillCalendarBackfillSelect('calendar-backfill-l2', subs.map((name) => ({ value: name, label: name || cat?.name || '未分类' })));
+function updateCalendarBackfillCategory() {
+    const l1 = document.getElementById('calendar-backfill-l1').value;
+    const l2 = document.getElementById('calendar-backfill-l2').value;
+    const cat = getCat(l1);
+    document.getElementById('calendar-backfill-category-button').firstChild.textContent = cat
+        ? `${cat.icon || ''} ${l2 || l1}` : '选择活动 ';
+}
+
+function openCalendarBackfillCategoryPicker() {
+    pickerMode = 'calendar-backfill';
+    document.getElementById('drawer-title').innerText = '选择活动';
+    document.getElementById('drawer-footer').classList.add('hidden');
+    document.getElementById('calendar-backfill-modal').classList.add('hidden');
+    showDrawer();
+    renderPicker();
+    renderDrawerToggle();
 }
 
 function sanitizeCalendarDurationInput(input, max) {
     const digits = input.value.replace(/\D/g, '').slice(0, 2);
     input.value = digits === '' ? '' : String(Math.min(Number(digits), max));
+}
+
+function sanitizeCalendarClockInput(input, max) {
+    const digits = input.value.replace(/\D/g, '').slice(0, 2);
+    input.value = digits === '' ? '' : Number(digits) > max ? String(max) : digits;
+}
+
+function normalizeCalendarClockInput(input) {
+    if (input.value !== '') input.value = input.value.padStart(2, '0');
+}
+
+function readCalendarBackfillClock(prefix, dayStart, allow24 = false) {
+    const parts = ['h', 'm', 's'].map((part) => document.getElementById(`${prefix}-${part}`).value.trim());
+    if (parts.some((part) => !/^\d{1,2}$/.test(part))) return null;
+    const [h, m, s] = parts.map(Number);
+    if (m > 59 || s > 59 || h > 24 || (h === 24 && (!allow24 || m || s))) return null;
+    return dayStart + (h * 3600 + m * 60 + s) * 1000;
+}
+
+function getCalendarBackfillInterval() {
+    const dayStart = beijingDateStrToDayStart(viewDate);
+    const start = readCalendarBackfillClock('calendar-backfill-start', dayStart);
+    let end = readCalendarBackfillClock('calendar-backfill-end', dayStart, true);
+    if (start != null && end != null && end <= start) end += DAY_MS;
+    return { start, end, dayStart };
+}
+
+function updateCalendarBackfillEndDayHint() {
+    const { start, end, dayStart } = getCalendarBackfillInterval();
+    document.getElementById('calendar-backfill-end-day-hint').classList.toggle('hidden',
+        start == null || end == null || end < dayStart + DAY_MS);
 }
 
 function showCalendarBackfillForm(kind) {
@@ -1808,8 +1851,9 @@ function showCalendarBackfillForm(kind) {
         fillCalendarBackfillSelect('calendar-backfill-event-type', eventTypes.map((item) => ({ value: String(item.id), label: `${item.icon} ${item.name}` })));
         document.getElementById('calendar-backfill-event-count').value = '1';
     } else {
-        fillCalendarBackfillSelect('calendar-backfill-l1', cats.filter((cat) => cat.name !== '场景').map((cat) => ({ value: cat.name, label: `${cat.icon} ${cat.name}` })));
-        renderCalendarBackfillSubs();
+        document.getElementById('calendar-backfill-l1').value = '';
+        document.getElementById('calendar-backfill-l2').value = '';
+        updateCalendarBackfillCategory();
         document.getElementById('calendar-backfill-note').value = '';
         if (kind === 'interval') {
             const targetStart = calendarBackfillTarget?.start;
@@ -1817,10 +1861,12 @@ function showCalendarBackfillForm(kind) {
                 ? Math.max(targetStart, calendarBackfillTarget.end - getAllocatedInGap(viewDate, calendarBackfillTarget))
                 : null;
             const targetEnd = calendarBackfillTarget ? Math.min(targetStart + HOUR_MS, availableEnd) : null;
-            document.getElementById('calendar-backfill-start-date').value = calendarBackfillTarget ? formatBeijingDate(calendarBackfillTarget.start) : viewDate;
-            document.getElementById('calendar-backfill-end-date').value = calendarBackfillTarget ? formatBeijingDate(targetEnd) : viewDate;
-            document.getElementById('calendar-backfill-start-time').value = calendarBackfillTarget ? formatBeijingClockSec(calendarBackfillTarget.start) : '09:00:00';
-            document.getElementById('calendar-backfill-end-time').value = calendarBackfillTarget ? formatBeijingClockSec(targetEnd) : '10:00:00';
+            const dayStart = beijingDateStrToDayStart(viewDate);
+            const start = calendarBackfillTarget ? calendarBackfillTarget.start : dayStart + 9 * HOUR_MS;
+            const end = calendarBackfillTarget ? targetEnd : dayStart + 10 * HOUR_MS;
+            setTimeInFields('calendar-backfill-start', new Date(start));
+            setTimeInFields('calendar-backfill-end', new Date(end), { show24: end === dayStart + DAY_MS });
+            updateCalendarBackfillEndDayHint();
         } else {
             document.getElementById('calendar-backfill-hours').value = '0';
             document.getElementById('calendar-backfill-minutes').value = '0';
@@ -1883,9 +1929,7 @@ function saveCalendarBackfill() {
         else unlocatedLogs.push(update);
         localStorage.setItem('v9_unlocated_logs', JSON.stringify(unlocatedLogs));
     } else if (calendarBackfillKind === 'interval') {
-        const start = parseTimeOnBeijingDateParts(document.getElementById('calendar-backfill-start-date').value, document.getElementById('calendar-backfill-start-time').value);
-        const end = parseTimeOnBeijingDateParts(document.getElementById('calendar-backfill-end-date').value, document.getElementById('calendar-backfill-end-time').value);
-        const dayStart = beijingDateStrToDayStart(viewDate);
+        const { start, end, dayStart } = getCalendarBackfillInterval();
         if (start == null || end == null || start < dayStart || start >= dayStart + DAY_MS || start >= end || end - start > DAY_MS || end > nowSecondMs()) {
             showConfirm('时间不合法', '开始时间须在所选日期，结束时间须在其后 24 小时内且已经过去。', '知道了', () => {});
             return;
@@ -1923,7 +1967,10 @@ function saveCalendarBackfill() {
         }
         const l1 = document.getElementById('calendar-backfill-l1').value;
         const l2 = document.getElementById('calendar-backfill-l2').value;
-        if (!getCat(l1)) return;
+        if (!getCat(l1)) {
+            showConfirm('请选择活动', '补录前先选择一项活动。', '知道了', () => {});
+            return;
+        }
         logs.unshift({ id: genId(), startTime: start, endTime: end, duration: Math.round((end - start) / 60000), l1, l2, note: document.getElementById('calendar-backfill-note').value.trim(), color: getCat(l1).color, parallel: false, journal: true });
         localStorage.setItem('v9_logs', JSON.stringify(logs));
         unlocatedLogs = scopedRecords;
@@ -1944,8 +1991,8 @@ function editCalendarSupplement(kind, id) {
         document.getElementById('calendar-backfill-event-count').value = String(record.count || 1);
     } else {
         document.getElementById('calendar-backfill-l1').value = record.l1;
-        renderCalendarBackfillSubs();
         document.getElementById('calendar-backfill-l2').value = record.l2 || '';
+        updateCalendarBackfillCategory();
         document.getElementById('calendar-backfill-hours').value = String(Math.floor(record.durationMs / HOUR_MS));
         document.getElementById('calendar-backfill-minutes').value = String(Math.floor((record.durationMs % HOUR_MS) / 60000));
         document.getElementById('calendar-backfill-note').value = record.note || '';
@@ -2061,7 +2108,7 @@ function recordRecentPick(l1, l2) {
 }
 
 function isPickerWithRecents() {
-    return ['record', 'parallel-backfill', 'edit', 'split', 'classify-log'].includes(pickerMode);
+    return ['record', 'parallel-backfill', 'edit', 'split', 'classify-log', 'calendar-backfill'].includes(pickerMode);
 }
 
 function appendDrawerRecentsBar(l2Box) {
@@ -2077,7 +2124,7 @@ function appendDrawerRecentsBar(l2Box) {
     row.className = 'drawer-recents-row';
     recents.forEach((r) => {
         const cat = getCat(r.l1);
-        if (!cat) return;
+        if (!cat || (pickerMode === 'calendar-backfill' && cat.name === '场景')) return;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'drawer-recent-btn btn-active';
@@ -3331,6 +3378,15 @@ function drawerPick(l1, l2, expectedMode = pickerMode) {
         const cat = getCat(l1);
         closeDrawer();
         toggleParallel(l1, l2 || '', resolveShortcutIcon({ l1, l2: l2 || '' }));
+        return;
+    }
+    if (pickerMode === 'calendar-backfill') {
+        if (l1 === '场景') return;
+        recordRecentPick(l1, l2);
+        document.getElementById('calendar-backfill-l1').value = l1;
+        document.getElementById('calendar-backfill-l2').value = l2 || '';
+        updateCalendarBackfillCategory();
+        closeDrawer();
         return;
     }
     if (l1 === '场景' && pickerMode === 'record') {
@@ -6366,11 +6422,11 @@ function renderPicker() {
         return;
     }
 
-    if (drawerViewMode === 'flat' && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split' || pickerMode === 'classify-log')) {
+    if ((drawerViewMode === 'flat' || pickerMode === 'calendar-backfill') && (pickerMode === 'record' || pickerMode === 'parallel-backfill' || pickerMode === 'edit' || pickerMode === 'split' || pickerMode === 'classify-log' || pickerMode === 'calendar-backfill')) {
         l1Box.style.display = 'none';
         l2Box.className = "w-full flex-1 min-h-0 p-3 overflow-y-auto grid grid-cols-5 content-start gap-1.5";
         appendDrawerRecentsBar(l2Box);
-        cats.forEach(c => {
+        cats.filter(c => pickerMode !== 'calendar-backfill' || c.name !== '场景').forEach(c => {
             if (!c.subs.length) {
                 const btn = document.createElement('button');
                 btn.type = 'button';
@@ -6932,10 +6988,12 @@ function handleFreeInput() {
 
 function closeDrawer() {
     const wasBackfill = pickerMode === 'split' || pickerMode.startsWith('parallel-backfill');
+    const wasCalendarBackfill = pickerMode === 'calendar-backfill';
     if (_cleanupBackfillDrag) { _cleanupBackfillDrag(); }
     if (wasBackfill) resetBackfillEditor();
     const wasClassify = pickerMode === 'classify-log' && _classifyPromptOpen;
     document.getElementById('drawer').classList.add('hidden');
+    if (wasCalendarBackfill) document.getElementById('calendar-backfill-modal').classList.remove('hidden');
     pickerMode = 'record';
     _parallelCallback = null;
     if (wasClassify) {

@@ -20,6 +20,7 @@ const calendarBudgetSource = app.slice(app.indexOf('function getMainOccupiedMsFo
 const unlocatedChartSource = app.slice(app.indexOf('function mergeUnlocatedIntoChart('), app.indexOf('\nfunction buildMainComposition(', app.indexOf('function mergeUnlocatedIntoChart(')));
 const reportSortSource = app.slice(app.indexOf('function compareReportDuration('), app.indexOf('\nfunction aggregateReportSegments(', app.indexOf('function compareReportDuration(')));
 const durationInputSource = app.slice(app.indexOf('function sanitizeCalendarDurationInput('), app.indexOf('\nfunction showCalendarBackfillForm(', app.indexOf('function sanitizeCalendarDurationInput(')));
+const calendarClockSource = app.slice(app.indexOf('function readCalendarBackfillClock('), app.indexOf('\nfunction showCalendarBackfillForm(', app.indexOf('function readCalendarBackfillClock(')));
 const eventReportSource = app.slice(app.indexOf('function buildEventReport('), app.indexOf('\nfunction buildLiveReportDay(', app.indexOf('function buildEventReport(')));
 const calendarSaveSource = app.slice(app.indexOf('function saveCalendarBackfill('), app.indexOf('\nfunction editCalendarSupplement(', app.indexOf('function saveCalendarBackfill(')));
 const unassignedSource = app.slice(app.indexOf('function getDayUnassignedSegments('), app.indexOf('\nfunction buildLogDayHeader(', app.indexOf('function getDayUnassignedSegments(')));
@@ -152,8 +153,8 @@ test('an untimed activity in the live gap stays assigned as that gap grows', () 
 
 test('unassigned main backfill keeps existing untimed duration when adding an exact interval', () => {
     const inputs = {
-        'calendar-backfill-start-date': '2026-10-13', 'calendar-backfill-start-time': '10:00:00',
-        'calendar-backfill-end-date': '2026-10-13', 'calendar-backfill-end-time': '23:30:00',
+        'calendar-backfill-start-h': '10', 'calendar-backfill-start-m': '00', 'calendar-backfill-start-s': '00',
+        'calendar-backfill-end-h': '23', 'calendar-backfill-end-m': '30', 'calendar-backfill-end-s': '00',
     };
     const prompts = [];
     const context = {
@@ -161,7 +162,6 @@ test('unassigned main backfill keeps existing untimed duration when adding an ex
         recordMode: 'journal', viewDate: '2026-10-13', DAY_MS: DAY,
         logs: [], unlocatedLogs: [{ id: 'reserved', date: '2026-10-13', durationMs: 2 * 3600000, gapStart: start + 10 * 3600000 }],
         document: { getElementById: (id) => ({ value: inputs[id] }) },
-        parseTimeOnBeijingDateParts: (date, time) => Date.parse(`${date}T${time}+08:00`),
         beijingDateStrToDayStart: () => start,
         nowSecondMs: () => start + DAY + 3600000,
         getDayUnassignedSegments: (_date, _now, extraMain = []) => extraMain.length
@@ -173,6 +173,7 @@ test('unassigned main backfill keeps existing untimed duration when adding an ex
         showConfirm: (title) => prompts.push(title),
     };
     vm.createContext(context);
+    vm.runInContext(calendarClockSource, context);
     vm.runInContext(assignSource, context);
     vm.runInContext(calendarSaveSource, context);
     context.saveCalendarBackfill();
@@ -230,6 +231,28 @@ test('untimed backfill entry limits hours and minutes while typing', () => {
     assert.equal(hours.value, '24');
 });
 
+test('calendar backfill clocks use the selected day and infer a next-day end', () => {
+    const values = {
+        'calendar-backfill-start-h': '23', 'calendar-backfill-start-m': '30', 'calendar-backfill-start-s': '00',
+        'calendar-backfill-end-h': '01', 'calendar-backfill-end-m': '15', 'calendar-backfill-end-s': '00',
+    };
+    const context = {
+        viewDate: '2026-10-13', DAY_MS: DAY,
+        beijingDateStrToDayStart: () => start,
+        document: { getElementById: (id) => ({ value: values[id] }) },
+    };
+    vm.createContext(context);
+    vm.runInContext(calendarClockSource, context);
+    const range = context.getCalendarBackfillInterval();
+    assert.equal(range.start, start + 23.5 * 3600000);
+    assert.equal(range.end, start + DAY + 1.25 * 3600000);
+    values['calendar-backfill-end-h'] = '24';
+    values['calendar-backfill-end-m'] = '00';
+    assert.equal(context.getCalendarBackfillInterval().end, start + DAY);
+    values['calendar-backfill-end-m'] = '01';
+    assert.equal(context.getCalendarBackfillInterval().end, null);
+});
+
 test('date-only event supplements count occurrences but not time', () => {
     const context = {
         eventRecords: [
@@ -249,8 +272,8 @@ test('date-only event supplements count occurrences but not time', () => {
 
 test('calendar interval save blocks overlap and exhausted time before writing a new main', () => {
     const inputs = {
-        'calendar-backfill-start-date': '2026-10-13', 'calendar-backfill-start-time': '09:00:00',
-        'calendar-backfill-end-date': '2026-10-13', 'calendar-backfill-end-time': '10:00:00',
+        'calendar-backfill-start-h': '09', 'calendar-backfill-start-m': '00', 'calendar-backfill-start-s': '00',
+        'calendar-backfill-end-h': '10', 'calendar-backfill-end-m': '00', 'calendar-backfill-end-s': '00',
         'calendar-backfill-l1': '工作', 'calendar-backfill-l2': '办公', 'calendar-backfill-note': '',
     };
     const prompts = [];
@@ -259,7 +282,6 @@ test('calendar interval save blocks overlap and exhausted time before writing a 
         calendarBackfillKind: 'interval', calendarBackfillTarget: null, recordMode: 'journal', viewDate: '2026-10-13',
         DAY_MS: DAY, logs: [], unlocatedLogs: [], localStorage: store,
         document: { getElementById: (id) => ({ value: inputs[id] }) },
-        parseTimeOnBeijingDateParts: (date, time) => Date.parse(`${date}T${time}+08:00`),
         beijingDateStrToDayStart: () => start,
         nowSecondMs: () => start + 12 * 3600000,
         formatBeijingDate: () => '2026-10-13',
@@ -274,6 +296,7 @@ test('calendar interval save blocks overlap and exhausted time before writing a 
         genId: () => 'new-main', closeCalendarBackfill() {}, renderAll() {},
     };
     vm.createContext(context);
+    vm.runInContext(calendarClockSource, context);
     vm.runInContext(calendarSaveSource, context);
     context.saveCalendarBackfill();
     assert.deepEqual(prompts, ['时间段发生重叠']);
