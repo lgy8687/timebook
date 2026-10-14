@@ -1666,6 +1666,11 @@ let calendarBackfillEditingId = null;
 let calendarBackfillTarget = null;
 let calendarBackfillFromCalendar = false;
 const CALENDAR_BACKFILL_ORIGINS = new Set(['calendar-add', 'unassigned-gap', 'supplement-edit']);
+const CALENDAR_BACKFILL_KIND_ADDRESSES = Object.freeze({
+    interval: 'B12',
+    untimed: 'B46',
+    event: 'B47'
+});
 
 function openUnassignedBackfill(dateStr, gapStart) {
     const gap = getDayUnassignedSegments(dateStr).find((item) => item.start === gapStart);
@@ -1905,6 +1910,9 @@ function updateCalendarBackfillEndDayHint() {
 
 function showCalendarBackfillForm(kind) {
     if (kind && kind !== 'event' && recordMode !== 'journal') return;
+    const blockCode = kind ? CALENDAR_BACKFILL_KIND_ADDRESSES[kind] : 'B11';
+    if (!blockCode) throw new Error(`Unregistered calendar backfill form: ${kind}`);
+    document.getElementById('calendar-backfill-modal').dataset.devAddressBlock = blockCode;
     calendarBackfillKind = kind;
     const pickingTarget = !kind && recordMode === 'journal' && !calendarBackfillTarget;
     document.getElementById('calendar-backfill-target-picker').classList.toggle('hidden', !pickingTarget);

@@ -68,16 +68,21 @@ test('single-instance B selectors use unique static DOM IDs', () => {
     }
 });
 
-test('all backfill entry points share the one functional block B11/C04', () => {
+test('backfill form state changes the B and C address independently of its entry origin', () => {
     const blocks = readRegistryArray('blocks');
     const byCode = new Map(blocks.map(([code, , selector, contract]) => [code, { selector, contract }]));
-    assert.deepEqual(byCode.get('B11'), { selector: '#calendar-backfill-card', contract: 'C04' });
-    assert.equal(byCode.has('B43'), false, 'Entry origin must not create a second B for the same modal');
-    assert.equal(byCode.has('B44'), false, 'Entry origin must not create a second B for the same modal');
+    const selector = code => `#calendar-backfill-modal[data-dev-address-block="${code}"] #calendar-backfill-card`;
+    assert.deepEqual(byCode.get('B11'), { selector: selector('B11'), contract: 'C04' });
+    assert.deepEqual(byCode.get('B12'), { selector: selector('B12'), contract: 'C25' });
+    assert.deepEqual(byCode.get('B46'), { selector: selector('B46'), contract: 'C26' });
+    assert.deepEqual(byCode.get('B47'), { selector: selector('B47'), contract: 'C27' });
     assert.match(html, /id="calendar-backfill-modal"[^>]*data-dev-address-block="B11"/);
     assert.match(app, /const CALENDAR_BACKFILL_ORIGINS = new Set\(\['calendar-add', 'unassigned-gap', 'supplement-edit'\]\)/);
-    assert.doesNotMatch(app, /dataset\.devAddressBlock\s*=\s*blockCode/,
-        'Opening the modal from different origins must not change its B address');
+    assert.match(app, /const CALENDAR_BACKFILL_KIND_ADDRESSES = Object\.freeze\(\{\s*interval: 'B12',\s*untimed: 'B46',\s*event: 'B47'/);
+    assert.match(app, /const blockCode = kind \? CALENDAR_BACKFILL_KIND_ADDRESSES\[kind\] : 'B11'/,
+        'The selection page and each form state must map to distinct functional blocks');
+    assert.match(app, /modal'\)\.dataset\.devAddressBlock = blockCode/,
+        'The active modal state must drive the rendered B selector');
     const originsMatch = app.match(/const CALENDAR_BACKFILL_ORIGINS = new Set\((\[[^\]]+\])\);/);
     assert.ok(originsMatch, 'Recognized backfill origins must be explicitly registered');
     const origins = new Set(vm.runInNewContext(originsMatch[1]));
@@ -94,6 +99,8 @@ test('all backfill entry points share the one functional block B11/C04', () => {
     assert.deepEqual(new Set(actual), origins, 'Every recognized origin must be used by a real entry point');
     assert.match(inspector, /const parentBlock = `B\$\{code\.match\(\/\^Z\(\\d\+\)-\//,
         'Submodule display must enforce Z parent ownership when the backfill modal is open');
+    assert.match(inspector, /element\.closest\('\[data-dev-address-block\]'\)[\s\S]*element\.dataset\.devBlockCode === activeCode[\s\S]*dev-inspector-badge--block/,
+        'A modal state change must remove the prior B badge before adding the new one');
 });
 
 test('report timeline functional views have distinct, state-scoped B addresses and templates', () => {
@@ -106,8 +113,8 @@ test('report timeline functional views have distinct, state-scoped B addresses a
         'Timeline rendering must map daily halves and period-composition bars to separate B addresses');
     assert.match(report, /delete card\.dataset\.devAddressBlock/,
         'Hidden or empty timeline cards must not keep a stale B address');
-    assert.match(inspector, /\[data-dev-address-kind="timeline"\]\[data-dev-block-code\][\s\S]*element\.dataset\.devBlockCode === element\.dataset\.devAddressBlock[\s\S]*dev-inspector-badge--block/,
-        'Developer mode must replace the old B badge when a reused card changes functional view');
+    assert.match(inspector, /element\.closest\('\[data-dev-address-block\]'\)[\s\S]*const activeCode = addressOwner\?\.dataset\.devAddressBlock[\s\S]*element\.dataset\.devBlockCode === activeCode[\s\S]*dev-inspector-badge--block/,
+        'Developer mode must replace the old B badge whenever a reused element changes functional view');
     assert.match(inspector, /const parentBlock = `B\$\{code\.match\(\/\^Z\(\\d\+\)-\//,
         'Submodule display must derive and enforce its parent B when a workflow modal is active');
     assert.match(html, /id="timeline-card-a"[^>]*data-dev-address-kind="timeline"/);

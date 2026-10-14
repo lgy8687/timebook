@@ -11,8 +11,8 @@
         ['B08', '日历流水卡片', '#calendar-log-list .log-flow-card', null, { repeatable: true }],
         ['B09', '记录修改弹窗', '#edit-modal-card'],
         ['B10', '流水时间输入区', '#edit-time-range'],
-        ['B11', '补录功能弹窗', '#calendar-backfill-card', 'C04'],
-        ['B12', '日历时间输入区', '#calendar-backfill-interval-fields'],
+        ['B11', '补录归属时段与方式选择页', '#calendar-backfill-modal[data-dev-address-block="B11"] #calendar-backfill-card', 'C04'],
+        ['B12', '指定时段补录表单', '#calendar-backfill-modal[data-dev-address-block="B12"] #calendar-backfill-card', 'C25'],
         ['B13', '活动分类选择', '#drawer-card'],
         ['B14', '主线摘要', '#summary-block-main', 'C01'],
         ['B15', '并行摘要', '#summary-block-parallel', 'C01'],
@@ -35,7 +35,9 @@
         ['B40', '记录模式设置面板', '#config-panel-mode', 'C22'],
         ['B41', '数据管理设置面板', '#config-panel-data', 'C22'],
         ['B42', '日报 12:00–24:00 时间轴', '#timeline-card-b[data-dev-address-block="B42"]', 'C23'],
-        ['B45', '周报、月报、年报时间构成图', '#timeline-card-a[data-dev-address-block="B45"]', 'C24']
+        ['B45', '周报、月报、年报时间构成图', '#timeline-card-a[data-dev-address-block="B45"]', 'C24'],
+        ['B46', '未指定时长补录表单', '#calendar-backfill-modal[data-dev-address-block="B46"] #calendar-backfill-card', 'C26'],
+        ['B47', '事件次数补录表单', '#calendar-backfill-modal[data-dev-address-block="B47"] #calendar-backfill-card', 'C27']
     ];
     // A Z address names a submodule prototype; repeated instances share one badge and contract.
     const submodules = [
@@ -161,8 +163,11 @@
     function scan() {
         scheduled = false;
         if (!enabled) return;
-        document.querySelectorAll('[data-dev-address-kind="timeline"][data-dev-block-code]').forEach((element) => {
-            if (element.dataset.devBlockCode === element.dataset.devAddressBlock) return;
+        document.querySelectorAll('[data-dev-block-code]').forEach((element) => {
+            const addressOwner = element.closest('[data-dev-address-block]');
+            const activeCode = addressOwner?.dataset.devAddressBlock
+                || (element.dataset.devAddressKind === 'timeline' ? '' : element.dataset.devBlockCode);
+            if (element.dataset.devBlockCode === activeCode) return;
             element.querySelectorAll(':scope > .dev-inspector-badge--block').forEach((badge) => badge.remove());
             element.classList.remove('dev-inspector-target');
             delete element.dataset.devBlockCode;
