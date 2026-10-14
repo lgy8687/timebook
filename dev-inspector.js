@@ -20,13 +20,20 @@
         ['B17', '时间结构', '#page-report .structure-card', 'C01'],
         ['B18', '报表时间段', '#page-report .timeline-card'],
         ['B19', '设置入口', '#page-mine .config-grid-card'],
-        ['B20', '设置详情', '#page-mine .config-panel'],
         ['B21', '场景选择', '#scene-popover .scene-popover-card'],
         ['B22', '事件记录', '#event-modal .event-modal-card'],
         ['B30', '底部导航', '.app-bottom-nav', 'C07'],
         ['B31', '当前状态卡片', '.header-main-status'],
+        ['B32', '场景切换键', '#scene-entry-btn', 'C21'],
         ['B33', '报表周期与日期', '#report-period-toolbar', 'C16'],
-        ['B34', '随手记', '#free-note-module']
+        ['B34', '随手记', '#free-note-module'],
+        ['B35', '时钟设置面板', '#config-panel-clock', 'C22'],
+        ['B36', '报表摘要设置面板', '#config-panel-report', 'C22'],
+        ['B37', '分类管理设置面板', '#config-panel-cats', 'C22'],
+        ['B38', '场景管理设置面板', '#config-panel-scene', 'C22'],
+        ['B39', '事件管理设置面板', '#config-panel-event', 'C22'],
+        ['B40', '记录模式设置面板', '#config-panel-mode', 'C22'],
+        ['B41', '数据管理设置面板', '#config-panel-data', 'C22']
     ];
     // A Z address names a submodule prototype; repeated instances share one badge and contract.
     const submodules = [
@@ -38,8 +45,10 @@
         ['Z06-2', '日历月份切换键', '#page-calendar .flow-calendar-nav', 'C14'],
         ['Z06-3', '日历月份选择键', '#page-calendar .flow-calendar-title-btn', 'C15'],
         ['Z11-1', '补录时间段选择', '#calendar-backfill-target-picker .calendar-backfill-target-choice', 'C05'],
-        ['Z11-2', '补录方式中的事件次数入口', '#calendar-backfill-options .calendar-backfill-choice:not(.journal-only)', 'C06'],
+        ['Z11-2', '补录方式中的事件次数入口', '#calendar-backfill-event-choice', 'C06'],
         ['Z11-3', '时段选择列表中的事件次数入口', '#calendar-backfill-target-picker .calendar-backfill-event-choice', 'C19'],
+        ['Z11-4', '补录指定时段入口', '#calendar-backfill-interval-choice', 'C06'],
+        ['Z11-5', '补录未指定时段入口', '#calendar-backfill-untimed-choice', 'C06'],
         ['Z14-1', '主线摘要切换', '#summary-block-main .summary-view-toggle', 'C02'],
         ['Z15-1', '并行摘要切换', '#summary-block-parallel .summary-view-toggle', 'C02'],
         ['Z16-1', '事件统计切换', '#event-report-block .chart-mode-toggle', 'C02'],
@@ -47,8 +56,7 @@
         ['Z17-2', '活动分类与明细切换', '#legend-mode-toggle', 'C02'],
         ['Z30-1', '底部导航键', '#nav-record, #nav-calendar, #nav-report, #nav-mine', 'C08'],
         ['Z33-1', '报表周期切换', '#seg-period', 'C18'],
-        ['Z33-2', '报表日期导航', '#report-period-nav', 'C03'],
-        ['B32', '场景切换键', '#scene-entry-btn']
+        ['Z33-2', '报表日期导航', '#report-period-nav', 'C03']
     ];
     const floatingBadges = new Map();
     let enabled = localStorage.getItem(STORAGE_KEY) !== 'false';

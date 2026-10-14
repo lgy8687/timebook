@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.39">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.41">
+    <link rel="stylesheet" href="design-system.css?v=5.42">
     <link rel="stylesheet" href="dev-inspector.css?v=5.39">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -43,7 +43,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.41</div>
+            <div id="cache-buster" class="version-below-daybar">v5.42</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -458,9 +458,9 @@
                 <button id="calendar-backfill-change-target" type="button" onclick="showCalendarBackfillTargets()">更换</button>
             </div>
             <div id="calendar-backfill-options" class="calendar-backfill-options">
-                <button type="button" class="calendar-backfill-choice journal-only" onclick="showCalendarBackfillForm('interval')">指定时段</button>
-                <button type="button" class="calendar-backfill-choice journal-only" onclick="showCalendarBackfillForm('untimed')">未指定时段</button>
-                <button type="button" class="calendar-backfill-choice" onclick="showCalendarBackfillForm('event')">事件次数</button>
+                <button id="calendar-backfill-interval-choice" type="button" class="calendar-backfill-choice journal-only" onclick="showCalendarBackfillForm('interval')">指定时段</button>
+                <button id="calendar-backfill-untimed-choice" type="button" class="calendar-backfill-choice journal-only" onclick="showCalendarBackfillForm('untimed')">未指定时段</button>
+                <button id="calendar-backfill-event-choice" type="button" class="calendar-backfill-choice" onclick="showCalendarBackfillForm('event')">事件次数</button>
             </div>
             <div id="calendar-backfill-linked" class="calendar-backfill-linked hidden"></div>
             <div id="calendar-backfill-form" class="hidden">
@@ -747,6 +747,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="sync.js?v=1"></script>
     <script src="dev-appearance.js?v=5.39"></script>
-    <script src="dev-inspector.js?v=5.41"></script>
+    <script src="dev-inspector.js?v=5.42"></script>
 </body>
 </html>
