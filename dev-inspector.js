@@ -25,7 +25,8 @@
         ['B22', '事件记录', '#event-modal .event-modal-card'],
         ['B30', '底部导航', '.app-bottom-nav', 'C07'],
         ['B31', '当前状态卡片', '.header-main-status'],
-        ['B33', '报表周期与日期', '#report-period-toolbar', 'C16']
+        ['B33', '报表周期与日期', '#report-period-toolbar', 'C16'],
+        ['B34', '随手记', '#free-note-module']
     ];
     // A Z address names a submodule prototype; repeated instances share one badge and contract.
     const submodules = [
@@ -43,6 +44,7 @@
         ['Z15-1', '并行摘要切换', '#summary-block-parallel .summary-view-toggle', 'C02'],
         ['Z16-1', '事件统计切换', '#event-report-block .chart-mode-toggle', 'C17'],
         ['Z17-1', '时间结构切换', '#page-report .structure-card .chart-mode-toggle', 'C17'],
+        ['Z17-2', '活动分类与明细切换', '#legend-mode-toggle', 'C20'],
         ['Z30-1', '底部导航键', '#nav-record, #nav-calendar, #nav-report, #nav-mine', 'C08'],
         ['Z33-1', '报表周期切换', '#seg-period', 'C18'],
         ['Z33-2', '报表日期导航', '#report-period-nav', 'C03'],

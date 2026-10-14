@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.39">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.39">
+    <link rel="stylesheet" href="design-system.css?v=5.40">
     <link rel="stylesheet" href="dev-inspector.css?v=5.39">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -43,7 +43,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.39</div>
+            <div id="cache-buster" class="version-below-daybar">v5.40</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -60,7 +60,7 @@
                 </div>
                 <div id="parallel-shortcuts"></div>
             </div>
-            <div class="free-note-row">
+            <div class="free-note-row" id="free-note-module">
                 <button type="button" onclick="handleFreeInput()" class="free-note-label btn-active">随手记</button>
                 <input type="text" id="free-input" placeholder="#标签 或内容…" class="free-note-input flex-1 bg-white border-none rounded-2xl px-4 py-4 shadow-sm text-base focus:ring-2 focus:ring-indigo-100">
             </div>
@@ -202,7 +202,7 @@
                         </div>
                         <div class="sunburst-legend">
                             <div class="legend-hint" id="chart-legend-hint"></div>
-                            <div class="legend-toggle">
+                            <div class="legend-toggle" id="legend-mode-toggle">
                                 <button type="button" class="active" id="btn-l1" onclick="setLegendMode('l1')">活动分类</button>
                                 <button type="button" id="btn-l2" onclick="setLegendMode('l2')">活动明细</button>
                             </div>
@@ -747,6 +747,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="sync.js?v=1"></script>
     <script src="dev-appearance.js?v=5.39"></script>
-    <script src="dev-inspector.js?v=5.39"></script>
+    <script src="dev-inspector.js?v=5.40"></script>
 </body>
 </html>
