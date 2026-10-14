@@ -11,14 +11,14 @@
     <link rel="stylesheet" href="style.css?v=5.39">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.42">
+    <link rel="stylesheet" href="design-system.css?v=5.43">
     <link rel="stylesheet" href="dev-inspector.css?v=5.39">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
     <div id="zone-frame" aria-hidden="true"></div>
 
     <header class="app-header bg-slate-50 p-3 shrink-0 z-10">
-        <div class="header-main-status">
+        <div id="header-main-status" class="header-main-status">
             <div class="flex items-center space-x-3 min-w-0">
                 <div id="status-light" class="w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0"></div>
                 <div class="min-w-0">
@@ -43,7 +43,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.42</div>
+            <div id="cache-buster" class="version-below-daybar">v5.43</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -126,7 +126,7 @@
         </section>
 
         <section id="page-calendar" class="tab-content space-y-4 pb-8">
-            <div class="flow-calendar-panel">
+            <div id="calendar-month-block" class="flow-calendar-panel">
                 <div id="flow-calendar" class="flow-calendar"></div>
             </div>
             <div id="calendar-day-summary" class="calendar-day-summary"></div>
@@ -188,7 +188,7 @@
                     <div id="event-report-content"></div>
                 </section>
 
-                <div class="structure-card report-surface">
+                <div id="report-structure-card" class="structure-card report-surface">
                     <div class="structure-head">
                         <div class="structure-title" id="structure-title">时间结构</div>
                         <div class="chart-mode-toggle report-segmented-template" id="chart-mode-toggle">
@@ -245,7 +245,7 @@
                 <h2 class="text-base font-black text-slate-800">我的</h2>
             </div>
 
-            <div class="config-grid-card">
+            <div id="config-grid-card" class="config-grid-card">
             <div class="config-grid">
                 <button type="button" class="config-tile" data-config-section="clock" onclick="openConfigSection('clock')">
                     <span class="config-tile-icon">🕐</span>
@@ -408,7 +408,7 @@
         </section>
     </main>
 
-    <nav class="app-bottom-nav bg-white border-t border-slate-100 fixed bottom-0 w-full h-16 grid grid-cols-4 items-center px-2 z-40 shadow-sm">
+    <nav id="app-bottom-nav" class="app-bottom-nav bg-white border-t border-slate-100 fixed bottom-0 w-full h-16 grid grid-cols-4 items-center px-2 z-40 shadow-sm">
         <button onclick="switchTab('record')" class="flex flex-col items-center text-indigo-600" id="nav-record">
             <span class="text-lg">📋</span><span class="text-[10px] mt-0.5 font-bold">流水</span>
         </button>
@@ -447,7 +447,7 @@
     </div>
 
     <div id="calendar-backfill-modal" class="calendar-backfill-modal hidden" onclick="if(event.target===this)closeCalendarBackfill()">
-        <div class="calendar-backfill-card" role="dialog" aria-modal="true" aria-labelledby="calendar-backfill-title" onclick="event.stopPropagation()">
+        <div id="calendar-backfill-card" class="calendar-backfill-card" role="dialog" aria-modal="true" aria-labelledby="calendar-backfill-title" onclick="event.stopPropagation()">
             <div class="calendar-backfill-head">
                 <div><h3 id="calendar-backfill-title">补录</h3><span id="calendar-backfill-date-label"></span></div>
                 <button type="button" class="calendar-backfill-close" aria-label="关闭" onclick="closeCalendarBackfill()">×</button>
@@ -500,7 +500,7 @@
     </div>
 
     <div id="drawer" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex flex-col justify-end backdrop-blur-sm" onclick="if(event.target===this)closeDrawer()">
-        <div class="bg-white w-full rounded-t-[40px] h-3/4 drawer-up flex flex-col">
+        <div id="drawer-card" class="bg-white w-full rounded-t-[40px] h-3/4 drawer-up flex flex-col">
             <div class="p-6 flex justify-between items-center shrink-0 border-b border-slate-50">
                 <h2 id="drawer-title" class="text-lg font-black">选择分类</h2>
                 <div class="flex items-center gap-2">
@@ -601,7 +601,7 @@
     </div>
 
     <div id="event-modal" class="event-modal hidden" onclick="if(event.target===this)closeEventModal()">
-        <div class="event-modal-card" onclick="event.stopPropagation()">
+        <div id="event-modal-card" class="event-modal-card" onclick="event.stopPropagation()">
             <div class="event-modal-head">
                 <h3 id="event-modal-title">记录事件</h3>
                 <button type="button" onclick="closeEventModal()" aria-label="关闭">×</button>
@@ -677,7 +677,7 @@
 
     <!-- 编辑日志弹窗 -->
     <div id="edit-modal" class="hidden fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center backdrop-blur-sm fade-in">
-        <div class="bg-white rounded-3xl p-6 w-4/5 max-w-sm shadow-xl">
+        <div id="edit-modal-card" class="bg-white rounded-3xl p-6 w-4/5 max-w-sm shadow-xl">
             <h3 class="text-sm font-black mb-1">✏️ 修改记录</h3>
             <div id="edit-log-preview" class="text-[10px] text-slate-400 mb-3"></div>
             <div class="space-y-3">
@@ -689,6 +689,7 @@
                     <span id="edit-cat-display">选择分类</span>
                     <span class="text-slate-300">›</span>
                 </div>
+                <div id="edit-time-range" class="space-y-3">
                 <div class="time-edit-group flex items-center bg-slate-50 rounded-2xl px-4 py-2">
                     <span class="text-[10px] font-bold text-slate-400 mr-2">开始</span>
                     <input id="es-h" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="时" autocomplete="off">
@@ -705,6 +706,7 @@
                     <input id="ee-m" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="分" autocomplete="off">
                     <span class="time-edit-separator" aria-hidden="true">:</span>
                     <input id="ee-s" type="text" inputmode="numeric" maxlength="2" class="time-edit-part bg-transparent text-center text-sm font-mono font-bold text-slate-700 border-none focus:outline-none focus:bg-indigo-50 rounded" placeholder="秒" autocomplete="off">
+                </div>
                 </div>
                 <input type="text" id="edit-note-input" class="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="备注" autocomplete="off">
             </div>
@@ -727,7 +729,7 @@
     </div>
 
     <div id="scene-popover" class="scene-popover hidden" aria-hidden="true" onclick="if(event.target===this)closeScenePopover()">
-        <div class="scene-popover-card" onclick="event.stopPropagation()">
+        <div id="scene-popover-card" class="scene-popover-card" onclick="event.stopPropagation()">
             <div class="scene-popover-head">
                 <span id="scene-popover-title">选择场景</span>
                 <button type="button" class="scene-popover-close" onclick="closeScenePopover()" aria-label="关闭">×</button>
@@ -747,6 +749,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="sync.js?v=1"></script>
     <script src="dev-appearance.js?v=5.39"></script>
-    <script src="dev-inspector.js?v=5.42"></script>
+    <script src="dev-inspector.js?v=5.43"></script>
 </body>
 </html>

@@ -4,26 +4,26 @@
         ['B01', '主线快捷入口', '#main-shortcut-section'],
         ['B02', '并行快捷入口', '#parallel-section'],
         ['B03', '时钟面板', '#clock-stage'],
-        ['B04', '流水主线卡片', '#log-list .log-flow-card--main-log, #log-list .log-flow-card--main-live'],
-        ['B05', '流水并行卡片', '#log-list .log-flow-card--parallel-log, #log-list .log-flow-card--parallel-live'],
-        ['B06', '日历月视图', '#page-calendar .flow-calendar-panel'],
+        ['B04', '流水主线卡片', '#log-list .log-flow-card--main-log, #log-list .log-flow-card--main-live', null, { repeatable: true }],
+        ['B05', '流水并行卡片', '#log-list .log-flow-card--parallel-log, #log-list .log-flow-card--parallel-live', null, { repeatable: true }],
+        ['B06', '日历月视图', '#calendar-month-block'],
         ['B07', '日历当日摘要', '#calendar-day-summary'],
-        ['B08', '日历流水卡片', '#calendar-log-list .log-flow-card'],
-        ['B09', '记录修改弹窗', '#edit-modal > div'],
-        ['B10', '流水时间输入', '#edit-modal .time-edit-group'],
-        ['B11', '日历补录弹窗', '#calendar-backfill-modal .calendar-backfill-card', 'C04'],
-        ['B12', '日历时间输入', '#calendar-backfill-interval-fields .calendar-backfill-time-row'],
-        ['B13', '活动分类选择', '#drawer > div'],
+        ['B08', '日历流水卡片', '#calendar-log-list .log-flow-card', null, { repeatable: true }],
+        ['B09', '记录修改弹窗', '#edit-modal-card'],
+        ['B10', '流水时间输入区', '#edit-time-range'],
+        ['B11', '日历摘要发起的补录', '#calendar-backfill-modal[data-dev-address-block="B11"] #calendar-backfill-card', 'C04', { entryPoint: 'renderCalendarDaySummary', origin: 'calendar-add' }],
+        ['B12', '日历时间输入区', '#calendar-backfill-interval-fields'],
+        ['B13', '活动分类选择', '#drawer-card'],
         ['B14', '主线摘要', '#summary-block-main', 'C01'],
         ['B15', '并行摘要', '#summary-block-parallel', 'C01'],
         ['B16', '事件统计', '#event-report-block', 'C01'],
-        ['B17', '时间结构', '#page-report .structure-card', 'C01'],
-        ['B18', '报表时间段', '#page-report .timeline-card'],
-        ['B19', '设置入口', '#page-mine .config-grid-card'],
-        ['B21', '场景选择', '#scene-popover .scene-popover-card'],
-        ['B22', '事件记录', '#event-modal .event-modal-card'],
-        ['B30', '底部导航', '.app-bottom-nav', 'C07'],
-        ['B31', '当前状态卡片', '.header-main-status'],
+        ['B17', '时间结构', '#report-structure-card', 'C01'],
+        ['B18', '报表 00:00–12:00 时间段', '#timeline-card-a', 'C23'],
+        ['B19', '设置入口', '#config-grid-card'],
+        ['B21', '场景选择', '#scene-popover-card'],
+        ['B22', '事件记录', '#event-modal-card'],
+        ['B30', '底部导航', '#app-bottom-nav', 'C07'],
+        ['B31', '当前状态卡片', '#header-main-status'],
         ['B32', '场景切换键', '#scene-entry-btn', 'C21'],
         ['B33', '报表周期与日期', '#report-period-toolbar', 'C16'],
         ['B34', '随手记', '#free-note-module'],
@@ -33,7 +33,10 @@
         ['B38', '场景管理设置面板', '#config-panel-scene', 'C22'],
         ['B39', '事件管理设置面板', '#config-panel-event', 'C22'],
         ['B40', '记录模式设置面板', '#config-panel-mode', 'C22'],
-        ['B41', '数据管理设置面板', '#config-panel-data', 'C22']
+        ['B41', '数据管理设置面板', '#config-panel-data', 'C22'],
+        ['B42', '报表 12:00–24:00 时间段', '#timeline-card-b', 'C23'],
+        ['B43', '未分配时段发起的补录', '#calendar-backfill-modal[data-dev-address-block="B43"] #calendar-backfill-card', 'C04', { entryPoint: 'openUnassignedBackfill', origin: 'unassigned-gap' }],
+        ['B44', '已有补录记录的编辑', '#calendar-backfill-modal[data-dev-address-block="B44"] #calendar-backfill-card', 'C04', { entryPoint: 'editCalendarSupplement', origin: 'supplement-edit' }]
     ];
     // A Z address names a submodule prototype; repeated instances share one badge and contract.
     const submodules = [
@@ -154,8 +157,13 @@
     function scan() {
         scheduled = false;
         if (!enabled) return;
-        for (const [code, label, selector, contract] of blocks) {
-            document.querySelectorAll(selector).forEach((element) => {
+        for (const [code, label, selector, contract, options = {}] of blocks) {
+            const targets = [...document.querySelectorAll(selector)];
+            if (targets.length > 1 && !options.repeatable) {
+                console.error(`[dev-inspector] ${code} must identify one functional block; selector matched ${targets.length}: ${selector}`);
+                continue;
+            }
+            targets.forEach((element) => {
                 if ([...element.children].some(child => child.classList.contains('dev-inspector-badge') && child.dataset.code === code)) return;
                 element.classList.add('dev-inspector-target');
                 element.dataset.devBlockCode = code;
@@ -230,7 +238,16 @@
         }
     }
 
+    function validateEntryPoints() {
+        for (const [code, label, , , options = {}] of blocks) {
+            if (options.entryPoint && typeof window[options.entryPoint] !== 'function') {
+                console.error(`[dev-inspector] ${code} entry point is missing or renamed: ${options.entryPoint} (${label})`);
+            }
+        }
+    }
+
     window.setDevInspectorEnabled = setEnabled;
+    validateEntryPoints();
     window.addEventListener('scroll', scheduleScan, true);
     window.addEventListener('resize', scheduleScan);
     new MutationObserver(scheduleScan).observe(document.body, { childList: true, subtree: true });

@@ -1658,19 +1658,24 @@ function renderCalendarDaySummary() {
             <div class="calendar-summary-total"><b>${total}</b><span>${summary.count} 项记录</span></div>
         </div>
         <div class="calendar-summary-chips">${categories || '<span class="calendar-summary-empty">暂无时间记录</span>'}</div>
-        <div class="calendar-summary-footer"><span>当天流水</span><button type="button" onclick="openCalendarBackfill()" aria-label="补录" title="补录">＋</button></div>`;
+        <div class="calendar-summary-footer"><span>当天流水</span><button type="button" onclick="openCalendarBackfill(null, 'calendar-add')" aria-label="补录" title="补录">＋</button></div>`;
 }
 
 let calendarBackfillKind = null;
 let calendarBackfillEditingId = null;
 let calendarBackfillTarget = null;
 let calendarBackfillFromCalendar = false;
+const BACKFILL_DEV_ADDRESS_BY_ORIGIN = Object.freeze({
+    'calendar-add': 'B11',
+    'unassigned-gap': 'B43',
+    'supplement-edit': 'B44'
+});
 
 function openUnassignedBackfill(dateStr, gapStart) {
     const gap = getDayUnassignedSegments(dateStr).find((item) => item.start === gapStart);
     if (!gap) return;
     viewDate = dateStr;
-    openCalendarBackfill(gap);
+    openCalendarBackfill(gap, 'unassigned-gap');
 }
 
 function getUnassignedMergeNeighbors(dateStr, gap) {
@@ -1751,8 +1756,11 @@ function openUnassignedEdit(dateStr, gapStart) {
     document.getElementById('edit-modal').classList.remove('hidden');
 }
 
-function openCalendarBackfill(target = null) {
+function openCalendarBackfill(target = null, origin = 'calendar-add') {
     if (viewDate > getTodayDateStr()) return;
+    const blockCode = BACKFILL_DEV_ADDRESS_BY_ORIGIN[origin];
+    if (!blockCode) throw new Error(`Unregistered calendar backfill origin: ${origin}`);
+    document.getElementById('calendar-backfill-modal').dataset.devAddressBlock = blockCode;
     calendarBackfillFromCalendar = !target;
     calendarBackfillTarget = target;
     calendarBackfillEditingId = null;
@@ -2059,7 +2067,7 @@ function saveCalendarBackfill() {
 function editCalendarSupplement(kind, id) {
     const record = kind === 'event' ? eventRecords.find((item) => item.id === id) : unlocatedLogs.find((item) => item.id === id);
     if (!record) return;
-    openCalendarBackfill();
+    openCalendarBackfill(null, 'supplement-edit');
     if (kind === 'untimed') {
         calendarBackfillTarget = getDayUnassignedSegments(viewDate).find((gap) => gap.start === record.gapStart) || calendarBackfillTarget;
     }
