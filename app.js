@@ -1665,11 +1665,7 @@ let calendarBackfillKind = null;
 let calendarBackfillEditingId = null;
 let calendarBackfillTarget = null;
 let calendarBackfillFromCalendar = false;
-const BACKFILL_DEV_ADDRESS_BY_ORIGIN = Object.freeze({
-    'calendar-add': 'B11',
-    'unassigned-gap': 'B43',
-    'supplement-edit': 'B44'
-});
+const CALENDAR_BACKFILL_ORIGINS = new Set(['calendar-add', 'unassigned-gap', 'supplement-edit']);
 
 function openUnassignedBackfill(dateStr, gapStart) {
     const gap = getDayUnassignedSegments(dateStr).find((item) => item.start === gapStart);
@@ -1758,9 +1754,7 @@ function openUnassignedEdit(dateStr, gapStart) {
 
 function openCalendarBackfill(target = null, origin = 'calendar-add') {
     if (viewDate > getTodayDateStr()) return;
-    const blockCode = BACKFILL_DEV_ADDRESS_BY_ORIGIN[origin];
-    if (!blockCode) throw new Error(`Unregistered calendar backfill origin: ${origin}`);
-    document.getElementById('calendar-backfill-modal').dataset.devAddressBlock = blockCode;
+    if (!CALENDAR_BACKFILL_ORIGINS.has(origin)) throw new Error(`Unregistered calendar backfill origin: ${origin}`);
     calendarBackfillFromCalendar = !target;
     calendarBackfillTarget = target;
     calendarBackfillEditingId = null;

@@ -68,23 +68,19 @@ test('single-instance B selectors use unique static DOM IDs', () => {
     }
 });
 
-test('each backfill entry point has its own B and is mapped exactly once', () => {
+test('all backfill entry points share the one functional block B11/C04', () => {
     const blocks = readRegistryArray('blocks');
-    const entryBlocks = Array.from(blocks).filter(([, , , , options]) => options?.entryPoint);
-    const origins = entryBlocks.map(([, , , , options]) => options.origin);
-    const owners = entryBlocks.map(([, , , , options]) => options.entryPoint);
-    assert.equal(new Set(origins).size, origins.length, 'A backfill origin must map to one B');
-    assert.equal(new Set(owners).size, owners.length, 'A B must have only one backfill entry point');
-    const expected = entryBlocks.map(([code, , selector, , options]) => {
-            assert.ok(selector.includes(`[data-dev-address-block="${code}"]`), `${code} selector does not scope its workflow`);
-            return `${options.entryPoint}:${options.origin}`;
-        }).sort();
-    const mapMatch = app.match(/const BACKFILL_DEV_ADDRESS_BY_ORIGIN = Object\.freeze\((\{[\s\S]*?\})\);/);
-    assert.ok(mapMatch, 'Backfill origin-to-B map is missing');
-    const addressByOrigin = vm.runInNewContext(`(${mapMatch[1]})`);
-    assert.deepEqual(Object.entries(addressByOrigin).map(([origin, code]) => `${code}:${origin}`).sort(),
-        entryBlocks.map(([code, , , , options]) => `${code}:${options.origin}`).sort(),
-        'Origin-to-B map must agree with the developer-address registry');
+    const byCode = new Map(blocks.map(([code, , selector, contract]) => [code, { selector, contract }]));
+    assert.deepEqual(byCode.get('B11'), { selector: '#calendar-backfill-card', contract: 'C04' });
+    assert.equal(byCode.has('B43'), false, 'Entry origin must not create a second B for the same modal');
+    assert.equal(byCode.has('B44'), false, 'Entry origin must not create a second B for the same modal');
+    assert.match(html, /id="calendar-backfill-modal"[^>]*data-dev-address-block="B11"/);
+    assert.match(app, /const CALENDAR_BACKFILL_ORIGINS = new Set\(\['calendar-add', 'unassigned-gap', 'supplement-edit'\]\)/);
+    assert.doesNotMatch(app, /dataset\.devAddressBlock\s*=\s*blockCode/,
+        'Opening the modal from different origins must not change its B address');
+    const originsMatch = app.match(/const CALENDAR_BACKFILL_ORIGINS = new Set\((\[[^\]]+\])\);/);
+    assert.ok(originsMatch, 'Recognized backfill origins must be explicitly registered');
+    const origins = new Set(vm.runInNewContext(originsMatch[1]));
     const declarations = [...app.matchAll(/function\s+([\w$]+)\s*\([^)]*\)\s*\{/g)];
     const actual = [];
     for (const call of app.matchAll(/\bopenCalendarBackfill\(([^)]*)\)/g)) {
@@ -92,9 +88,12 @@ test('each backfill entry point has its own B and is mapped exactly once', () =>
         const owner = declarations.filter(item => item.index < call.index).at(-1)?.[1];
         const origin = call[1].match(/,\s*'([^']+)'\s*$/)?.[1];
         assert.ok(origin, `Call from ${owner} must explicitly name its workflow origin`);
-        actual.push(`${owner}:${origin}`);
+        assert.ok(origins.has(origin), `Call from ${owner} uses unregistered backfill origin ${origin}`);
+        actual.push(origin);
     }
-    assert.deepEqual(actual.sort(), expected, 'Every modal entry call must have one explicit B/workflow mapping');
+    assert.deepEqual(new Set(actual), origins, 'Every recognized origin must be used by a real entry point');
+    assert.match(inspector, /const parentBlock = `B\$\{code\.match\(\/\^Z\(\\d\+\)-\//,
+        'Submodule display must enforce Z parent ownership when the backfill modal is open');
 });
 
 test('report timeline functional views have distinct, state-scoped B addresses and templates', () => {
