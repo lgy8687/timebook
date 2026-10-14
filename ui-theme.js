@@ -7,6 +7,13 @@ function _themeSafeJSON(key, fallback) {
 }
 const DEV_PANEL_ENABLED = true;
 const UI_THEME_STORAGE_KEY = 'v9_dev_theme';
+const UI_TYPE_LEVEL_TOKENS = [['1', '--ui-type-1'], ['1.1', '--ui-type-1-1'], ['1.2', '--ui-type-1-2'], ['1.3', '--ui-type-1-3'], ['1.4', '--ui-type-1-4'], ['1.5', '--ui-type-1-5'], ['1.6', '--ui-type-1-6'], ['1.7', '--ui-type-1-7'], ['1.8', '--ui-type-1-8'], ['1.9', '--ui-type-1-9']];
+const UI_TYPE_SIZE_KEYS = new Set([
+    'baseFontSize', 'dayRemainLabelSize', 'sectionTitleSize', 'mainKeycapLabelSize',
+    'parallelLabelSize', 'parallelKeycapLabelSize', 'freeInputSize', 'logTimeSize',
+    'logNameSize', 'logDurSize', 'logNoteSize', 'logParallelNameSize', 'swipeBtnSize',
+    'reportTitleSize', 'drawerTitleSize'
+]);
 
 const UI_THEME_DEFAULTS = {
     bodyBg: '#f8fafc',

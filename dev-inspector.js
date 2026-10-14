@@ -76,7 +76,7 @@
             if (!entry) {
                 const badge = document.createElement('button');
                 badge.type = 'button';
-                badge.className = 'dev-inspector-badge dev-inspector-badge--detail';
+                badge.className = `dev-inspector-badge dev-inspector-badge--detail dev-inspector-badge--${code.startsWith('B') ? 'block' : 'submodule'}`;
                 badge.textContent = address;
                 badge.title = `${address} · ${label}（点击复制）`;
                 badge.setAttribute('aria-label', `复制${code.startsWith('B') ? '区块' : '模块'}编号 ${address}，${label}`);
@@ -95,8 +95,13 @@
             representative.classList.add('dev-inspector-target');
             const rect = representative.getBoundingClientRect();
             entry.badge.hidden = false;
-            entry.badge.style.left = `${Math.max(0, Math.min(window.innerWidth - 42, rect.right - 40))}px`;
-            entry.badge.style.top = `${Math.max(0, rect.top - 10)}px`;
+            if (code.startsWith('B')) {
+                entry.badge.style.left = `${Math.max(0, Math.min(window.innerWidth - entry.badge.offsetWidth, rect.right - entry.badge.offsetWidth - 6))}px`;
+                entry.badge.style.top = `${Math.max(0, rect.top - 10)}px`;
+            } else {
+                entry.badge.style.left = `${Math.max(0, Math.min(window.innerWidth - entry.badge.offsetWidth, rect.left + 6))}px`;
+                entry.badge.style.top = `${Math.max(0, Math.min(window.innerHeight - entry.badge.offsetHeight, rect.bottom - 12))}px`;
+            }
         }
     }
 
@@ -145,7 +150,7 @@
                 element.dataset.devBlockCode = code;
                 const badge = document.createElement('button');
                 badge.type = 'button';
-                badge.className = 'dev-inspector-badge';
+                badge.className = 'dev-inspector-badge dev-inspector-badge--block';
                 badge.dataset.code = code;
                 const address = contract ? `${code}/${contract}` : code;
                 badge.textContent = address;
@@ -161,6 +166,29 @@
             });
         }
         scanSubmodules();
+        scanTypography();
+    }
+
+    function scanTypography() {
+        const rootStyle = getComputedStyle(document.documentElement);
+        const typeLevels = new Map(UI_TYPE_LEVEL_TOKENS.map(([level, token]) => [Number.parseFloat(rootStyle.getPropertyValue(token)), level]));
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        const elements = new Set();
+        while (walker.nextNode()) {
+            const node = walker.currentNode;
+            if (!node.textContent.trim()) continue;
+            const element = node.parentElement;
+            if (!element || element.closest('script, style, .dev-inspector-badge, #dev-inspector-toast')) continue;
+            elements.add(element);
+        }
+        document.querySelectorAll('input, textarea, select').forEach(element => elements.add(element));
+        for (const element of elements) {
+            const pixels = Number.parseFloat(getComputedStyle(element).fontSize);
+            const level = typeLevels.get(pixels) || '待归档';
+            const size = `${pixels}px`;
+            if (element.dataset.devTypeLevel !== level) element.dataset.devTypeLevel = level;
+            if (element.dataset.devTypeSize !== size) element.dataset.devTypeSize = size;
+        }
     }
 
     function scheduleScan() {
@@ -184,6 +212,10 @@
             document.querySelectorAll('.dev-inspector-target').forEach((element) => element.classList.remove('dev-inspector-target'));
             document.querySelectorAll('[data-dev-address]').forEach((element) => delete element.dataset.devAddress);
             document.querySelectorAll('[data-dev-block-code]').forEach((element) => delete element.dataset.devBlockCode);
+            document.querySelectorAll('[data-dev-type-level]').forEach((element) => {
+                delete element.dataset.devTypeLevel;
+                delete element.dataset.devTypeSize;
+            });
         }
     }
 

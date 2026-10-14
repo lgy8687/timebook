@@ -37,6 +37,15 @@ function buildDevThemeField(field, cfg) {
         input = document.createElement('input');
         input.type = 'color';
         input.value = cfg[field.key] || UI_THEME_DEFAULTS[field.key];
+    } else if (UI_TYPE_SIZE_KEYS.has(field.key)) {
+        input = document.createElement('select');
+        const current = Number(cfg[field.key] ?? UI_THEME_DEFAULTS[field.key]);
+        const rootStyle = getComputedStyle(document.documentElement);
+        const allowed = UI_TYPE_LEVEL_TOKENS.map(([level, token]) => ({ level, size: Number.parseFloat(rootStyle.getPropertyValue(token)) }))
+            .filter(({ size }) => size >= field.min && size <= field.max);
+        allowed.forEach(({ level, size }) => input.add(new Option(`${level} · ${size}px`, String(size))));
+        if (!allowed.some(({ size }) => size === current)) input.add(new Option(`旧设置 · ${current}px`, String(current)));
+        input.value = String(current);
     } else {
         input = document.createElement('input');
         input.type = 'number';
@@ -45,7 +54,7 @@ function buildDevThemeField(field, cfg) {
         input.value = cfg[field.key] ?? UI_THEME_DEFAULTS[field.key];
     }
     input.dataset.themeKey = field.key;
-    input.addEventListener('input', onDevThemeInput);
+    if (input.tagName !== 'SELECT') input.addEventListener('input', onDevThemeInput);
     input.addEventListener('change', onDevThemeInput);
     wrap.appendChild(input);
     return wrap;

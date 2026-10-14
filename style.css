@@ -82,7 +82,7 @@
     padding: 2px;
     cursor: pointer;
 }
-.dev-theme-field input[type="number"] {
+.dev-theme-field input[type="number"], .dev-theme-field select {
     width: 100%;
     height: 32px;
     border: 1px solid #e2e8f0;
@@ -307,7 +307,7 @@
 .day-remain-fill { height: 100%; border-radius: 999px; background: linear-gradient(180deg, #e0c8a0 0%, #D4B88C 100%); transition: width .35s linear; position: absolute; left: 0; top: 0; z-index: 2; }
 .day-remain-label { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(15, 23, 42, .22); z-index: 2; }
 #match-flame { position: absolute; top: 50%; font-size: 14px; z-index: 3; pointer-events: none; transition: left .35s linear; filter: drop-shadow(0 0 5px rgba(255,120,0,0.6)); animation: fireDance 0.7s ease-in-out infinite; }
-.version-below-daybar { margin: -3px 4px 0; font-size: 9px; line-height: 1; font-weight: 900; letter-spacing: .08em; color: #ef4444; }
+.version-below-daybar { margin: -3px 4px 0; font-size: 10px; line-height: 1; font-weight: 900; letter-spacing: .08em; color: #ef4444; }
 #zone-frame { position: fixed; inset: 0; z-index: 60; pointer-events: none; border: 0 solid transparent; transition: border-color .25s ease, border-width .25s ease; }
 .app-header { display: grid; grid-template-columns: minmax(0, 1fr) 62px; align-items: stretch; gap: 8px; border-bottom: 1px solid #e2e8f0; }
 .header-main-status { min-width: 0; min-height: 56px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
@@ -898,7 +898,7 @@ body.compact-wheel-open { overflow: hidden; }
 }
 .flow-calendar-weekdays {
     display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
-    text-align: center; font-size: 9px; font-weight: 800; color: #94a3b8; margin-bottom: 4px;
+    text-align: center; font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 4px;
 }
 .flow-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .flow-calendar-pad { visibility: hidden; min-height: 32px; }

@@ -32,14 +32,6 @@ body.dev-inspector-on .dev-inspector-target {
     outline-offset: 2px;
 }
 body.dev-inspector-on .app-bottom-nav.dev-inspector-target { position: fixed; z-index: 60; }
-body.dev-inspector-on [data-dev-block-code="B14"] > .dev-inspector-badge,
-body.dev-inspector-on [data-dev-block-code="B15"] > .dev-inspector-badge,
-body.dev-inspector-on [data-dev-block-code="B16"] > .dev-inspector-badge,
-body.dev-inspector-on [data-dev-block-code="B17"] > .dev-inspector-badge,
-body.dev-inspector-on [data-dev-block-code="B33"] > .dev-inspector-badge {
-    right: auto;
-    left: 7px;
-}
 body.dev-inspector-on [data-dev-block-code="B30"] > .dev-inspector-badge {
     right: max(8px, calc((100% - 760px) / 2));
 }
@@ -66,6 +58,16 @@ body.dev-inspector-on [data-dev-block-code="B30"] > .dev-inspector-badge {
 .dev-inspector-badge:focus-visible {
     outline: 2px solid var(--ui-accent);
     outline-offset: 2px;
+}
+.dev-inspector-badge--block {
+    border-color: #31588c;
+    background: #e8f0fc;
+    color: #21436f;
+}
+.dev-inspector-badge--submodule {
+    border-color: #147d71;
+    background: #e1f5ef;
+    color: #075f56;
 }
 .dev-inspector-badge--inline {
     position: static;
