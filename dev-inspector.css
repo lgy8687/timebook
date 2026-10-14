@@ -55,6 +55,28 @@ body.dev-inspector-on .dev-inspector-target {
     outline: 2px solid var(--ui-accent);
     outline-offset: 2px;
 }
+.dev-inspector-badge--inline {
+    position: static;
+    display: inline-flex;
+    min-width: 34px;
+    height: 18px;
+    margin-left: 6px;
+    padding: 0 4px;
+    vertical-align: middle;
+    font-size: 10px;
+    line-height: 16px;
+}
+.dev-inspector-badge--detail {
+    position: fixed;
+    top: 0;
+    right: auto;
+    left: 0;
+    min-width: 34px;
+    height: 18px;
+    padding: 0 4px;
+    font-size: 10px;
+    line-height: 16px;
+}
 .calendar-backfill-card > .dev-inspector-badge {
     top: 6px;
     right: 44px;
