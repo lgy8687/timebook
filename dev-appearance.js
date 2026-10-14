@@ -1,5 +1,4 @@
 function openDevAppearance() {
-    if (!DEV_PANEL_ENABLED) return;
     switchTab('dev');
     renderDevAppearancePanel();
 }
