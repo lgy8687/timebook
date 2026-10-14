@@ -85,7 +85,7 @@ const UI_THEME_DEFAULTS = {
     navInactive: '#64748b',
     navFabBg: '#4f46e5',
     reportTitleColor: '#334155',
-    reportTitleSize: 14,
+    reportTitleSize: 15,
     reportCardBg: '#ffffff',
     reportCardBorder: '#eef2f7',
     timelineBg: '#f1f5f9',

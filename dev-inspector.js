@@ -11,30 +11,40 @@
         ['B08', '日历流水卡片', '#calendar-log-list .log-flow-card'],
         ['B09', '记录修改弹窗', '#edit-modal > div'],
         ['B10', '流水时间输入', '#edit-modal .time-edit-group'],
-        ['B11', '日历补录弹窗', '#calendar-backfill-modal .calendar-backfill-card'],
+        ['B11', '日历补录弹窗', '#calendar-backfill-modal .calendar-backfill-card', 'C04'],
         ['B12', '日历时间输入', '#calendar-backfill-interval-fields .calendar-backfill-time-row'],
         ['B13', '活动分类选择', '#drawer > div'],
-        ['B14', '主线摘要', '#summary-block-main'],
-        ['B15', '并行摘要', '#summary-block-parallel'],
-        ['B16', '事件统计', '#event-report-block'],
-        ['B17', '时间结构', '#page-report .structure-card'],
+        ['B14', '主线摘要', '#summary-block-main', 'C01'],
+        ['B15', '并行摘要', '#summary-block-parallel', 'C01'],
+        ['B16', '事件统计', '#event-report-block', 'C01'],
+        ['B17', '时间结构', '#page-report .structure-card', 'C01'],
         ['B18', '报表时间段', '#page-report .timeline-card'],
         ['B19', '设置入口', '#page-mine .config-grid-card'],
         ['B20', '设置详情', '#page-mine .config-panel'],
         ['B21', '场景选择', '#scene-popover .scene-popover-card'],
         ['B22', '事件记录', '#event-modal .event-modal-card'],
-        ['B31', '当前状态卡片', '.header-main-status']
+        ['B30', '底部导航', '.app-bottom-nav', 'C07'],
+        ['B31', '当前状态卡片', '.header-main-status'],
+        ['B33', '报表周期与日期', '#report-period-toolbar', 'C16']
     ];
-    // One code belongs to an interaction prototype, not to each rendered item or its text.
-    const prototypes = [
-        ['B23', '主线快捷键', '#home-shortcuts .keycap--main'],
-        ['B24', '添加主线快捷键', '#home-shortcuts .shortcut-add-btn--main'],
-        ['B25', '并行快捷键', '#parallel-shortcuts .keycap--parallel-slot'],
-        ['B26', '添加并行快捷键', '#parallel-shortcuts .shortcut-add-btn--parallel'],
-        ['B27', '日历日期格', '#page-calendar .flow-calendar-day'],
-        ['B28', '日历月份切换键', '#page-calendar .flow-calendar-nav'],
-        ['B29', '日历月份选择键', '#page-calendar .flow-calendar-title-btn'],
-        ['B30', '底部导航键', '#nav-record, #nav-calendar, #nav-report, #nav-mine'],
+    // A Z address names a submodule prototype; repeated instances share one badge and contract.
+    const submodules = [
+        ['Z01-1', '主线快捷键', '#home-shortcuts .keycap--main', 'C09'],
+        ['Z01-2', '添加主线快捷键', '#home-shortcuts .shortcut-add-btn--main', 'C10'],
+        ['Z02-1', '并行快捷键', '#parallel-shortcuts .keycap--parallel-slot', 'C11'],
+        ['Z02-2', '添加并行快捷键', '#parallel-shortcuts .shortcut-add-btn--parallel', 'C12'],
+        ['Z06-1', '日历日期格', '#page-calendar .flow-calendar-day', 'C13'],
+        ['Z06-2', '日历月份切换键', '#page-calendar .flow-calendar-nav', 'C14'],
+        ['Z06-3', '日历月份选择键', '#page-calendar .flow-calendar-title-btn', 'C15'],
+        ['Z11-1', '补录时间段选择', '#calendar-backfill-target-picker .calendar-backfill-target-choice', 'C05'],
+        ['Z11-2', '补录事件次数入口', '#calendar-backfill-target-picker .calendar-backfill-event-choice, #calendar-backfill-options .calendar-backfill-choice:not(.journal-only)', 'C06'],
+        ['Z14-1', '主线摘要切换', '#summary-block-main .summary-view-toggle', 'C02'],
+        ['Z15-1', '并行摘要切换', '#summary-block-parallel .summary-view-toggle', 'C02'],
+        ['Z16-1', '事件统计切换', '#event-report-block .chart-mode-toggle', 'C17'],
+        ['Z17-1', '时间结构切换', '#page-report .structure-card .chart-mode-toggle', 'C17'],
+        ['Z30-1', '底部导航键', '#nav-record, #nav-calendar, #nav-report, #nav-mine', 'C08'],
+        ['Z33-1', '报表周期切换', '#seg-period', 'C18'],
+        ['Z33-2', '报表日期导航', '#report-period-nav', 'C03'],
         ['B32', '场景切换键', '#scene-entry-btn']
     ];
     const floatingBadges = new Map();
@@ -42,11 +52,14 @@
     let scheduled = false;
     let toastTimer;
 
-    function scanPrototypes() {
-        for (const [code, label, selector] of prototypes) {
+    function scanSubmodules() {
+        const activeModal = document.querySelector('#calendar-backfill-modal:not(.hidden)');
+        for (const [code, label, selector, contract] of submodules) {
+            const address = contract ? `${code}/${contract}` : code;
             const instances = [...document.querySelectorAll(selector)];
-            instances.forEach(element => { element.dataset.devPrototype = code; });
+            instances.forEach(element => { element.dataset.devAddress = address; });
             const visible = element => {
+                if (activeModal && !activeModal.contains(element)) return false;
                 const rect = element.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
             };
@@ -64,14 +77,14 @@
                 const badge = document.createElement('button');
                 badge.type = 'button';
                 badge.className = 'dev-inspector-badge dev-inspector-badge--detail';
-                badge.textContent = code;
-                badge.title = `${code} · ${label}（同类组件共用，点击复制）`;
-                badge.setAttribute('aria-label', `复制组件编号 ${code}，${label}`);
+                badge.textContent = address;
+                badge.title = `${address} · ${label}（点击复制）`;
+                badge.setAttribute('aria-label', `复制${code.startsWith('B') ? '区块' : '模块'}编号 ${address}，${label}`);
                 badge.addEventListener('pointerdown', event => event.stopPropagation());
                 badge.addEventListener('click', event => {
                     event.preventDefault();
                     event.stopPropagation();
-                    copyCode(code);
+                    copyCode(address);
                 });
                 document.body.appendChild(badge);
                 entry = { element: representative, badge };
@@ -125,27 +138,29 @@
     function scan() {
         scheduled = false;
         if (!enabled) return;
-        for (const [code, label, selector] of blocks) {
+        for (const [code, label, selector, contract] of blocks) {
             document.querySelectorAll(selector).forEach((element) => {
                 if ([...element.children].some(child => child.classList.contains('dev-inspector-badge') && child.dataset.code === code)) return;
                 element.classList.add('dev-inspector-target');
+                element.dataset.devBlockCode = code;
                 const badge = document.createElement('button');
                 badge.type = 'button';
                 badge.className = 'dev-inspector-badge';
                 badge.dataset.code = code;
-                badge.textContent = code;
-                badge.title = `${code} · ${label}（点击复制）`;
-                badge.setAttribute('aria-label', `复制区块编号 ${code}，${label}`);
+                const address = contract ? `${code}/${contract}` : code;
+                badge.textContent = address;
+                badge.title = `${address} · ${label}（点击复制）`;
+                badge.setAttribute('aria-label', `复制区块编号 ${address}，${label}`);
                 badge.addEventListener('pointerdown', (event) => event.stopPropagation());
                 badge.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    copyCode(code);
+                    copyCode(address);
                 });
                 element.appendChild(badge);
             });
         }
-        scanPrototypes();
+        scanSubmodules();
     }
 
     function scheduleScan() {
@@ -167,7 +182,8 @@
             for (const { badge } of floatingBadges.values()) badge.remove();
             floatingBadges.clear();
             document.querySelectorAll('.dev-inspector-target').forEach((element) => element.classList.remove('dev-inspector-target'));
-            document.querySelectorAll('[data-dev-prototype]').forEach((element) => delete element.dataset.devPrototype);
+            document.querySelectorAll('[data-dev-address]').forEach((element) => delete element.dataset.devAddress);
+            document.querySelectorAll('[data-dev-block-code]').forEach((element) => delete element.dataset.devBlockCode);
         }
     }
 

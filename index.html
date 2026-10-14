@@ -11,8 +11,8 @@
     <link rel="stylesheet" href="style.css?v=5.22">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.33">
-    <link rel="stylesheet" href="dev-inspector.css?v=5.36">
+    <link rel="stylesheet" href="design-system.css?v=5.37">
+    <link rel="stylesheet" href="dev-inspector.css?v=5.37">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
     <div id="zone-frame" aria-hidden="true"></div>
@@ -43,7 +43,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.36</div>
+            <div id="cache-buster" class="version-below-daybar">v5.37</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -136,7 +136,7 @@
 
         <section id="page-report" class="tab-content report-scope">
             <div class="container">
-                <div class="toolbar">
+                <div class="toolbar" id="report-period-toolbar">
                     <div class="seg-row">
                         <div class="seg" id="seg-period">
                             <button type="button" class="seg-btn active" data-period="day">日报</button>
@@ -155,7 +155,7 @@
                     </div>
                 </div>
 
-                <section class="summary-block report-summary-periodic" id="summary-block-main">
+                <section class="summary-block report-summary-periodic report-surface" id="summary-block-main">
                     <div class="summary-block-head">
                         <h2 class="summary-block-title summary-block-title--main">主线摘要</h2>
                         <div class="summary-view-toggle" aria-label="主线摘要统计范围">
@@ -166,7 +166,7 @@
                     <div class="cards cards-summary" id="summary-main"></div>
                 </section>
 
-                <section class="summary-block report-summary-periodic" id="summary-block-parallel">
+                <section class="summary-block report-summary-periodic report-surface" id="summary-block-parallel">
                     <div class="summary-block-head">
                         <h2 class="summary-block-title summary-block-title--parallel">并行摘要</h2>
                         <div class="summary-view-toggle" aria-label="并行摘要统计范围">
@@ -177,7 +177,7 @@
                     <div class="cards cards-summary" id="summary-parallel"></div>
                 </section>
 
-                <section class="event-report-block" id="event-report-block">
+                <section class="event-report-block report-surface" id="event-report-block">
                     <div class="event-report-head">
                         <h2 class="summary-block-title event-report-title">事件统计</h2>
                         <div class="chart-mode-toggle" aria-label="事件统计方式">
@@ -188,7 +188,7 @@
                     <div id="event-report-content"></div>
                 </section>
 
-                <div class="structure-card">
+                <div class="structure-card report-surface">
                     <div class="structure-head">
                         <div class="structure-title" id="structure-title">时间结构</div>
                         <div class="chart-mode-toggle" id="chart-mode-toggle">
@@ -396,7 +396,7 @@
                 <h2 class="text-base font-black text-slate-800">开发者外观</h2>
             </div>
             <label class="dev-inspector-setting">
-                <span>开发者模式<small>显示区块编号，点击编号可复制</small></span>
+                <span>开发者模式<small>显示区块与子模块编号，点击可复制</small></span>
                 <input id="dev-inspector-toggle" type="checkbox" onchange="setDevInspectorEnabled(this.checked)" aria-label="开发者模式">
             </label>
             <p class="text-[10px] text-slate-400 px-1 leading-relaxed">按产品分区调节颜色与字号，自动保存。逻辑与手势不在此页修改。</p>
@@ -740,13 +740,13 @@
 
     <script src="report-metrics.js?v=1.9"></script>
     <script src="report.js?v=2.9"></script>
-    <script src="ui-theme.js?v=5.24"></script>
+    <script src="ui-theme.js?v=5.37"></script>
     <script src="app.js?v=5.32"></script>
     <script src="backup.js?v=5"></script>
     <script src="sync-config.js?v=1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="sync.js?v=1"></script>
     <script src="dev-appearance.js?v=5.34"></script>
-    <script src="dev-inspector.js?v=5.36"></script>
+    <script src="dev-inspector.js?v=5.37"></script>
 </body>
 </html>

@@ -1,8 +1,13 @@
 /* Shared visual rules. Category and scene colors remain data-driven. */
 :root {
-    --ui-title: 15px;
+    --ui-heading-1: 20px;
+    --ui-heading-2: 17px;
+    --ui-heading-3: 15px;
+    --ui-heading-4: 13px;
+    --ui-title: var(--ui-heading-3);
     --ui-body: 13px;
     --ui-caption: 11px;
+    --ui-report-surface-radius: 14px;
     --ui-ink: #334155;
     --ui-muted: #64748b;
     --ui-accent: #526a91;
@@ -235,6 +240,28 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .report-period-nav-range { font-size: var(--ui-caption); font-weight: 600; }
 .report-period-today { font-size: var(--ui-caption); background: var(--ui-accent-soft); color: var(--ui-accent); }
 .structure-card, .report-card-block, .event-report-block { padding: 16px; }
+#page-report .report-surface {
+    margin-bottom: 12px;
+    padding: 16px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-report-surface-radius);
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(53, 80, 106, .05);
+}
+#page-report .report-surface .summary-block-title,
+#page-report .report-surface .structure-title {
+    font-size: var(--tb-report-title-size, var(--ui-heading-3));
+    line-height: 1.4;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+}
+#page-report .report-surface .summary-block-head,
+#page-report .report-surface .event-report-head,
+#page-report .report-surface .structure-head {
+    min-height: 36px;
+    margin-bottom: 12px;
+}
 .sunburst-layout { padding: 0; border: 0; border-radius: 0; box-shadow: none; margin-bottom: 0; }
 .timeline-bar-row { min-height: 28px; }
 .clock-stage .clock-face { width: 100% !important; height: auto !important; aspect-ratio: 1; }

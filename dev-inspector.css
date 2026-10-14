@@ -31,6 +31,18 @@ body.dev-inspector-on .dev-inspector-target {
     outline: 1px dashed rgba(82, 106, 145, .48);
     outline-offset: 2px;
 }
+body.dev-inspector-on .app-bottom-nav.dev-inspector-target { position: fixed; z-index: 60; }
+body.dev-inspector-on [data-dev-block-code="B14"] > .dev-inspector-badge,
+body.dev-inspector-on [data-dev-block-code="B15"] > .dev-inspector-badge,
+body.dev-inspector-on [data-dev-block-code="B16"] > .dev-inspector-badge,
+body.dev-inspector-on [data-dev-block-code="B17"] > .dev-inspector-badge,
+body.dev-inspector-on [data-dev-block-code="B33"] > .dev-inspector-badge {
+    right: auto;
+    left: 7px;
+}
+body.dev-inspector-on [data-dev-block-code="B30"] > .dev-inspector-badge {
+    right: max(8px, calc((100% - 760px) / 2));
+}
 .dev-inspector-badge {
     position: absolute;
     z-index: 45;
@@ -68,6 +80,7 @@ body.dev-inspector-on .dev-inspector-target {
 }
 .dev-inspector-badge--detail {
     position: fixed;
+    z-index: 80;
     top: 0;
     right: auto;
     left: 0;
