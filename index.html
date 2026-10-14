@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.39">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.43">
+    <link rel="stylesheet" href="design-system.css?v=5.44">
     <link rel="stylesheet" href="dev-inspector.css?v=5.39">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -43,7 +43,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.43</div>
+            <div id="cache-buster" class="version-below-daybar">v5.44</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -212,7 +212,7 @@
                     </div>
                 </div>
 
-                <div class="timeline-card report-card-block" id="timeline-card-a">
+                <div class="timeline-card report-card-block" id="timeline-card-a" data-dev-address-kind="timeline">
                     <div class="timeline-head">
                         <div class="report-block-title" id="timeline-title-a">00:00–12:00</div>
                         <div class="timeline-hint" id="timeline-hint-a"></div>
@@ -221,7 +221,7 @@
                     <div class="timeline-scale" id="timeline-scale-a"></div>
                 </div>
 
-                <div class="timeline-card report-card-block" id="timeline-card-b">
+                <div class="timeline-card report-card-block" id="timeline-card-b" data-dev-address-kind="timeline">
                     <div class="timeline-head">
                         <div class="report-block-title" id="timeline-title-b">12:00–24:00</div>
                         <div class="timeline-hint" id="timeline-hint-b"></div>
@@ -741,7 +741,7 @@
     <div id="tip"></div>
 
     <script src="report-metrics.js?v=1.9"></script>
-    <script src="report.js?v=2.9"></script>
+    <script src="report.js?v=2.10"></script>
     <script src="ui-theme.js?v=5.39"></script>
     <script src="app.js?v=5.32"></script>
     <script src="backup.js?v=5"></script>
@@ -749,6 +749,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="sync.js?v=1"></script>
     <script src="dev-appearance.js?v=5.39"></script>
-    <script src="dev-inspector.js?v=5.43"></script>
+    <script src="dev-inspector.js?v=5.44"></script>
 </body>
 </html>

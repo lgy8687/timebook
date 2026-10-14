@@ -180,9 +180,15 @@
 
         if (!tl) {
             card.classList.add('hidden');
+            delete card.dataset.devAddressBlock;
             return;
         }
         card.classList.remove('hidden');
+        const blockCode = tl.kind === 'day'
+            ? (suffix === 'a' ? 'B18' : 'B42')
+            : tl.kind === 'bars' ? 'B45' : '';
+        if (blockCode) card.dataset.devAddressBlock = blockCode;
+        else delete card.dataset.devAddressBlock;
         titleEl.textContent = title || tl.title || '时间分布';
         hintEl.textContent = tl.hint || '';
 
@@ -267,7 +273,9 @@
             renderTimelineHalf(periodData.timeline, 'b', 50, 100, '12:00–24:00');
         } else {
             renderTimelineHalf(periodData.timeline, 'a', 0, 100, periodData.timeline?.title || '时间分布');
-            document.getElementById('timeline-card-b')?.classList.add('hidden');
+            const secondHalf = document.getElementById('timeline-card-b');
+            secondHalf?.classList.add('hidden');
+            if (secondHalf) delete secondHalf.dataset.devAddressBlock;
         }
 
         const total = chartBundle.l1.reduce((s, x) => s + (x.exactHours ?? x.hours), 0);

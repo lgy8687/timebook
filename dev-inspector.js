@@ -18,7 +18,7 @@
         ['B15', '并行摘要', '#summary-block-parallel', 'C01'],
         ['B16', '事件统计', '#event-report-block', 'C01'],
         ['B17', '时间结构', '#report-structure-card', 'C01'],
-        ['B18', '报表 00:00–12:00 时间段', '#timeline-card-a', 'C23'],
+        ['B18', '日报 00:00–12:00 时间轴', '#timeline-card-a[data-dev-address-block="B18"]', 'C23'],
         ['B19', '设置入口', '#config-grid-card'],
         ['B21', '场景选择', '#scene-popover-card'],
         ['B22', '事件记录', '#event-modal-card'],
@@ -34,7 +34,8 @@
         ['B39', '事件管理设置面板', '#config-panel-event', 'C22'],
         ['B40', '记录模式设置面板', '#config-panel-mode', 'C22'],
         ['B41', '数据管理设置面板', '#config-panel-data', 'C22'],
-        ['B42', '报表 12:00–24:00 时间段', '#timeline-card-b', 'C23'],
+        ['B42', '日报 12:00–24:00 时间轴', '#timeline-card-b[data-dev-address-block="B42"]', 'C23'],
+        ['B45', '周报、月报、年报时间构成图', '#timeline-card-a[data-dev-address-block="B45"]', 'C24'],
         ['B43', '未分配时段发起的补录', '#calendar-backfill-modal[data-dev-address-block="B43"] #calendar-backfill-card', 'C04', { entryPoint: 'openUnassignedBackfill', origin: 'unassigned-gap' }],
         ['B44', '已有补录记录的编辑', '#calendar-backfill-modal[data-dev-address-block="B44"] #calendar-backfill-card', 'C04', { entryPoint: 'editCalendarSupplement', origin: 'supplement-edit' }]
     ];
@@ -70,6 +71,12 @@
         const activeModal = document.querySelector('#calendar-backfill-modal:not(.hidden)');
         for (const [code, label, selector, contract] of submodules) {
             const address = contract ? `${code}/${contract}` : code;
+            const parentBlock = `B${code.match(/^Z(\d+)-/)?.[1]}`;
+            const entry = floatingBadges.get(code);
+            if (activeModal && activeModal.dataset.devAddressBlock !== parentBlock) {
+                if (entry) entry.badge.hidden = true;
+                continue;
+            }
             const instances = [...document.querySelectorAll(selector)];
             instances.forEach(element => { element.dataset.devAddress = address; });
             const visible = element => {
@@ -79,7 +86,6 @@
             };
             const representative = instances.find(element => element.classList.contains('is-selected') && visible(element))
                 || instances.find(visible);
-            let entry = floatingBadges.get(code);
             if (!representative) {
                 if (entry) {
                     entry.element.classList.remove('dev-inspector-target');
@@ -157,6 +163,12 @@
     function scan() {
         scheduled = false;
         if (!enabled) return;
+        document.querySelectorAll('[data-dev-address-kind="timeline"][data-dev-block-code]').forEach((element) => {
+            if (element.dataset.devBlockCode === element.dataset.devAddressBlock) return;
+            element.querySelectorAll(':scope > .dev-inspector-badge--block').forEach((badge) => badge.remove());
+            element.classList.remove('dev-inspector-target');
+            delete element.dataset.devBlockCode;
+        });
         for (const [code, label, selector, contract, options = {}] of blocks) {
             const targets = [...document.querySelectorAll(selector)];
             if (targets.length > 1 && !options.repeatable) {

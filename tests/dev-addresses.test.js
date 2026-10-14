@@ -8,6 +8,7 @@ const root = path.join(__dirname, '..');
 const inspector = fs.readFileSync(path.join(root, 'dev-inspector.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const report = fs.readFileSync(path.join(root, 'report.js'), 'utf8');
 const registry = fs.readFileSync(path.join(root, 'docs/design-registry.md'), 'utf8');
 
 function readRegistryArray(name) {
@@ -48,16 +49,21 @@ test('single-instance B selectors use unique static DOM IDs', () => {
         if (options.repeatable) continue;
         const direct = selector.match(/^#([\w-]+)$/);
         const workflow = selector.match(/^#calendar-backfill-modal\[data-dev-address-block="(B\d+)"\] #(\w[\w-]*)$/);
-        assert.ok(direct || workflow, `${code} must use one unique ID selector or a declared workflow-scoped ID: ${selector}`);
+        const stateScoped = selector.match(/^#([\w-]+)\[data-dev-address-block="(B\d+)"\]$/);
+        assert.ok(direct || workflow || stateScoped, `${code} must use one unique ID selector or a declared workflow-scoped ID: ${selector}`);
         if (direct) {
             const count = [...html.matchAll(new RegExp(`\\bid=["']${direct[1]}["']`, 'g'))].length;
             assert.equal(count, 1, `${code} must point to one unique DOM id; found ${count}: ${selector}`);
-        } else {
+        } else if (workflow) {
             assert.equal(workflow[1], code, `${code} selector is scoped to a different workflow`);
             for (const id of ['calendar-backfill-modal', workflow[2]]) {
                 const count = [...html.matchAll(new RegExp(`\\bid=["']${id}["']`, 'g'))].length;
                 assert.equal(count, 1, `${code} requires unique DOM id #${id}; found ${count}`);
             }
+        } else {
+            assert.equal(stateScoped[2], code, `${code} selector is scoped to a different rendered state`);
+            assert.equal([...html.matchAll(new RegExp(`\\bid=["']${stateScoped[1]}["']`, 'g'))].length, 1,
+                `${code} requires unique DOM id #${stateScoped[1]}`);
         }
     }
 });
@@ -91,12 +97,20 @@ test('each backfill entry point has its own B and is mapped exactly once', () =>
     assert.deepEqual(actual.sort(), expected, 'Every modal entry call must have one explicit B/workflow mapping');
 });
 
-test('the two half-day timeline cards have separate B addresses', () => {
+test('report timeline functional views have distinct, state-scoped B addresses and templates', () => {
     const blocks = readRegistryArray('blocks');
-    const byCode = new Map(blocks.map(([code, , selector]) => [code, selector]));
-    assert.equal(byCode.get('B18'), '#timeline-card-a');
-    assert.equal(byCode.get('B42'), '#timeline-card-b');
-    for (const id of ['timeline-card-a', 'timeline-card-b']) {
-        assert.equal([...html.matchAll(new RegExp(`\\bid=["']${id}["']`, 'g'))].length, 1);
-    }
+    const byCode = new Map(blocks.map(([code, , selector, contract]) => [code, { selector, contract }]));
+    assert.deepEqual(byCode.get('B18'), { selector: '#timeline-card-a[data-dev-address-block="B18"]', contract: 'C23' });
+    assert.deepEqual(byCode.get('B42'), { selector: '#timeline-card-b[data-dev-address-block="B42"]', contract: 'C23' });
+    assert.deepEqual(byCode.get('B45'), { selector: '#timeline-card-a[data-dev-address-block="B45"]', contract: 'C24' });
+    assert.match(report, /tl\.kind === 'day'[\s\S]*\? \(suffix === 'a' \? 'B18' : 'B42'\)[\s\S]*: tl\.kind === 'bars' \? 'B45'/,
+        'Timeline rendering must map daily halves and period-composition bars to separate B addresses');
+    assert.match(report, /delete card\.dataset\.devAddressBlock/,
+        'Hidden or empty timeline cards must not keep a stale B address');
+    assert.match(inspector, /\[data-dev-address-kind="timeline"\]\[data-dev-block-code\][\s\S]*element\.dataset\.devBlockCode === element\.dataset\.devAddressBlock[\s\S]*dev-inspector-badge--block/,
+        'Developer mode must replace the old B badge when a reused card changes functional view');
+    assert.match(inspector, /const parentBlock = `B\$\{code\.match\(\/\^Z\(\\d\+\)-\//,
+        'Submodule display must derive and enforce its parent B when a workflow modal is active');
+    assert.match(html, /id="timeline-card-a"[^>]*data-dev-address-kind="timeline"/);
+    assert.match(html, /id="timeline-card-b"[^>]*data-dev-address-kind="timeline"/);
 });
