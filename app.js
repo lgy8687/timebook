@@ -471,6 +471,7 @@ function renderSceneChoiceGrid(mode) {
     const content = document.getElementById('scene-popover-content');
     const sceneCat = getCat('场景');
     if (!title || !content) return;
+    document.getElementById('scene-popover').dataset.devAddressBlock = mode === 'switch' ? 'B73' : 'B21';
     title.innerText = mode === 'switch' ? '切换场景' : '选择场景';
     content.innerHTML = '';
     const grid = document.createElement('div');
@@ -507,6 +508,7 @@ function renderLifeMainGrid() {
     const title = document.getElementById('scene-popover-title');
     const content = document.getElementById('scene-popover-content');
     if (!title || !content) return;
+    document.getElementById('scene-popover').dataset.devAddressBlock = 'B74';
     title.innerText = `选择${sceneSettings.homeLabel}主线`;
     content.innerHTML = '';
     const grid = document.createElement('div');
@@ -534,6 +536,7 @@ function renderSceneActions() {
     const title = document.getElementById('scene-popover-title');
     const content = document.getElementById('scene-popover-content');
     if (!title || !content || !current) return;
+    document.getElementById('scene-popover').dataset.devAddressBlock = 'B72';
     title.innerText = `场景：${current.l2 || current.l1}`;
     content.innerHTML = '';
     content.append(
@@ -1467,7 +1470,7 @@ function renderUnassignedMain(list, dateStr, gap, assigned = [], live = false) {
     wrap.append(leftActions, rightActions);
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'unassigned-main-card swipe-card log-flow-card--main-log';
+    card.className = 'unassigned-main-card swipe-card log-flow-card--main-log log-flow-card--unassigned-main';
     card.setAttribute('aria-label', `${formatDateHeaderLabel(dateStr)}未分配主线，补录`);
     let startX = 0, startY = 0, swiping = false, dx = 0, suppressClick = false;
     card.addEventListener('touchstart', (event) => {
@@ -1666,11 +1669,24 @@ let calendarBackfillEditingId = null;
 let calendarBackfillTarget = null;
 let calendarBackfillFromCalendar = false;
 const CALENDAR_BACKFILL_ORIGINS = new Set(['calendar-add', 'unassigned-gap', 'supplement-edit']);
-const CALENDAR_BACKFILL_KIND_ADDRESSES = Object.freeze({
-    interval: 'B12',
-    untimed: 'B46',
-    event: 'B47'
-});
+function getCalendarBackfillBlockAddress(kind) {
+    const hasTarget = !!calendarBackfillTarget;
+    if (kind === 'event') return 'B47';
+    if (kind === 'interval') return hasTarget
+        ? (calendarBackfillFromCalendar ? 'B12' : 'B58')
+        : 'B59';
+    if (kind === 'untimed') return hasTarget
+        ? (calendarBackfillFromCalendar ? 'B46' : 'B60')
+        : 'B61';
+    if (recordMode === 'journal' && !hasTarget) return 'B55';
+    if (hasTarget) return calendarBackfillFromCalendar ? 'B11' : 'B56';
+    return 'B57';
+}
+
+function setDrawerDevAddress(code) {
+    const drawer = document.getElementById('drawer');
+    if (drawer) drawer.dataset.devAddressBlock = code;
+}
 
 function openUnassignedBackfill(dateStr, gapStart) {
     const gap = getDayUnassignedSegments(dateStr).find((item) => item.start === gapStart);
@@ -1737,6 +1753,7 @@ function openUnassignedEdit(dateStr, gapStart) {
     if (!gap) return;
     const live = getActiveUnassignedSegment(dateStr)?.start === gapStart;
     editTarget = { source: 'unassigned', dateStr, gapStart, live };
+    document.getElementById('edit-modal').dataset.devAddressBlock = 'B54';
     editOldL1 = null;
     editOldL2 = null;
     document.getElementById('edit-log-preview').innerText = `未分配 — ${formatDuration(gap.end - gap.start)}`;
@@ -1856,6 +1873,7 @@ function updateCalendarBackfillCategory() {
 
 function openCalendarBackfillCategoryPicker() {
     pickerMode = 'calendar-backfill';
+    setDrawerDevAddress('B68');
     document.getElementById('drawer-title').innerText = '选择活动';
     document.getElementById('drawer-footer').classList.add('hidden');
     document.getElementById('calendar-backfill-modal').classList.add('hidden');
@@ -1910,8 +1928,7 @@ function updateCalendarBackfillEndDayHint() {
 
 function showCalendarBackfillForm(kind) {
     if (kind && kind !== 'event' && recordMode !== 'journal') return;
-    const blockCode = kind ? CALENDAR_BACKFILL_KIND_ADDRESSES[kind] : 'B11';
-    if (!blockCode) throw new Error(`Unregistered calendar backfill form: ${kind}`);
+    const blockCode = getCalendarBackfillBlockAddress(kind);
     document.getElementById('calendar-backfill-modal').dataset.devAddressBlock = blockCode;
     calendarBackfillKind = kind;
     const pickingTarget = !kind && recordMode === 'journal' && !calendarBackfillTarget;
@@ -2266,6 +2283,7 @@ function flushUncategorizedClassifyPrompt() {
     _classifyPromptOpen = true;
     _classifyTargetLogId = id;
     pickerMode = 'classify-log';
+    setDrawerDevAddress('B66');
     document.getElementById('drawer-title').innerText = '请为未分类记录选择归档';
     document.getElementById('parallel-time-row').classList.add('hidden');
     document.getElementById('drawer-footer').classList.remove('hidden');
@@ -2711,6 +2729,13 @@ function openEdit(index, source = 'logs') {
         dateInput.value = '';
     }
     const activeParallel = source === 'parallelCurrent';
+    const editBlock = activeMain
+        ? (previousEnd == null ? 'B51' : 'B52')
+        : activeParallel ? 'B78'
+            : log.parallel ? 'B53'
+                : fixedMidnightEnd ? 'B79' : 'B09';
+    const editModal = document.getElementById('edit-modal');
+    if (editModal?.dataset) editModal.dataset.devAddressBlock = editBlock;
     ['ee-h', 'ee-m', 'ee-s'].forEach((fieldId) => {
         const field = document.getElementById(fieldId);
         if (!field) return;
@@ -2749,6 +2774,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!editTarget) return;
         _parallelCallback = (l1, l2) => { editOldL1 = l1; editOldL2 = l2; updateEditCatDisplay(l1, l2); document.getElementById('edit-modal').classList.remove('hidden'); };
         pickerMode = 'edit';
+        setDrawerDevAddress('B65');
         document.getElementById('edit-modal').classList.add('hidden');
         document.getElementById('drawer-title').innerText = "修改分类";
         document.getElementById('drawer-footer').classList.add('hidden');
@@ -3717,6 +3743,7 @@ function updateParallelStatus() {
 }
 function openDrawer() {
     pickerMode = 'record';
+    setDrawerDevAddress('B13');
     document.getElementById('drawer-title').innerText = "记一笔活动";
     document.getElementById('parallel-time-row').classList.add('hidden');
     showDrawer();
@@ -3727,6 +3754,7 @@ function openDrawer() {
 }
 function openDrawerForRecord() {
     pickerMode = 'record';
+    setDrawerDevAddress('B13');
     _parallelCallback = null;
     document.getElementById('drawer-title').innerText = "记一笔活动";
     document.getElementById('parallel-time-row').classList.add('hidden');
@@ -3749,6 +3777,7 @@ function editShortcut(idx) {
         if (confirm("要重新选择这个快捷入口的分类吗？")) {
             editingShortcutIndex = idx;
             pickerMode = 'shortcut-edit';
+            setDrawerDevAddress('B64');
             document.getElementById('drawer-title').innerText = "修改快捷入口";
             document.getElementById('drawer-footer').classList.add('hidden');
             showDrawer();
@@ -4004,6 +4033,7 @@ function openReportSummaryCategoryDrawer(view, index, periodKey, current) {
     const preferredL1 = current?.l1;
     if (preferredL1 && cats.some((cat) => cat.name === preferredL1)) selL1 = preferredL1;
     pickerMode = 'report-summary-category';
+    setDrawerDevAddress('B67');
     document.getElementById('drawer-title').innerText = '选择二级目录';
     document.getElementById('drawer-footer').classList.add('hidden');
     showDrawer();
@@ -4445,6 +4475,10 @@ function eventTypeById(id) {
 }
 
 function setEventStage(stage) {
+    const stageBlocks = { choose: 'B22', confirm: 'B75', supplement: 'B76', time: 'B77' };
+    const blockCode = stageBlocks[stage];
+    if (!blockCode) throw new Error(`Unregistered event interface stage: ${stage}`);
+    document.getElementById('event-modal').dataset.devAddressBlock = blockCode;
     ['choose', 'confirm', 'supplement', 'time'].forEach((name) => {
         document.getElementById('event-stage-' + name)?.classList.toggle('hidden', name !== stage);
     });
@@ -5029,6 +5063,7 @@ function openSceneParallelBackfillDrawer(sceneLog, options = {}) {
     const context = { sceneName, selectedDate: getTodayDateStr(), target: null, preset: options.preset || null };
 
     pickerMode = 'parallel-backfill';
+    setDrawerDevAddress('B70');
     document.getElementById('drawer-title').innerText = `补录场景活动于 ${displayName(sceneLog)}`;
     document.getElementById('parallel-time-row').classList.remove('hidden');
     document.getElementById('drawer-footer').classList.remove('hidden');
@@ -5105,6 +5140,7 @@ function openSceneParallelBackfillDrawer(sceneLog, options = {}) {
 function openBackfillDrawer(parentLog, options = {}) {
     const liveParent = options.liveParent === true;
     pickerMode = 'parallel-backfill';
+    setDrawerDevAddress('B69');
     document.getElementById('drawer-title').innerText = `↳ 补录并行于 ${displayName(parentLog)}`;
     document.getElementById('parallel-time-row').classList.remove('hidden');
     document.getElementById('parallel-date-row').classList.add('hidden');
@@ -5171,6 +5207,7 @@ function openSplitDrawer(parentLog) {
         return;
     }
     pickerMode = 'split';
+    setDrawerDevAddress('B71');
     const pStart = parentLog.startTime;
     const pEnd = parentLog.endTime || (pStart + (parentLog.duration || 60) * 60000);
     document.getElementById('drawer-title').innerText = `✂️ 切割 — ${displayName(parentLog)}`;
@@ -6348,6 +6385,7 @@ function showDrawer() {
 
 function openShortcutPicker() {
     pickerMode = 'shortcut';
+    setDrawerDevAddress('B62');
     document.getElementById('drawer-title').innerText = "选择主线快捷";
     document.getElementById('drawer-footer').classList.add('hidden');
     showDrawer();
@@ -6355,6 +6393,7 @@ function openShortcutPicker() {
 }
 function openParallelShortcutPicker() {
     pickerMode = 'parallel-shortcut';
+    setDrawerDevAddress('B63');
     document.getElementById('drawer-title').innerText = "选择并行快捷";
     document.getElementById('drawer-footer').classList.add('hidden');
     showDrawer();
@@ -7087,6 +7126,7 @@ function closeDrawer() {
     if (wasBackfill) resetBackfillEditor();
     const wasClassify = pickerMode === 'classify-log' && _classifyPromptOpen;
     document.getElementById('drawer').classList.add('hidden');
+    setDrawerDevAddress('B13');
     if (wasCalendarBackfill) document.getElementById('calendar-backfill-modal').classList.remove('hidden');
     pickerMode = 'record';
     _parallelCallback = null;
