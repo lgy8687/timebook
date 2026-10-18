@@ -19,6 +19,7 @@ const activeMainEditSource = app.slice(app.indexOf('function confirmActiveMainEd
 const calendarBudgetSource = app.slice(app.indexOf('function getMainOccupiedMsForDay('), app.indexOf('\nfunction getCalendarDaySummary(', app.indexOf('function getMainOccupiedMsForDay(')));
 const unlocatedChartSource = app.slice(app.indexOf('function mergeUnlocatedIntoChart('), app.indexOf('\nfunction buildMainComposition(', app.indexOf('function mergeUnlocatedIntoChart(')));
 const reportSortSource = app.slice(app.indexOf('function compareReportDuration('), app.indexOf('\nfunction aggregateReportSegments(', app.indexOf('function compareReportDuration(')));
+const periodReportSource = app.slice(app.indexOf('function buildLiveReportPeriod('), app.indexOf('\nfunction ensureReportBillboard(', app.indexOf('function buildLiveReportPeriod(')));
 const durationInputSource = app.slice(app.indexOf('function sanitizeCalendarDurationInput('), app.indexOf('\nfunction showCalendarBackfillForm(', app.indexOf('function sanitizeCalendarDurationInput(')));
 const calendarClockSource = app.slice(app.indexOf('function readCalendarBackfillClock('), app.indexOf('\nfunction showCalendarBackfillForm(', app.indexOf('function readCalendarBackfillClock(')));
 const eventReportSource = app.slice(app.indexOf('function buildEventReport('), app.indexOf('\nfunction buildLiveReportDay(', app.indexOf('function buildEventReport(')));
@@ -231,6 +232,38 @@ test('untimed time replaces unrecorded hours without inventing a timeline interv
     assert.equal(chart.l1.reduce((sum, item) => sum + item.exactHours, 0), 24);
     assert.equal(chart.l1.at(-1).name, '未记录时间');
     assert.equal(chart.l2.at(-1).name, '未记录时间');
+});
+
+test('daily composition totals never add untimed records to a 24-hour timeline', () => {
+    const hour = 3600000;
+    const now = start + 2 * DAY + 12 * hour;
+    const context = {
+        DAY_MS: DAY, HOUR_MS: hour,
+        UNRECORDED_COLOR: '#cbd5e1',
+        unlocatedLogs: [{ date: '2026-10-13', durationMs: 2 * hour }],
+        nowSecondMs: () => now,
+        getTodayDateStr: () => '2026-10-15',
+        beijingDateStrToDayStart: (date) => Date.parse(`${date}T00:00:00+08:00`),
+        formatBeijingDate: (ms) => new Date(ms + 8 * hour).toISOString().slice(0, 10),
+        formatBeijingClockSec: () => '00:00:00',
+        getBeijingReportRange: () => ({ start, end: start + 7 * DAY }),
+        getSegmentsInRange: () => [],
+        getUnrecordedSegments: () => [{ clippedStart: start, clippedEnd: now, unrecorded: true, l1: '未记录时间' }],
+        buildMainChartComposition: () => ({ l1: [], l2: [], l2Slices: [] }),
+        mergeUnlocatedIntoChart: () => 2 * hour,
+        aggregateReportSegments: () => [],
+        buildEventReport: () => ({}),
+        getReportPeriodTitle: () => '本周',
+        displayName: () => '未记录时间',
+        getCat: () => null,
+        msToReportHours: (ms) => Math.round(ms / hour * 10) / 10,
+    };
+    vm.createContext(context);
+    vm.runInContext(app.slice(app.indexOf('function buildMainComposition('), app.indexOf('\nfunction parallelHostL1(', app.indexOf('function buildMainComposition('))), context);
+    vm.runInContext(periodReportSource, context);
+    const bars = context.buildLiveReportPeriod('week').timeline.bars;
+    assert.deepEqual(Array.from(bars, (bar) => bar.hours), [24, 24, 12]);
+    assert.deepEqual(Array.from(bars, (bar) => bar.segments.reduce((sum, segment) => sum + segment.width, 0)), [100, 100, 100]);
 });
 
 test('report duration sorting always puts unrecorded last', () => {
@@ -450,6 +483,25 @@ test('backfill time fields keep focus while entering two digits', () => {
     listeners.input.call(field);
     assert.equal(selections, 1);
     assert.equal(nextFocuses, 0);
+});
+
+test('calendar backfill clock fields reuse the shared two-digit focus advance', () => {
+    const listeners = {};
+    let nextFocuses = 0;
+    const next = { value: '', focus() { nextFocuses++; }, setSelectionRange() {} };
+    const field = {
+        id: 'calendar-backfill-start-h', value: '1',
+        addEventListener(type, listener) { listeners[type] = listener; },
+        setSelectionRange() {},
+        parentElement: { querySelectorAll: () => [field, next] },
+    };
+    const context = { _backfillRange: null, setTimeout(callback) { callback(); } };
+    vm.createContext(context);
+    vm.runInContext(timeFieldSource, context);
+    context.initTimeField(field, 23);
+    field.value = '10';
+    listeners.input.call(field);
+    assert.equal(nextFocuses, 1);
 });
 
 test('active journal editor offers the latest previous main end as its start', () => {

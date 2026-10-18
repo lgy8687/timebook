@@ -1898,9 +1898,10 @@ function normalizeCalendarClockInput(input) {
 
 function initCalendarBackfillClockFields() {
     document.querySelectorAll('.calendar-backfill-time-parts input').forEach((input) => {
-        input.addEventListener('focus', () => input.select());
-        input.addEventListener('click', () => input.select());
-        input.addEventListener('touchend', () => setTimeout(() => input.select(), 0), { passive: true });
+        const max = input.id.endsWith('-h')
+            ? (input.id.startsWith('calendar-backfill-end-') ? 24 : 23)
+            : 59;
+        initTimeField(input, max);
     });
 }
 
@@ -6347,13 +6348,9 @@ function buildLiveReportPeriod(period, options = {}) {
             ? buildYearCategoryComposition(daySegs, periodStart, periodEnd)
             : buildMainComposition(daySegs, periodStart, periodEnd);
         const totalMs = segments.reduce((sum, part) => sum + (part.width / 100) * (periodEnd - periodStart), 0);
-        const unlocatedBarMs = unlocatedLogs.filter((item) => {
-            const dayStart = beijingDateStrToDayStart(item.date);
-            return dayStart >= periodStart && dayStart < Math.min(periodEnd, summaryEnd);
-        }).reduce((sum, item) => sum + item.durationMs, 0);
         const fullDate = formatBeijingDate(periodStart);
         const label = period === 'year' ? fullDate.slice(0, 7).replace('-', '/') : fullDate.slice(5).replace('-', '/');
-        bars.push({ label, hours: msToReportHours(totalMs + unlocatedBarMs), unlocatedHours: msToReportHours(unlocatedBarMs), segments });
+        bars.push({ label, hours: msToReportHours(totalMs), segments });
         periodStart = nextPeriodStart;
     }
     const isCurrentPeriod = range.start <= now && range.end > now;
