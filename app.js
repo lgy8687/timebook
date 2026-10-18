@@ -3355,20 +3355,49 @@ function closeMergeDirection(result) {
 function chooseMergeDirection(direction) {
     closeMergeDirection(direction);
 }
-function showMergeDirection(target, callback, neighbors = getDeleteMergeNeighbors(target)) {
+function showMergeDirection(target, callback, neighbors = getDeleteMergeNeighbors(target), options = {}) {
     const modal = document.getElementById('merge-direction-modal');
+    const title = document.getElementById('merge-direction-title');
     const message = document.getElementById('merge-direction-message');
     const upBtn = document.getElementById('merge-up-btn');
     const downBtn = document.getElementById('merge-down-btn');
-    message.innerText = `删除「${displayName(target)}」后，将把这段时间并入相邻记录。`;
+    const clearBtn = document.getElementById('merge-clear-btn');
+    const cancelBtn = document.getElementById('merge-cancel-btn');
+    const allowClear = options.allowClear === true;
+    modal.dataset.devAddressBlock = allowClear ? 'B81' : 'B82';
+    if (title) title.innerText = allowClear ? '如何处理这段时间？' : '删除后怎么合并？';
+    message.innerText = allowClear
+        ? `删除会把「${displayName(target)}」的时间并入相邻记录；清空则保留时段并恢复为未分配。`
+        : `删除「${displayName(target)}」后，将把这段时间并入相邻记录。`;
     upBtn.innerText = `向上\n${neighbors.up ? displayName(neighbors.up) : '无上方记录'}`;
     downBtn.innerText = `向下\n${neighbors.down ? displayName(neighbors.down) : '无下方记录'}`;
     upBtn.disabled = !neighbors.up;
     downBtn.disabled = !neighbors.down;
     upBtn.classList.toggle('opacity-40', !neighbors.up);
     downBtn.classList.toggle('opacity-40', !neighbors.down);
+    clearBtn?.classList.toggle('hidden', !allowClear);
+    cancelBtn?.classList.toggle('hidden', allowClear);
     mergeDirectionCallback = callback;
     modal.classList.remove('hidden');
+}
+
+function clearLogEntryToUnassigned(target) {
+    if (!target || target.parallel || target.scene || target.sceneActivity || !logs.includes(target)) return;
+    const targetId = String(target.id);
+    logs = logs.filter((item) => item !== target).map((item) =>
+        item.parallel && String(item.parentId) === targetId ? { ...item, parentId: null } : item);
+    parallelHistory = parallelHistory.map((item) =>
+        String(item.parentId) === targetId ? { ...item, parentId: null } : item);
+    if (parallelCurrent && String(parallelCurrent.parentId) === targetId) {
+        parallelCurrent = { ...parallelCurrent, parentId: null };
+        localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
+    }
+    eventRecords = eventRecords.map((item) =>
+        String(item.parentId) === targetId ? { ...item, parentId: null } : item);
+    localStorage.setItem('v9_logs', JSON.stringify(logs));
+    localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+    saveEventRecords();
+    renderAll();
 }
 
 function requestDeleteLogEntry(target) {
@@ -3385,6 +3414,10 @@ function requestDeleteLogEntry(target) {
     const activeUp = neighbors.up === current;
     showMergeDirection(target, direction => {
         if (!direction) return;
+        if (direction === 'clear') {
+            clearLogEntryToUnassigned(target);
+            return;
+        }
         const neighbor = direction === 'up' ? neighbors.up : neighbors.down;
         mergeDeletedTime(target, direction);
         if (direction === 'up' && activeUp && current) {
@@ -3396,7 +3429,7 @@ function requestDeleteLogEntry(target) {
         mergeAdjacentSameActivity();
         localStorage.setItem('v9_logs', JSON.stringify(logs));
         renderAll();
-    });
+    }, neighbors, { allowClear: true });
 }
 
 function executeRecord(l1, l2, tag, note) {

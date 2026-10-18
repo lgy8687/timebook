@@ -5,7 +5,10 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const index = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const inspector = fs.readFileSync(path.join(__dirname, '..', 'dev-inspector.js'), 'utf8');
 const deleteSource = app.slice(app.indexOf('function getUnassignedMergeNeighbors('), app.indexOf('\nfunction openCalendarBackfill(', app.indexOf('function getUnassignedMergeNeighbors(')));
+const clearSource = app.slice(app.indexOf('function clearLogEntryToUnassigned('), app.indexOf('\nfunction requestDeleteLogEntry(', app.indexOf('function clearLogEntryToUnassigned(')));
 const editSource = app.slice(app.indexOf('function confirmUnassignedEdit('), app.indexOf('\nfunction confirmActiveMainEdit(', app.indexOf('function confirmUnassignedEdit(')));
 const dayStart = Date.parse('2026-10-12T00:00:00+08:00');
 const hour = 3600000;
@@ -89,4 +92,34 @@ test('editing a gap creates a classified main only within the selected interval'
     assert.equal(context.logs[0].endTime, gap.end - 2 * 60000);
     assert.equal(context.logs[0].l2, '洗漱');
     assert.equal(JSON.parse(store.getItem('v9_logs'))[0].id, 'classified');
+});
+
+test('clearing a classified main preserves its time as an unassigned gap and detaches child records', () => {
+    const target = { id: 'main', startTime: gap.start, endTime: gap.end, l1: '生活', l2: '散步' };
+    const child = { id: 'parallel', parentId: 'main', parallel: true };
+    const event = { id: 'event', parentId: 'main', occurredAt: gap.start };
+    const saved = new Map();
+    let rendered = false;
+    const context = {
+        logs: [target, child], parallelHistory: [], parallelCurrent: null, eventRecords: [event],
+        localStorage: { setItem(key, value) { saved.set(key, value); } },
+        saveEventRecords() { saved.set('v9_event_records', JSON.stringify(context.eventRecords)); },
+        renderAll() { rendered = true; },
+    };
+    vm.createContext(context);
+    vm.runInContext(clearSource, context);
+    context.clearLogEntryToUnassigned(target);
+    assert.deepEqual(context.logs.map(item => item.id), ['parallel']);
+    assert.equal(context.logs[0].parentId, null);
+    assert.equal(context.eventRecords[0].parentId, null);
+    assert.deepEqual(JSON.parse(saved.get('v9_logs')).map(item => item.id), ['parallel']);
+    assert.equal(rendered, true);
+});
+
+test('merge dialog exposes clear only for assigned-main deletion and has unique B addresses', () => {
+    assert.match(index, /id="merge-clear-btn"[^>]*>清空<\/button>/);
+    assert.match(app, /clearBtn\?\.classList\.toggle\('hidden', !allowClear\)/);
+    assert.match(app, /showMergeDirection\(target, direction => \{[\s\S]*direction === 'clear'[\s\S]*\}, neighbors, \{ allowClear: true \}\)/);
+    assert.match(inspector, /\['B81', '已分配主线清空或合并界面'/);
+    assert.match(inspector, /\['B82', '未分配时段删除合并界面'/);
 });

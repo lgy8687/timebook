@@ -69,7 +69,9 @@
         ['B77', '事件日期时间编辑界面', '#event-modal[data-dev-address-block="B77"] #event-modal-card'],
         ['B78', '正在进行的并行记录修改界面', '#edit-modal[data-dev-address-block="B78"] #edit-modal-card'],
         ['B79', '结转主线记录修改界面', '#edit-modal[data-dev-address-block="B79"] #edit-modal-card'],
-        ['B80', '正在进行的场景主线卡片', '.log-flow-card--main-live.log-flow-card--scene', null, { repeatable: true }]
+        ['B80', '正在进行的场景主线卡片', '.log-flow-card--main-live.log-flow-card--scene', null, { repeatable: true }],
+        ['B81', '已分配主线清空或合并界面', '#merge-direction-modal[data-dev-address-block="B81"] #merge-direction-card', 'C28'],
+        ['B82', '未分配时段删除合并界面', '#merge-direction-modal[data-dev-address-block="B82"] #merge-direction-card', 'C28']
     ];
     // A Z address names a submodule prototype; repeated instances share one badge and contract.
     const submodules = [
