@@ -2618,11 +2618,15 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 let confirmCallback = null;
-function closeConfirm(result) {
+let confirmSecondaryCallback = null;
+function closeConfirm(result, action = 'dismiss') {
     document.getElementById('confirm-modal').classList.add('hidden');
+    const secondary = action === 'secondary' ? confirmSecondaryCallback : null;
     const callback = confirmCallback;
     confirmCallback = null;
-    if (callback) callback(result);
+    confirmSecondaryCallback = null;
+    if (secondary) secondary();
+    else if (callback) callback(result);
 }
 
 let keyboardActiveModal = null;
@@ -2684,7 +2688,7 @@ if (window.visualViewport) {
 
 let editOldL1 = null, editOldL2 = null;
 let editTarget = null;
-function showConfirm(title, message, okText, callback, cancelText) {
+function showConfirm(title, message, okText, callback, cancelText, options = {}) {
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
     const okBtn = document.getElementById('confirm-ok-btn');
@@ -2692,8 +2696,12 @@ function showConfirm(title, message, okText, callback, cancelText) {
     okBtn.className = 'flex-1 py-3 text-sm font-bold text-white ' + (okText?.includes('删除') ? 'bg-red-500' : 'bg-indigo-600') + ' rounded-2xl';
     const cancelBtn = document.getElementById('confirm-cancel-btn');
     if (cancelBtn) cancelBtn.innerText = cancelText || '取消';
+    const modal = document.getElementById('confirm-modal');
+    if (options.addressBlock) modal.dataset.devAddressBlock = options.addressBlock;
+    else delete modal.dataset.devAddressBlock;
     confirmCallback = callback;
-    document.getElementById('confirm-modal').classList.remove('hidden');
+    confirmSecondaryCallback = options.onSecondary || null;
+    modal.classList.remove('hidden');
 }
 
 function openEdit(index, source = 'logs') {
@@ -3357,26 +3365,17 @@ function chooseMergeDirection(direction) {
 }
 function showMergeDirection(target, callback, neighbors = getDeleteMergeNeighbors(target), options = {}) {
     const modal = document.getElementById('merge-direction-modal');
-    const title = document.getElementById('merge-direction-title');
     const message = document.getElementById('merge-direction-message');
     const upBtn = document.getElementById('merge-up-btn');
     const downBtn = document.getElementById('merge-down-btn');
-    const clearBtn = document.getElementById('merge-clear-btn');
-    const cancelBtn = document.getElementById('merge-cancel-btn');
-    const allowClear = options.allowClear === true;
-    modal.dataset.devAddressBlock = allowClear ? 'B81' : 'B82';
-    if (title) title.innerText = allowClear ? '如何处理这段时间？' : '删除后怎么合并？';
-    message.innerText = allowClear
-        ? `删除会把「${displayName(target)}」的时间并入相邻记录；清空则保留时段并恢复为未分配。`
-        : `删除「${displayName(target)}」后，将把这段时间并入相邻记录。`;
+    modal.dataset.devAddressBlock = options.addressBlock || 'B82';
+    message.innerText = `删除「${displayName(target)}」后，将把这段时间并入相邻记录。`;
     upBtn.innerText = `向上\n${neighbors.up ? displayName(neighbors.up) : '无上方记录'}`;
     downBtn.innerText = `向下\n${neighbors.down ? displayName(neighbors.down) : '无下方记录'}`;
     upBtn.disabled = !neighbors.up;
     downBtn.disabled = !neighbors.down;
     upBtn.classList.toggle('opacity-40', !neighbors.up);
     downBtn.classList.toggle('opacity-40', !neighbors.down);
-    clearBtn?.classList.toggle('hidden', !allowClear);
-    cancelBtn?.classList.toggle('hidden', allowClear);
     mergeDirectionCallback = callback;
     modal.classList.remove('hidden');
 }
@@ -3414,10 +3413,6 @@ function requestDeleteLogEntry(target) {
     const activeUp = neighbors.up === current;
     showMergeDirection(target, direction => {
         if (!direction) return;
-        if (direction === 'clear') {
-            clearLogEntryToUnassigned(target);
-            return;
-        }
         const neighbor = direction === 'up' ? neighbors.up : neighbors.down;
         mergeDeletedTime(target, direction);
         if (direction === 'up' && activeUp && current) {
@@ -3429,7 +3424,7 @@ function requestDeleteLogEntry(target) {
         mergeAdjacentSameActivity();
         localStorage.setItem('v9_logs', JSON.stringify(logs));
         renderAll();
-    }, neighbors, { allowClear: true });
+    }, neighbors, { addressBlock: 'B81' });
 }
 
 function executeRecord(l1, l2, tag, note) {
@@ -5008,9 +5003,9 @@ function createLogRow(list, log, idx) {
         if (isSwiping) {
             if (currentDx > 55) {
                 const logName = displayName(log);
-                showConfirm("确认删除", `删除「${logName}」？这条记录将被永久移除。`, "删除", (ok) => {
+                showConfirm("确认删除", `删除「${logName}」？删除后可选择把时间并入相邻记录。`, "删除", (ok) => {
                     if (ok) requestDeleteLogEntry(log);
-                });
+                }, '清空', { addressBlock: 'B83', onSecondary: () => clearLogEntryToUnassigned(log) });
             } else if (currentDx < -55) {
                 openEdit(idx);
             }

@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.39">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.48">
+    <link rel="stylesheet" href="design-system.css?v=5.49">
     <link rel="stylesheet" href="dev-inspector.css?v=5.39">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -43,7 +43,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.48</div>
+            <div id="cache-buster" class="version-below-daybar">v5.49</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -568,11 +568,11 @@
 
     <!-- 确认弹窗 -->
     <div id="confirm-modal" class="hidden fixed inset-0 bg-slate-900/40 z-[60] flex items-center justify-center backdrop-blur-sm fade-in" onclick="if(event.target===this)closeConfirm(false)">
-        <div class="bg-white rounded-3xl p-5 w-4/5 max-w-xs shadow-xl">
+        <div id="confirm-modal-card" class="bg-white rounded-3xl p-5 w-4/5 max-w-xs shadow-xl">
             <h3 id="confirm-title" class="text-sm font-black mb-2">确认</h3>
             <p id="confirm-message" class="text-sm text-slate-500 mb-4 leading-relaxed"></p>
             <div class="flex space-x-3">
-                <button onclick="closeConfirm(false)" id="confirm-cancel-btn" class="flex-1 py-3 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
+                <button onclick="closeConfirm(false, 'secondary')" id="confirm-cancel-btn" class="flex-1 py-3 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
                 <button onclick="closeConfirm(true)" id="confirm-ok-btn" class="flex-1 py-3 text-sm font-bold text-white bg-indigo-600 rounded-2xl">确定</button>
             </div>
         </div>
@@ -646,8 +646,7 @@
                 <button type="button" id="merge-up-btn" onclick="chooseMergeDirection('up')" class="py-3 text-sm font-bold text-white bg-indigo-600 rounded-2xl whitespace-pre-line">向上合并</button>
                 <button type="button" id="merge-down-btn" onclick="chooseMergeDirection('down')" class="py-3 text-sm font-bold text-white bg-indigo-600 rounded-2xl whitespace-pre-line">向下合并</button>
             </div>
-            <button type="button" id="merge-clear-btn" onclick="chooseMergeDirection('clear')" class="hidden w-full mt-3 py-2.5 text-sm font-bold text-slate-600 bg-slate-50 rounded-2xl">清空</button>
-            <button type="button" id="merge-cancel-btn" onclick="closeMergeDirection(false)" class="w-full mt-3 py-2.5 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
+            <button type="button" onclick="closeMergeDirection(false)" class="w-full mt-3 py-2.5 text-sm font-bold text-slate-400 bg-slate-50 rounded-2xl">取消</button>
         </div>
     </div>
 
@@ -744,12 +743,12 @@
     <script src="report-metrics.js?v=1.9"></script>
     <script src="report.js?v=2.10"></script>
     <script src="ui-theme.js?v=5.39"></script>
-    <script src="app.js?v=5.48"></script>
+    <script src="app.js?v=5.49"></script>
     <script src="backup.js?v=5"></script>
     <script src="sync-config.js?v=1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="sync.js?v=1"></script>
     <script src="dev-appearance.js?v=5.39"></script>
-    <script src="dev-inspector.js?v=5.48"></script>
+    <script src="dev-inspector.js?v=5.49"></script>
 </body>
 </html>
