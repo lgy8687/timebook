@@ -9,6 +9,8 @@ const index = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const inspector = fs.readFileSync(path.join(__dirname, '..', 'dev-inspector.js'), 'utf8');
 const deleteSource = app.slice(app.indexOf('function getUnassignedMergeNeighbors('), app.indexOf('\nfunction openCalendarBackfill(', app.indexOf('function getUnassignedMergeNeighbors(')));
 const clearSource = app.slice(app.indexOf('function clearLogEntryToUnassigned('), app.indexOf('\nfunction requestDeleteLogEntry(', app.indexOf('function clearLogEntryToUnassigned(')));
+const mergeDirectionSource = app.slice(app.indexOf('let mergeDirectionCallback = null;'), app.indexOf('\nfunction clearLogEntryToUnassigned(', app.indexOf('let mergeDirectionCallback = null;')));
+const requestDeleteSource = app.slice(app.indexOf('function requestDeleteLogEntry('), app.indexOf('\nfunction executeRecord(', app.indexOf('function requestDeleteLogEntry(')));
 const closeConfirmSource = app.slice(app.indexOf('function closeConfirm('), app.indexOf('\nlet keyboardActiveModal', app.indexOf('function closeConfirm(')));
 const editSource = app.slice(app.indexOf('function confirmUnassignedEdit('), app.indexOf('\nfunction confirmActiveMainEdit(', app.indexOf('function confirmUnassignedEdit(')));
 const dayStart = Date.parse('2026-10-12T00:00:00+08:00');
@@ -117,11 +119,64 @@ test('clearing a classified main preserves its time as an unassigned gap and det
     assert.equal(rendered, true);
 });
 
+test('classified-main merge dialog offers clear without merging; gap dialog does not', () => {
+    const elements = new Map();
+    const element = (id) => {
+        if (!elements.has(id)) {
+            const classes = new Set(['hidden']);
+            elements.set(id, {
+                dataset: {}, disabled: false, innerText: '',
+                classList: {
+                    add(name) { classes.add(name); },
+                    remove(name) { classes.delete(name); },
+                    toggle(name, force) { if (force) classes.add(name); else classes.delete(name); },
+                    contains(name) { return classes.has(name); },
+                },
+            });
+        }
+        return elements.get(id);
+    };
+    const context = { document: { getElementById: element }, displayName: item => item.l2 };
+    vm.createContext(context);
+    vm.runInContext(mergeDirectionSource, context);
+    const neighbors = { up: null, down: { l2: '睡觉' } };
+    let chosen = null;
+    context.showMergeDirection({ l2: '跑网约车' }, direction => { chosen = direction; }, neighbors, { addressBlock: 'B81', allowClear: true });
+    assert.equal(element('merge-clear-btn').classList.contains('hidden'), false);
+    assert.equal(element('merge-direction-title').innerText, '如何处理这段时间？');
+    context.chooseMergeDirection('clear');
+    assert.equal(chosen, 'clear');
+    context.showMergeDirection({ l2: '未分配' }, () => {}, neighbors, { addressBlock: 'B82' });
+    assert.equal(element('merge-clear-btn').classList.contains('hidden'), true);
+    assert.equal(element('merge-direction-title').innerText, '删除后怎么合并？');
+});
+
+test('clear from the merge dialog does not delete or merge the classified main', () => {
+    const target = { id: 'main', l2: '跑网约车' };
+    const neighbors = { up: null, down: { id: 'sleep', l2: '睡觉' } };
+    let cleared = false;
+    const context = {
+        current: null,
+        getDeleteMergeNeighbors: () => neighbors,
+        showMergeDirection(_target, callback, _neighbors, options) {
+            assert.equal(options.allowClear, true);
+            callback('clear');
+        },
+        clearLogEntryToUnassigned(item) { cleared = item === target; },
+        mergeDeletedTime() { assert.fail('clear must not merge time'); },
+    };
+    vm.createContext(context);
+    vm.runInContext(requestDeleteSource, context);
+    context.requestDeleteLogEntry(target);
+    assert.equal(cleared, true);
+});
+
 test('delete confirmation offers clear; backdrop dismissal remains non-destructive', () => {
     assert.match(index, /id="confirm-cancel-btn"[^>]*>取消<\/button>/);
     assert.match(index, /onclick="if\(event\.target===this\)closeConfirm\(false\)"/);
     assert.match(app, /showConfirm\("确认删除"[\s\S]*?'清空', \{ addressBlock: 'B83', onSecondary: \(\) => clearLogEntryToUnassigned\(log\) \}\)/);
-    assert.match(app, /showMergeDirection\(target, direction => \{[\s\S]*\}, neighbors, \{ addressBlock: 'B81' \}\)/);
+    assert.match(index, /id="merge-clear-btn"[^>]*>清空为未分配<\/button>/);
+    assert.match(app, /showMergeDirection\(target, direction => \{[\s\S]*\}, neighbors, \{ addressBlock: 'B81', allowClear: true \}\)/);
     assert.match(inspector, /\['B81', '已分配主线删除归并方向界面'/);
     assert.match(inspector, /\['B82', '未分配时段删除归并方向界面'/);
     assert.match(inspector, /\['B83', '流水删除确认及清空界面'/);
