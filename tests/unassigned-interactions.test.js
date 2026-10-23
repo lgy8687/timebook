@@ -202,28 +202,21 @@ test('delete confirmation offers clear; backdrop dismissal remains non-destructi
     assert.equal(cleared, true);
 });
 
-test('hidden historical unassigned gaps render inert markers without changing gap data', () => {
-    const markers = [];
+test('hiding unassigned mains omits ordinary historical gaps without changing gap data', () => {
+    const rendered = [];
     const context = {
         recordMode: 'journal', showUnassignedMain: false,
-        document: { createElement(tag) {
-            assert.equal(tag, 'div');
-            return {
-                className: '', attributes: {},
-                setAttribute(name, value) { this.attributes[name] = value; },
-                addEventListener() { assert.fail('hidden marker must not be interactive'); },
-            };
-        } },
+        document: { createElement() { assert.fail('hidden gap must not render'); } },
     };
     vm.createContext(context);
     vm.runInContext(renderUnassignedSource, context);
-    const list = { appendChild(node) { markers.push(node); } };
+    const list = { appendChild(node) { rendered.push(node); } };
     const first = { start: gap.start, end: gap.end };
     const second = { start: gap.end + 60000, end: gap.end + 120000 };
     context.renderUnassignedMain(list, '2026-10-12', first);
-    context.renderUnassignedMain(list, '2026-10-12', second, [{ durationMs: 60000 }]);
-    assert.equal(markers.length, 2);
-    assert.ok(markers.every(node => node.className === 'unassigned-gap-line' && node.attributes['aria-hidden'] === 'true'));
+    context.renderUnassignedMain(list, '2026-10-12', second);
+    assert.equal(rendered.length, 0);
+    assert.match(renderUnassignedSource, /!showUnassignedMain && !live && !assigned\.length/);
     assert.equal(first.start, gap.start);
     assert.equal(second.end, gap.end + 120000);
 });

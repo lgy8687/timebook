@@ -1450,14 +1450,7 @@ function buildLogDayHeader(dateStr, history = false, withControl = true) {
 }
 
 function renderUnassignedMain(list, dateStr, gap, assigned = [], live = false) {
-    if (recordMode !== 'journal') return;
-    if (!showUnassignedMain && !live) {
-        const line = document.createElement('div');
-        line.className = 'unassigned-gap-line';
-        line.setAttribute('aria-hidden', 'true');
-        list.appendChild(line);
-        return;
-    }
+    if (recordMode !== 'journal' || (!showUnassignedMain && !live && !assigned.length)) return;
     const allocatedMs = assigned.reduce((sum, item) => sum + item.durationMs, 0);
     const spanMs = gap.end - gap.start;
     const wrap = document.createElement('div');
