@@ -1450,7 +1450,14 @@ function buildLogDayHeader(dateStr, history = false, withControl = true) {
 }
 
 function renderUnassignedMain(list, dateStr, gap, assigned = [], live = false) {
-    if (recordMode !== 'journal' || (!showUnassignedMain && !live && !assigned.length)) return;
+    if (recordMode !== 'journal') return;
+    if (!showUnassignedMain && !live) {
+        const line = document.createElement('div');
+        line.className = 'unassigned-gap-line';
+        line.setAttribute('aria-hidden', 'true');
+        list.appendChild(line);
+        return;
+    }
     const allocatedMs = assigned.reduce((sum, item) => sum + item.durationMs, 0);
     const spanMs = gap.end - gap.start;
     const wrap = document.createElement('div');
@@ -3370,19 +3377,15 @@ function showMergeDirection(target, callback, neighbors = getDeleteMergeNeighbor
     const message = document.getElementById('merge-direction-message');
     const upBtn = document.getElementById('merge-up-btn');
     const downBtn = document.getElementById('merge-down-btn');
-    const clearBtn = document.getElementById('merge-clear-btn');
     modal.dataset.devAddressBlock = options.addressBlock || 'B82';
-    title.innerText = options.allowClear ? '如何处理这段时间？' : '删除后怎么合并？';
-    message.innerText = options.allowClear
-        ? `「${displayName(target)}」可并入相邻记录，或清空为未分配。`
-        : `删除「${displayName(target)}」后，将把这段时间并入相邻记录。`;
+    title.innerText = '删除后怎么合并？';
+    message.innerText = `删除「${displayName(target)}」后，将把这段时间并入相邻记录。`;
     upBtn.innerText = `向上\n${neighbors.up ? displayName(neighbors.up) : '无上方记录'}`;
     downBtn.innerText = `向下\n${neighbors.down ? displayName(neighbors.down) : '无下方记录'}`;
     upBtn.disabled = !neighbors.up;
     downBtn.disabled = !neighbors.down;
     upBtn.classList.toggle('opacity-40', !neighbors.up);
     downBtn.classList.toggle('opacity-40', !neighbors.down);
-    clearBtn.classList.toggle('hidden', !options.allowClear);
     mergeDirectionCallback = callback;
     modal.classList.remove('hidden');
 }
@@ -3420,10 +3423,6 @@ function requestDeleteLogEntry(target) {
     const activeUp = neighbors.up === current;
     showMergeDirection(target, direction => {
         if (!direction) return;
-        if (direction === 'clear') {
-            clearLogEntryToUnassigned(target);
-            return;
-        }
         const neighbor = direction === 'up' ? neighbors.up : neighbors.down;
         mergeDeletedTime(target, direction);
         if (direction === 'up' && activeUp && current) {
@@ -3435,7 +3434,7 @@ function requestDeleteLogEntry(target) {
         mergeAdjacentSameActivity();
         localStorage.setItem('v9_logs', JSON.stringify(logs));
         renderAll();
-    }, neighbors, { addressBlock: 'B81', allowClear: true });
+    }, neighbors, { addressBlock: 'B81' });
 }
 
 function executeRecord(l1, l2, tag, note) {

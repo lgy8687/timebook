@@ -339,6 +339,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .unassigned-visibility input:checked::after { transform: translateX(14px); }
 .unassigned-visibility input:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
 .unassigned-main-card.swipe-card.log-flow-card--main-log { display: block; width: 100%; border: 1px solid #dce3e9; border-radius: 1rem; background: #e9eef2; text-align: left; cursor: pointer; }
+.unassigned-gap-line { display: block; position: relative; width: 100%; height: 32px; background: transparent; pointer-events: none; }
+.unassigned-gap-line::before { content: ''; position: absolute; top: 10px; right: 0; left: 0; height: 12px; border-radius: 6px; background: #94a3b8; }
 .unassigned-main-card .log-flow-inner { min-height: var(--tb-log-inner-min-h); }
 .unassigned-main-parts { display: flex; flex: 1; min-width: 0; height: 30px; overflow: hidden; border-radius: 5px; }
 .unassigned-main-part { display: flex; align-items: center; justify-content: center; min-width: 0; height: 100%; padding: 0 2px; container-type: inline-size; color: #fff; font-size: 11px; font-weight: 700; white-space: nowrap; }
