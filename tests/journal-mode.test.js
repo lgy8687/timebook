@@ -647,6 +647,34 @@ test('journal main can expand into a gap without moving adjacent records', () =>
     assert.equal(next.startTime, start + 13 * 3600000);
 });
 
+test('journal midnight end can move earlier but cannot cross the day boundary', () => {
+    const log = { id: 'journal', journal: true, startTime: start + 22 * 3600000, endTime: start + DAY };
+    const next = { id: 'next', startTime: start + DAY, endTime: start + DAY + 3600000 };
+    const alerts = [];
+    const context = {
+        logs: [log, next], parallelHistory: [], current: null, DAY_MS: DAY,
+        nowSecondMs: () => start + 2 * DAY,
+        formatBeijingDate: () => '2026-10-13',
+        beijingDateStrToDayStart: () => start, beijingDateStrToDayEnd: () => start + DAY,
+        logEndMs: item => item.endTime,
+        mainRecordOverlaps: (from, to, excluded) => [log, next].filter(item => !excluded.has(item.id) && item.startTime < to && item.endTime > from),
+        intervalExceedsDayBudget: () => false,
+        showConfirm: title => alerts.push(title),
+    };
+    vm.createContext(context);
+    vm.runInContext(editSource, context);
+    let saved = false;
+    context.applyEditedRange(log, log.startTime, start + 23 * 3600000, () => { saved = true; });
+    assert.equal(saved, true);
+    assert.equal(log.endTime, start + 23 * 3600000);
+    assert.equal(next.startTime, start + DAY);
+    saved = false;
+    context.applyEditedRange(log, log.startTime, start + DAY + 60000, () => { saved = true; });
+    assert.equal(saved, false);
+    assert.equal(log.endTime, start + 23 * 3600000);
+    assert.deepEqual(alerts, ['时间不合法']);
+});
+
 test('record reset keeps configuration; full reset clears only app data', () => {
     const values = {
         v9_logs: '[]', v9_current: '{}', v9_event_records: '[]', v9_unlocated_logs: '[]',

@@ -1762,10 +1762,10 @@ function openUnassignedEdit(dateStr, gapStart) {
     setTimeInFields('ee', new Date(gap.end), { show24: endsAtMidnight });
     ['ee-h', 'ee-m', 'ee-s'].forEach((id) => {
         const field = document.getElementById(id);
-        field.disabled = live || endsAtMidnight;
-        field.classList.toggle('opacity-40', live || endsAtMidnight);
+        field.disabled = live;
+        field.classList.toggle('opacity-40', live);
     });
-    document.getElementById('edit-end-label').innerText = live ? '实时结束' : endsAtMidnight ? '结转结束（24:00 固定）' : '结束';
+    document.getElementById('edit-end-label').innerText = live ? '实时结束' : '结束';
     document.getElementById('edit-parallel-date-row').classList.add('hidden');
     document.getElementById('edit-continue-previous').classList.add('hidden');
     document.getElementById('edit-current-backfill').classList.add('hidden');
@@ -2748,11 +2748,11 @@ function openEdit(index, source = 'logs') {
     ['ee-h', 'ee-m', 'ee-s'].forEach((fieldId) => {
         const field = document.getElementById(fieldId);
         if (!field) return;
-        field.disabled = activeParallel || activeMain || fixedMidnightEnd;
-        field.classList.toggle('opacity-40', activeParallel || activeMain || fixedMidnightEnd);
+        field.disabled = activeParallel || activeMain || (fixedMidnightEnd && !log.journal);
+        field.classList.toggle('opacity-40', activeParallel || activeMain || (fixedMidnightEnd && !log.journal));
     });
     const endLabel = document.getElementById('edit-end-label');
-    if (endLabel) endLabel.innerText = activeParallel || activeMain ? '实时结束' : fixedMidnightEnd ? '结转结束（24:00 固定）' : '结束';
+    if (endLabel) endLabel.innerText = activeParallel || activeMain ? '实时结束' : fixedMidnightEnd && !log.journal ? '结转结束（24:00 固定）' : '结束';
     const continueButton = document.getElementById('edit-continue-previous');
     continueButton.classList.toggle('hidden', !activeMain || previousEnd == null);
     if (previousEnd != null) continueButton.innerText = `接续上一条结束时间 ${formatBeijingClockSec(previousEnd)}`;
@@ -2935,7 +2935,7 @@ function applyEditedRange(log, newStart, newEnd, done) {
         return;
     }
     const dayEnd = beijingDateStrToDayEnd(formatBeijingDate(oldStart));
-    if (!log.parallel && !log.sceneActivity && oldEnd === dayEnd && effectiveEnd !== oldEnd) {
+    if (!log.journal && !log.parallel && !log.sceneActivity && oldEnd === dayEnd && effectiveEnd !== oldEnd) {
         showConfirm('结转边界固定', '这条主线已在 24:00 自动结转。请调整当天的其他时段，不能把次日主线拉回昨天。', '知道了', () => {});
         return;
     }
