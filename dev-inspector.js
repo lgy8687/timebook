@@ -95,7 +95,8 @@
         ['Z17-2', '活动分类与明细切换', '#legend-mode-toggle', 'C02'],
         ['Z30-1', '底部导航键', '#nav-record, #nav-calendar, #nav-report, #nav-mine', 'C08'],
         ['Z33-1', '报表周期切换', '#seg-period', 'C18'],
-        ['Z33-2', '报表日期导航', '#report-period-nav', 'C03']
+        ['Z33-2', '报表日期导航', '#report-period-nav', 'C03'],
+        ['Z34-1', '随手记旁的事件入口', '#free-note-event-btn']
     ];
     const floatingBadges = new Map();
     let enabled = localStorage.getItem(STORAGE_KEY) !== 'false';
