@@ -1454,7 +1454,7 @@ function renderUnassignedMain(list, dateStr, gap, assigned = [], live = false) {
     const allocatedMs = assigned.reduce((sum, item) => sum + item.durationMs, 0);
     const spanMs = gap.end - gap.start;
     const wrap = document.createElement('div');
-    wrap.className = 'swipe-wrap';
+    wrap.className = `swipe-wrap${live ? ' unassigned-live-wrap' : ''}`;
     const leftActions = document.createElement('div');
     leftActions.className = 'swipe-actions left';
     const deleteAction = document.createElement('div');
@@ -1470,7 +1470,7 @@ function renderUnassignedMain(list, dateStr, gap, assigned = [], live = false) {
     wrap.append(leftActions, rightActions);
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'unassigned-main-card swipe-card log-flow-card--main-log log-flow-card--unassigned-main';
+    card.className = `unassigned-main-card swipe-card log-flow-card--main-log log-flow-card--unassigned-main${live ? ' unassigned-main-card--live' : ''}`;
     card.setAttribute('aria-label', `${formatDateHeaderLabel(dateStr)}未分配主线，补录`);
     let startX = 0, startY = 0, swiping = false, dx = 0, suppressClick = false;
     card.addEventListener('touchstart', (event) => {
@@ -1543,6 +1543,16 @@ function renderUnassignedMain(list, dateStr, gap, assigned = [], live = false) {
     inner.appendChild(body);
     card.appendChild(inner);
     wrap.appendChild(card);
+    if (live) {
+        const eventButton = document.createElement('button');
+        eventButton.type = 'button';
+        eventButton.className = 'log-event-btn unassigned-live-event-btn';
+        eventButton.textContent = '＋';
+        eventButton.title = '记录事件';
+        eventButton.setAttribute('aria-label', '记录事件');
+        eventButton.addEventListener('click', () => openEventModal());
+        wrap.appendChild(eventButton);
+    }
     list.appendChild(wrap);
 }
 
@@ -2633,6 +2643,20 @@ function closeConfirm(result, action = 'dismiss') {
 let keyboardActiveModal = null;
 let keyboardShifts = new WeakMap();
 const KEYBOARD_GAP = 80;
+function keepFreeInputVisible() {
+    const input = document.getElementById('free-input');
+    if (!input || document.activeElement !== input) return;
+    const viewport = window.visualViewport;
+    const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+    const overlap = input.getBoundingClientRect().bottom + 16 - visibleBottom;
+    if (overlap > 0) document.querySelector('main')?.scrollBy({ top: overlap, behavior: 'smooth' });
+}
+document.getElementById('free-input')?.addEventListener('focus', () => {
+    setTimeout(keepFreeInputVisible, 350);
+});
+window.visualViewport?.addEventListener('resize', () => {
+    setTimeout(keepFreeInputVisible, 100);
+});
 document.addEventListener('focusin', (e) => {
     const input = e.target;
     if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;

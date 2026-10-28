@@ -151,7 +151,8 @@ test('repeated record cards share B only when they are the same rendered prototy
     const blocks = new Map(readRegistryArray('blocks').map(([code, label, selector, , options = {}]) => [code, { label, selector, options }]));
     assert.equal(blocks.get('B04').selector, '.log-flow-card--main-log:not(.log-flow-card--unassigned-main)');
     assert.equal(blocks.get('B05').selector, '.log-flow-card--parallel-log');
-    assert.equal(blocks.get('B50').selector, '.log-flow-card--unassigned-main');
+    assert.equal(blocks.get('B50').selector, '.log-flow-card--unassigned-main:not(.unassigned-main-card--live)');
+    assert.equal(blocks.get('B85').selector, '.unassigned-live-wrap');
     assert.equal(blocks.get('B04').options.repeatable, true);
     assert.equal(blocks.get('B05').options.repeatable, true);
     assert.match(app, /log-flow-card--main-log log-flow-card--unassigned-main/,

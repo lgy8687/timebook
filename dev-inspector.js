@@ -39,7 +39,7 @@
         ['B47', '事件次数补录表单', '#calendar-backfill-modal[data-dev-address-block="B47"] #calendar-backfill-card', 'C27'],
         ['B48', '正在进行的主线流水卡片', '.log-flow-card--main-live:not(.log-flow-card--scene)', null, { repeatable: true }],
         ['B49', '正在进行的并行流水卡片', '.log-flow-card--parallel-live', null, { repeatable: true }],
-        ['B50', '未分配时间流水卡片', '.log-flow-card--unassigned-main', null, { repeatable: true }],
+        ['B50', '未分配时间流水卡片', '.log-flow-card--unassigned-main:not(.unassigned-main-card--live)', null, { repeatable: true }],
         ['B51', '正在进行的主线修改界面', '#edit-modal[data-dev-address-block="B51"] #edit-modal-card'],
         ['B52', '正在进行且可接续的主线修改界面', '#edit-modal[data-dev-address-block="B52"] #edit-modal-card'],
         ['B53', '并行记录修改界面', '#edit-modal[data-dev-address-block="B53"] #edit-modal-card'],
@@ -72,7 +72,8 @@
         ['B80', '正在进行的场景主线卡片', '.log-flow-card--main-live.log-flow-card--scene', null, { repeatable: true }],
         ['B81', '已分配主线删除归并方向界面', '#merge-direction-modal[data-dev-address-block="B81"] #merge-direction-card', 'C28'],
         ['B82', '未分配时段删除归并方向界面', '#merge-direction-modal[data-dev-address-block="B82"] #merge-direction-card', 'C28'],
-        ['B83', '流水删除确认及清空界面', '#confirm-modal[data-dev-address-block="B83"] #confirm-modal-card', 'C29']
+        ['B83', '流水删除确认及清空界面', '#confirm-modal[data-dev-address-block="B83"] #confirm-modal-card', 'C29'],
+        ['B85', '正在进行的未分配主线', '.unassigned-live-wrap', null, { repeatable: true }]
     ];
     // A Z address names a submodule prototype; repeated instances share one badge and contract.
     const submodules = [
@@ -96,7 +97,8 @@
         ['Z30-1', '底部导航键', '#nav-record, #nav-calendar, #nav-report, #nav-mine', 'C08'],
         ['Z33-1', '报表周期切换', '#seg-period', 'C18'],
         ['Z33-2', '报表日期导航', '#report-period-nav', 'C03'],
-        ['Z34-1', '随手记旁的事件入口', '#free-note-event-btn']
+        ['Z34-1', '随手记旁的事件入口', '#free-note-event-btn'],
+        ['Z85-1', '未分配主线的事件入口', '.unassigned-live-event-btn']
     ];
     const floatingBadges = new Map();
     let enabled = localStorage.getItem(STORAGE_KEY) !== 'false';

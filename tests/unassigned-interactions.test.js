@@ -220,3 +220,50 @@ test('hiding unassigned mains omits ordinary historical gaps without changing ga
     assert.equal(first.start, gap.start);
     assert.equal(second.end, gap.end + 120000);
 });
+
+test('live unassigned event button opens events without opening backfill', () => {
+    const makeElement = () => ({
+        children: [], style: {}, listeners: {},
+        appendChild(child) { this.children.push(child); },
+        append(...children) { this.children.push(...children); },
+        setAttribute() {}, addEventListener(type, callback) { this.listeners[type] = callback; },
+    });
+    let events = 0, backfills = 0;
+    const context = {
+        recordMode: 'journal', showUnassignedMain: true,
+        document: { createElement: makeElement },
+        buildLogFlowBar: makeElement, formatDateHeaderLabel: () => '当天',
+        formatBeijingClockSec: () => '10:00:00', formatDuration: () => '10:00',
+        openEventModal() { events++; }, openUnassignedBackfill() { backfills++; },
+    };
+    vm.createContext(context);
+    vm.runInContext(renderUnassignedSource, context);
+    const list = makeElement();
+    context.renderUnassignedMain(list, '2026-10-12', gap, [], true);
+    const wrap = list.children[0];
+    const card = wrap.children.find(child => child.className?.includes('unassigned-main-card'));
+    const eventButton = wrap.children.find(child => child.className?.includes('unassigned-live-event-btn'));
+    eventButton.listeners.click();
+    assert.equal(events, 1);
+    assert.equal(backfills, 0);
+    card.listeners.click();
+    assert.equal(backfills, 1);
+});
+
+test('quick note scrolls above the visible keyboard area when focused', () => {
+    const source = app.slice(app.indexOf('function keepFreeInputVisible()'), app.indexOf("document.getElementById('free-input')?.addEventListener", app.indexOf('function keepFreeInputVisible()')));
+    const input = { getBoundingClientRect: () => ({ bottom: 510 }) };
+    let scroll = 0;
+    const context = {
+        document: { activeElement: input, getElementById: () => input, querySelector: () => ({ scrollBy: options => { scroll = options.top; } }) },
+        window: { visualViewport: { offsetTop: 0, height: 400 } },
+    };
+    vm.createContext(context);
+    vm.runInContext(source, context);
+    context.keepFreeInputVisible();
+    assert.equal(scroll, 126);
+    context.document.activeElement = null;
+    scroll = 0;
+    context.keepFreeInputVisible();
+    assert.equal(scroll, 0);
+});

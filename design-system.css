@@ -341,6 +341,9 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .unassigned-visibility input:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
 .unassigned-main-card.swipe-card.log-flow-card--main-log { display: block; width: 100%; border: 1px solid #dce3e9; border-radius: 1rem; background: #e9eef2; text-align: left; cursor: pointer; }
 .unassigned-main-card .log-flow-inner { min-height: var(--tb-log-inner-min-h); }
+.unassigned-main-card--live .log-flow-inner { padding-right: 48px; }
+.unassigned-live-event-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; }
+.unassigned-live-event-btn:active { transform: translateY(-50%) scale(.94); }
 .unassigned-main-parts { display: flex; flex: 1; min-width: 0; height: 30px; overflow: hidden; border-radius: 5px; }
 .unassigned-main-part { display: flex; align-items: center; justify-content: center; min-width: 0; height: 100%; padding: 0 2px; container-type: inline-size; color: #fff; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .unassigned-main-part > span { overflow: hidden; text-overflow: clip; white-space: nowrap; }
