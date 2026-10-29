@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.56">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.59">
+    <link rel="stylesheet" href="design-system.css?v=5.60">
     <link rel="stylesheet" href="dev-inspector.css?v=5.39">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -43,7 +43,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.59</div>
+            <div id="cache-buster" class="version-below-daybar">v5.60</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -249,35 +249,35 @@
             <div id="config-grid-card" class="config-grid-card">
             <div class="config-grid">
                 <button type="button" class="config-tile" data-config-section="clock" onclick="openConfigSection('clock')">
-                    <span class="config-tile-icon" aria-hidden="true">◷</span>
+                    <span class="config-tile-icon">🕐</span>
                     <span class="config-tile-label">时钟面板</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="report" onclick="openConfigSection('report')">
-                    <span class="config-tile-icon" aria-hidden="true">▥</span>
+                    <span class="config-tile-icon">📊</span>
                     <span class="config-tile-label">报表摘要</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="cats" onclick="openConfigSection('cats')">
-                    <span class="config-tile-icon" aria-hidden="true">▦</span>
+                    <span class="config-tile-icon">📂</span>
                     <span class="config-tile-label">分类管理</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="scene" onclick="openConfigSection('scene')">
-                    <span class="config-tile-icon" aria-hidden="true">◐</span>
+                    <span class="config-tile-icon">◐</span>
                     <span class="config-tile-label">场景管理</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="event" onclick="openConfigSection('event')">
-                    <span class="config-tile-icon" aria-hidden="true">⊕</span>
+                    <span class="config-tile-icon">⊕</span>
                     <span class="config-tile-label">事件管理</span>
                 </button>
                 <button type="button" class="config-tile" onclick="openDevAppearance()">
-                    <span class="config-tile-icon" aria-hidden="true">⚙</span>
+                    <span class="config-tile-icon">🛠</span>
                     <span class="config-tile-label">开发外观</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="mode" onclick="openConfigSection('mode')">
-                    <span class="config-tile-icon" aria-hidden="true">◫</span>
+                    <span class="config-tile-icon">◫</span>
                     <span class="config-tile-label">记录模式</span>
                 </button>
                 <button type="button" class="config-tile" data-config-section="data" onclick="openConfigSection('data')">
-                    <span class="config-tile-icon" aria-hidden="true">▤</span>
+                    <span class="config-tile-icon">▤</span>
                     <span class="config-tile-label">数据管理</span>
                 </button>
             </div>
@@ -286,7 +286,7 @@
             <div id="config-expand" class="config-expand hidden">
                 <div id="config-panel-clock" class="config-panel hidden">
                     <h3 class="config-panel-title">时钟面板</h3>
-                    <p class="config-panel-hint">只改各环<strong>统计多少小时</strong>的数据范围，环的绘制方式不变。1 小时 = 当前整点所在小时（如 12:02 即 12:00–13:00，整点跳转）；24 小时 = 当日 0–24 点。</p>
+                    <p class="config-panel-hint">选择显示方式和每个时间环的统计范围。1 小时按整点计算，24 小时为当天 0–24 点。</p>
                     <div id="clock-settings-ui" class="space-y-3"></div>
                 </div>
                 <div id="config-panel-report" class="config-panel hidden">
@@ -744,7 +744,7 @@
     <script src="report-metrics.js?v=1.9"></script>
     <script src="report.js?v=2.11"></script>
     <script src="ui-theme.js?v=5.39"></script>
-    <script src="app.js?v=5.59"></script>
+    <script src="app.js?v=5.60"></script>
     <script src="backup.js?v=5"></script>
     <script src="sync-config.js?v=1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

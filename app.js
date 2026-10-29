@@ -2479,12 +2479,17 @@ function renderClockSettings() {
     const p = getClockPrefs();
     wrap.innerHTML = '';
 
+    const layoutLabel = document.createElement('div');
+    layoutLabel.className = 'clock-settings-label';
+    layoutLabel.innerText = '显示方式';
+    wrap.appendChild(layoutLabel);
     const row1 = document.createElement('div');
     row1.className = 'clock-settings-row';
     [['dual', '双时间轴'], ['single', '单时间轴']].forEach(([val, lab]) => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'clock-settings-btn btn-active' + (p.layout === val ? ' active' : '');
+        btn.setAttribute('aria-pressed', String(p.layout === val));
         btn.innerText = lab;
         btn.addEventListener('click', () => setClockPref('layout', val));
         row1.appendChild(btn);
@@ -2492,12 +2497,17 @@ function renderClockSettings() {
     wrap.appendChild(row1);
 
     if (p.layout === 'single') {
+        const axisLabel = document.createElement('div');
+        axisLabel.className = 'clock-settings-label';
+        axisLabel.innerText = '显示时间环';
+        wrap.appendChild(axisLabel);
         const row2 = document.createElement('div');
         row2.className = 'clock-settings-row';
         [['60m', '60M 环'], ['24h', '24H 环']].forEach(([val, lab]) => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'clock-settings-btn btn-active' + (p.singleAxis === val ? ' active' : '');
+            btn.setAttribute('aria-pressed', String(p.singleAxis === val));
             btn.innerText = lab;
             btn.addEventListener('click', () => setClockPref('singleAxis', val));
             row2.appendChild(btn);
@@ -3950,6 +3960,7 @@ function renderReportSummarySettings() {
     modeSwitch.type = 'button';
     modeSwitch.className = 'summary-share-switch' + (mode === 'shared' ? ' is-on' : '');
     modeSwitch.setAttribute('role', 'switch');
+    modeSwitch.setAttribute('aria-label', '周报和月报共用摘要');
     modeSwitch.setAttribute('aria-checked', String(mode === 'shared'));
     modeSwitch.title = mode === 'shared' ? '周报和月报共用一套摘要' : '周报和月报分别设置摘要';
     modeSwitch.innerHTML = '<span></span>';

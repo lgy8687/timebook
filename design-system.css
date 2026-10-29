@@ -484,27 +484,31 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
     .log-flow-name { font-size: 14px; }
 }
 
-/* Settings: one spacing and control scale across all panels. */
-#page-mine .config-grid-card { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-#page-mine .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-#page-mine .config-tile { display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: 10px; min-width: 0; min-height: 56px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: #fff; color: var(--ui-ink); box-shadow: none; text-align: left; }
-#page-mine .config-tile:active { transform: none; background: var(--ui-surface); }
-#page-mine .config-tile.active { border-color: #91a8c2; background: #eaf0f6; color: #314d6b; }
-#page-mine .config-tile-icon { flex: 0 0 30px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 6px; background: #eef2f6; color: #526a80; font-size: 20px; line-height: 1; }
-#page-mine .config-tile-label { min-width: 0; text-align: left; overflow-wrap: anywhere; font-size: var(--ui-body); line-height: 1.4; font-weight: 600; }
-#page-mine .config-expand { margin-top: 20px; padding: 18px 0 0; border: 0; border-top: 1px solid var(--ui-border); border-radius: 0; background: transparent; box-shadow: none; }
-#page-mine .config-panel-title { color: var(--ui-ink); font-size: var(--ui-heading-3); line-height: 1.4; font-weight: 700; }
-#page-mine .config-panel-hint { margin: 8px 0 12px; color: #64748b; line-height: 1.6; }
-#page-mine .config-panel-head { min-height: 44px; align-items: center; }
-#page-mine .category-config-tabs, #page-mine .record-mode-toggle { border-radius: 8px; }
-#page-mine .category-config-tabs button, #page-mine .record-mode-toggle button { min-height: 44px; padding: 6px; white-space: normal; }
-#page-mine .category-group { padding: 0 0 12px; }
-#page-mine .category-group-head { min-height: 52px; }
-#page-mine .category-sub-row, #page-mine .scene-settings-row { min-height: 52px; border-radius: 8px; }
-#page-mine .category-sub-list { gap: 6px; }
-#page-mine .category-expand-button, #page-mine .category-delete-button, #page-mine .category-selected-remove, #page-mine .scene-settings-edit, #page-mine .event-settings-icon { min-width: 44px; min-height: 44px; }
-#page-mine .category-selected-list { gap: 8px; }
-#page-mine .category-selected-item { min-height: 64px; background: #fff; }
-#page-mine .category-pick-button, #page-mine .category-add-button, #page-mine #config-edit-btn, #page-mine #scene-edit-btn, #page-mine #event-add-btn, #page-mine .timebook-sync-actions button, #page-mine #config-panel-data button { min-height: 44px; border-radius: 8px; }
-#page-mine .timebook-sync-panel { padding: 0 0 16px; border: 0; border-bottom: 1px solid var(--ui-border); border-radius: 0; background: transparent; }
-#page-mine .timebook-sync-auth input { min-height: 44px; font-size: 16px; }
+/* Settings detail panels share spacing and controls, independent of the entry grid. */
+#config-expand :is(#config-panel-clock, #config-panel-report, #config-panel-cats, #config-panel-scene, #config-panel-event, #config-panel-mode) .config-panel-title { font-size: var(--ui-heading-3); line-height: 1.4; color: var(--ui-ink); }
+#config-expand :is(#config-panel-clock, #config-panel-report, #config-panel-cats, #config-panel-scene, #config-panel-event, #config-panel-mode) .config-panel-hint { color: #64748b; line-height: 1.6; margin: 8px 0 16px; }
+#config-expand :is(#config-panel-cats, #config-panel-scene, #config-panel-event) .config-panel-head { min-height: 48px; gap: 12px; }
+#clock-settings-ui { display: grid; gap: 10px; }
+#clock-settings-ui .clock-settings-label { margin-top: 6px; color: var(--ui-ink); font-size: var(--ui-body); font-weight: 600; }
+#clock-settings-ui .clock-settings-row { margin: 0; }
+#clock-settings-ui .clock-settings-btn { min-height: 44px; }
+#clock-settings-ui .clock-span-row { min-height: 56px; margin: 0; padding: 6px 0; border-bottom: 1px solid var(--ui-border); }
+#clock-settings-ui .clock-span-row label { min-width: 0; flex: 1; white-space: normal; }
+#clock-settings-ui .clock-span-row .picker-trigger { flex: 0 1 144px; min-width: 90px; min-height: 44px; }
+#report-summary-settings-ui { gap: 16px; }
+#report-summary-settings-ui .summary-control-row { min-height: 48px; gap: 10px; }
+#report-summary-settings-ui .summary-settings-group { margin: 0; padding-top: 16px; border-top: 1px solid var(--ui-border); }
+#report-summary-settings-ui .summary-settings-group > div:first-child { margin-bottom: 10px; color: var(--ui-ink); font-size: var(--ui-body); }
+#report-summary-settings-ui .summary-slot-row { gap: 10px; margin-top: 8px; }
+#report-summary-settings-ui .summary-slot-row > span { width: 36px; color: #64748b; font-size: var(--ui-caption); }
+#report-summary-settings-ui .summary-slot-row .picker-trigger { min-height: 48px; border-radius: 8px; }
+#config-panel-cats .category-config-tabs button, #config-panel-mode .record-mode-toggle button { min-height: 44px; padding: 6px; white-space: normal; }
+#config-panel-cats .category-group { padding: 0 0 12px; }
+#config-panel-cats .category-group-head { min-height: 52px; }
+#config-panel-cats .category-sub-list { gap: 6px; }
+#config-panel-cats .category-sub-row { min-height: 48px; }
+#config-panel-cats .category-selected-list { gap: 8px; }
+#config-panel-cats .category-expand-button, #config-panel-cats .category-delete-button, #config-panel-cats .category-selected-remove, #config-panel-scene .scene-settings-edit, #config-panel-event .scene-settings-edit, #config-panel-event .event-settings-icon { min-width: 44px; min-height: 44px; }
+#config-panel-scene .scene-settings-row, #config-panel-event .scene-settings-row { min-height: 52px; border-radius: 8px; }
+#config-panel-scene .scene-settings-name, #config-panel-event .scene-settings-name { white-space: normal; overflow-wrap: anywhere; }
+#config-panel-cats :is(.category-pick-button, .category-add-button, #config-edit-btn), #config-panel-scene #scene-edit-btn, #config-panel-event #event-add-btn { min-height: 44px; }
