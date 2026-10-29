@@ -542,3 +542,20 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .event-supplement-check { display: flex; align-items: center; gap: 8px; min-height: 40px; color: var(--ui-ink); font-size: var(--ui-body); }
 .event-supplement-check.hidden, .event-time-field.hidden, .event-record-editor-card label.hidden { display: none; }
 .calendar-event-marker { position: absolute; top: 2px; right: 2px; min-width: 14px; height: 14px; padding: 0 2px; border-radius: 7px; background: #b85d1c; color: #fff; font-size: 9px; line-height: 14px; text-align: center; }
+.category-manager-count { margin-left: auto; flex: none; color: var(--ui-muted); font-size: var(--ui-caption); font-weight: 400; }
+#config-panel-cats .category-group-title { cursor: pointer; }
+#config-panel-cats .category-group-title > button { width: 44px; height: 44px; border: 14px solid transparent; background-clip: padding-box !important; }
+#config-panel-cats .category-sub-row { width: 100%; text-align: left; }
+.category-manager-arrow { flex: none; color: var(--ui-muted); font-size: 22px; }
+.category-manager-actions { display: flex; gap: 8px; padding: 8px 0; }
+.category-manager-actions button, .event-manager-action, .event-manager-detail .scene-settings-edit { min-height: 44px; padding: 8px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: #fff; color: var(--ui-ink); font-size: var(--ui-body); }
+.category-manager-actions button:last-child { margin-left: auto; color: var(--ui-danger); }
+.event-manager-item { border-bottom: 1px solid var(--ui-border); }
+.event-manager-heading { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 56px; gap: 12px; padding: 8px 4px; color: var(--ui-ink); text-align: left; font-size: var(--ui-body); font-weight: 600; }
+.event-manager-heading span:last-child { color: var(--ui-muted); font-size: 22px; }
+.event-manager-detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 4px 0 16px; }
+.event-manager-detail[hidden] { display: none; }
+.event-manager-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; min-height: 52px; border: 1px solid var(--ui-border); border-radius: 8px; color: var(--ui-ink); font-size: var(--ui-body); }
+.event-manager-option button { min-width: 44px; min-height: 44px; }
+.event-manager-option .scene-settings-dot { width: 44px; height: 44px; min-width: 44px; min-height: 44px; border: 14px solid transparent; background-clip: padding-box !important; }
+.event-manager-detail .scene-settings-edit { color: var(--ui-danger); }

@@ -676,7 +676,7 @@ let editIndex = null;
 let editingShortcutIndex = null;
 let configEditMode = false;
 let configSectionOpen = null;
-let expandedCategoryId = null;
+let expandedCategoryId = -1;
 let categoryConfigTab = 'categories';
 let drawerViewMode = 'columns';
 const BJ_OFFSET = 8 * 60 * 60 * 1000;
@@ -4302,12 +4302,28 @@ function renderEventSettings(hostId = 'event-settings-ui') {
     }
     eventTypes.forEach((eventType) => {
         const row = document.createElement('div');
-        row.className = 'scene-settings-row event-settings-row';
+        row.className = 'event-manager-item';
+        const heading = document.createElement('button');
+        heading.type = 'button';
+        heading.className = 'event-manager-heading';
+        heading.setAttribute('aria-expanded', 'false');
+        const headingLabel = document.createElement('span');
+        headingLabel.textContent = `${eventType.icon}  ${eventType.name}`;
+        const arrow = document.createElement('span'); arrow.textContent = '›';
+        heading.append(headingLabel, arrow);
+        const detail = document.createElement('div');
+        detail.className = 'event-manager-detail';
+        detail.hidden = true;
+        heading.addEventListener('click', () => {
+            detail.hidden = !detail.hidden;
+            heading.setAttribute('aria-expanded', String(!detail.hidden));
+        });
         const color = document.createElement('button');
         color.type = 'button';
         color.className = 'scene-settings-dot';
         color.style.background = eventType.color;
         color.title = '修改颜色';
+        color.setAttribute('aria-label', '修改颜色');
         color.addEventListener('click', () => openZoneColorPicker(eventType.color, (next) => {
             eventType.color = next;
             saveEventTypes();
@@ -4318,15 +4334,17 @@ function renderEventSettings(hostId = 'event-settings-ui') {
         icon.className = 'event-settings-icon';
         icon.innerText = eventType.icon;
         icon.title = '修改图标';
+        icon.setAttribute('aria-label', '修改图标');
         icon.addEventListener('click', () => showCategoryPicker('选择事件图标', (next) => {
             if (!next) return;
             eventType.icon = next;
             saveEventTypes();
             renderAll();
         }));
-        const name = document.createElement('span');
-        name.className = 'scene-settings-name cursor-pointer';
-        name.innerText = eventType.name;
+        const name = document.createElement('button');
+        name.type = 'button';
+        name.className = 'event-manager-action';
+        name.innerText = '修改名称';
         name.title = '点击修改名称';
         name.addEventListener('click', () => showPrompt('修改事件名称', '输入事件名称', eventType.name, (next) => {
             const value = String(next || '').trim();
@@ -4344,7 +4362,7 @@ function renderEventSettings(hostId = 'event-settings-ui') {
         del.className = 'scene-settings-edit';
         del.style.background = '#fef2f2';
         del.style.color = '#ef4444';
-        del.innerText = '✕';
+        del.innerText = '删除事件';
         del.title = '删除事件类别';
         del.addEventListener('click', () => showConfirm('删除事件类别', `删除“${eventType.name}”后，历史事件会保留但不再可新增。`, '删除', (ok) => {
             if (!ok) return;
@@ -4352,7 +4370,12 @@ function renderEventSettings(hostId = 'event-settings-ui') {
             saveEventTypes();
             renderAll();
         }));
-        row.append(color, icon, name, del);
+        const colorLabel = document.createElement('div'); colorLabel.className = 'event-manager-option';
+        const colorText = document.createElement('span'); colorText.textContent = '颜色'; colorLabel.append(colorText, color);
+        const iconLabel = document.createElement('div'); iconLabel.className = 'event-manager-option';
+        const iconText = document.createElement('span'); iconText.textContent = '图标'; iconLabel.append(iconText, icon);
+        detail.append(colorLabel, iconLabel, name, del);
+        row.append(heading, detail);
         host.appendChild(row);
     });
 }
@@ -4424,10 +4447,11 @@ function renderConfig() {
         colorDot.type = 'button';
         colorDot.className = "w-3.5 h-3.5 rounded-full shrink-0 cursor-pointer";
         colorDot.style.background = c.color || '#6366f1';
-        colorDot.title = configEditMode ? "点击修改颜色" : "分类颜色";
-        colorDot.disabled = !configEditMode;
-        if (!configEditMode) colorDot.style.cursor = 'default';
-        if (configEditMode) colorDot.addEventListener('click', (e) => {
+        colorDot.title = expanded ? "点击修改颜色" : "分类颜色";
+        colorDot.setAttribute('aria-label', colorDot.title);
+        colorDot.disabled = !expanded;
+        if (!expanded) colorDot.style.cursor = 'default';
+        if (expanded) colorDot.addEventListener('click', (e) => {
             e.stopPropagation();
             const old = document.querySelector('.color-picker-popup');
             if (old) { document.querySelector('.color-picker-overlay')?.remove(); old.remove(); return; }
@@ -4461,7 +4485,8 @@ function renderConfig() {
         });
         const title = document.createElement('span');
         title.innerText = `${c.icon} ${c.name}`;
-        titleGroup.append(colorDot, title);
+        const count = document.createElement('small'); count.className = 'category-manager-count'; count.textContent = `${c.subs.length}项`;
+        titleGroup.append(colorDot, title, count);
         head.appendChild(titleGroup);
         const chevron = document.createElement('button');
         chevron.type = 'button';
@@ -4473,47 +4498,38 @@ function renderConfig() {
             expandedCategoryId = expanded ? -1 : c.id;
             renderConfig();
         });
-        if (!configEditMode) titleGroup.addEventListener('click', () => chevron.click());
-        if (configEditMode) {
-            const actions = document.createElement('div');
-            actions.className = "flex space-x-2 items-center";
-            titleGroup.classList.add('cursor-pointer');
-            titleGroup.title = '点击编辑分类名称';
-            titleGroup.addEventListener('click', () => editL1(c.id));
-            const del = document.createElement('button');
-            del.type = 'button';
-            del.className = "text-red-400 text-[11px] font-black";
-            del.innerText = "✕";
-            del.addEventListener('click', () => delL1(c.id));
-            actions.append(del);
-            head.appendChild(actions);
-        }
+        titleGroup.addEventListener('click', () => chevron.click());
         head.appendChild(chevron);
         wrap.appendChild(head);
 
         const subs = document.createElement('div');
         subs.className = 'category-sub-list';
         subs.hidden = !expanded;
+        const categoryActions = document.createElement('div'); categoryActions.className = 'category-manager-actions';
+        const editCategory = document.createElement('button'); editCategory.type = 'button'; editCategory.textContent = '编辑分类'; editCategory.addEventListener('click', () => editL1(c.id));
+        const deleteCategory = document.createElement('button'); deleteCategory.type = 'button'; deleteCategory.textContent = '删除分类'; deleteCategory.addEventListener('click', () => delL1(c.id));
+        categoryActions.append(editCategory, deleteCategory);
         c.subs.forEach(name => {
-            const card = document.createElement('div');
+            const card = document.createElement('button');
+            card.type = 'button';
             card.className = 'category-sub-row';
             const iconEl = document.createElement('div');
             iconEl.className = 'category-sub-icon';
             iconEl.innerText = getSubIcon(name, c.icon, c);
             card.appendChild(iconEl);
-            const nameEl = document.createElement('div');
+            const nameEl = document.createElement('span');
             nameEl.className = 'category-sub-name';
             nameEl.innerText = name;
             card.appendChild(nameEl);
-            if (configEditMode) nameEl.addEventListener('click', () => editS(c.id, name));
-            if (configEditMode) {
-                const del = document.createElement('button');
-                del.type = 'button';
-                del.className = 'category-delete-button';
-                del.innerText = "✕";
-                del.addEventListener('click', (e) => { e.stopPropagation(); delS(c.id, name); });
-                card.appendChild(del);
-            }
+            const arrow = document.createElement('span'); arrow.className = 'category-manager-arrow'; arrow.textContent = '›'; card.appendChild(arrow);
+            card.addEventListener('click', () => {
+                const choices = [{ value: 'edit', label: isSystemSleep(c, name) ? '移动或修改图标' : '修改活动' }];
+                if (!isSystemSleep(c, name)) choices.push({ value: 'delete', label: '删除活动' });
+                openReportChoiceGrid(name, choices, '', (action) => {
+                    if (action === 'edit') editS(c.id, name);
+                    else if (action === 'delete') delS(c.id, name);
+                });
+            });
             subs.appendChild(card);
         });
         const addBtn = document.createElement('button');
@@ -4522,6 +4538,7 @@ function renderConfig() {
         addBtn.innerText = '＋ 新增二级活动';
         addBtn.addEventListener('click', () => addS(c.id));
         subs.appendChild(addBtn);
+        subs.appendChild(categoryActions);
 
         wrap.append(subs);
         catList.appendChild(wrap);
