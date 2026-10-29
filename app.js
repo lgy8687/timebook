@@ -4578,7 +4578,9 @@ function eventTypeById(id) {
 }
 
 let eventCenterTab = 'history', eventCenterPeriod = 7, eventCenterReturn = 'record', eventEditId = null;
-function openEventCenter(tab = 'history') {
+let eventCenterRange = null;
+function openEventCenter(tab = 'history', range = null) {
+    eventCenterRange = range && Number.isFinite(range.start) && Number.isFinite(range.end) ? range : null;
     const active = document.querySelector('main > .tab-content.active');
     if (active && active.id !== 'page-events') eventCenterReturn = active.id.replace('page-', '');
     switchTab('events');
@@ -4590,7 +4592,7 @@ function setEventCenterTab(tab) {
     eventCenterTab = tab;
     renderEventCenter();
 }
-function setEventCenterPeriod(days) { eventCenterPeriod = days; renderEventCenter(); }
+function setEventCenterPeriod(days) { eventCenterRange = null; eventCenterPeriod = days; renderEventCenter(); }
 function renderEventCenter() {
     if (!document.getElementById('event-center-list')) return;
     ['history', 'stats', 'manage'].forEach(tab => {
@@ -4621,10 +4623,13 @@ function renderEventCenter() {
         const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '删除'; remove.addEventListener('click', () => deleteEventCenterRecord(record.id));
         row.append(content, edit, remove); list.appendChild(row);
     });
-    document.querySelectorAll('[data-event-period]').forEach(button => button.classList.toggle('active', Number(button.dataset.eventPeriod) === eventCenterPeriod));
+    document.querySelectorAll('[data-event-period]').forEach(button => button.classList.toggle('active', !eventCenterRange && Number(button.dataset.eventPeriod) === eventCenterPeriod));
     const end = beijingDateStrToDayStart(getTodayDateStr()) + DAY_MS;
-    const report = buildEventReport(eventCenterPeriod ? end - eventCenterPeriod * DAY_MS : 0, end, 'range');
+    const report = buildEventReport(eventCenterRange?.start ?? (eventCenterPeriod ? end - eventCenterPeriod * DAY_MS : 0), eventCenterRange?.end ?? end, 'range');
     const stats = document.getElementById('event-center-stat-content'); stats.replaceChildren();
+    const rangeLabel = document.createElement('p'); rangeLabel.className = 'event-center-range-label';
+    rangeLabel.textContent = eventCenterRange?.label || (eventCenterPeriod ? `${formatBeijingDate(end - eventCenterPeriod * DAY_MS)} 至 ${formatBeijingDate(end - 1)}` : '全部日期');
+    stats.appendChild(rangeLabel);
     const summary = document.createElement('p'); summary.className = 'event-center-summary'; summary.textContent = `总计 ${report.total} 次 · ${report.activeDays} 天`; stats.appendChild(summary);
     if (!report.entries.length) { const empty = document.createElement('p'); empty.textContent = '这个时段没有事件记录'; stats.appendChild(empty); }
     report.entries.forEach(item => { const row = document.createElement('div'); row.className = 'event-center-stat-row'; const name = document.createElement('span'); name.textContent = `${item.icon} ${item.name}`; const value = document.createElement('strong'); value.textContent = `${item.count} 次 · ${item.days} 天`; row.append(name, value); stats.appendChild(row); });
@@ -6248,10 +6253,11 @@ function buildEventReport(rangeStart, rangeEnd, period) {
     };
 }
 
-function buildLiveReportDay() {
+function buildLiveReportDay(rangeOffset = 0) {
     const now = nowSecondMs();
-    const dayStart = beijingPeriodStart(now, DAY_MS);
-    const all = getTodaySegments();
+    const dayStart = beijingPeriodStart(now, DAY_MS) + rangeOffset * DAY_MS;
+    const dayEnd = Math.min(dayStart + DAY_MS, now);
+    const all = getSegmentsInRange(dayStart, dayEnd, now);
     const recordedMainSegs = all.filter((l) => !l.parallel);
     const recordedCore = recordedMainSegs.filter((l) => !l.sceneActivity);
     const unrecorded = getUnrecordedSegments(recordedCore, dayStart, dayStart + DAY_MS, now);
@@ -6263,20 +6269,19 @@ function buildLiveReportDay() {
     const paraMs = paraSegs.reduce((s, l) => s + (l.clippedEnd - l.clippedStart), 0);
 
     const chartComposition = buildMainChartComposition(mainSegs, paraSegs, dayStart, dayStart + DAY_MS);
-    const unlocatedMs = mergeUnlocatedIntoChart(chartComposition, dayStart, now);
+    const unlocatedMs = mergeUnlocatedIntoChart(chartComposition, dayStart, dayEnd);
     const { l1, l2, l2Slices, sceneCoverage, sceneRange } = chartComposition;
 
     const topL1 = l1[0];
-    const mainHours = msToReportHours(recordedMainMs + unlocatedMs);
     const focusPct = topL1 && accountedMs
         ? (Math.round(((topL1.exactHours ?? topL1.hours) / (accountedMs / HOUR_MS)) * 1000) / 10) + '%'
         : '0%';
 
     const paraL1Agg = aggregateReportSegments(paraSegs, displayName);
-    const paraL1 = paraL1Agg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
+    const paraL1 = paraL1Agg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), exactHours: r.ms / HOUR_MS, color: r.color }));
     const topPara = paraL1[0];
-    const paraRatio = mainHours
-        ? (Math.round((msToReportHours(paraMs) / mainHours) * 1000) / 10) + '%'
+    const paraRatio = recordedMainMs + unlocatedMs
+        ? (Math.round((paraMs / (recordedMainMs + unlocatedMs)) * 1000) / 10) + '%'
         : '0%';
 
     const overlayMap = new Map();
@@ -6295,8 +6300,8 @@ function buildLiveReportDay() {
         overlayMap.set(key, old);
     });
     const paraL2 = [...overlayMap.values()]
-        .map((r) => ({ l1: r.l1, name: r.name, hours: msToReportHours(r.ms), color: r.color }))
-        .sort((a, b) => b.hours - a.hours);
+        .map((r) => ({ l1: r.l1, name: r.name, hours: msToReportHours(r.ms), exactHours: r.ms / HOUR_MS, color: r.color }))
+        .sort((a, b) => b.exactHours - a.exactHours);
 
     const hostMs = new Map();
     paraSegs.forEach((l) => {
@@ -6319,26 +6324,28 @@ function buildLiveReportDay() {
     });
 
     return {
-        _live: true,
-        events: buildEventReport(dayStart, now, 'day'),
+        _live: rangeOffset === 0,
+        _period: 'day',
+        _range: { start: dayStart, end: dayEnd },
+        events: buildEventReport(dayStart, dayEnd, 'day'),
         timeline: {
             title: '24 小时时间轴',
             hint: '指定时段按时间定位；未指定补录只计入类别汇总',
             kind: 'day',
             scale: ['00:00', '06:00', '12:00', '18:00', '24:00'],
             segments: timelineSegs,
-            nowPct: Math.min(100, Math.max(0, ((now - dayStart) / DAY_MS) * 100)),
+            nowPct: rangeOffset === 0 ? Math.min(100, Math.max(0, ((now - dayStart) / DAY_MS) * 100)) : null,
         },
         main: {
             meta: {
-                title: formatBeijingDate(now),
+                title: formatBeijingDate(dayStart),
                 range: '当日主线',
                 footnote: '指定时段与未指定补录共同计入类别汇总。',
             },
             summary: [
                 { icon: '🎯', label: '结构重心', value: topL1?.name || '—', sub: `占 ${focusPct}` },
                 { icon: '🔀', label: '活动切换', value: String(Math.max(0, recordedCore.length - 1)), sub: '次' },
-                { icon: '📋', label: '流水条数', value: String(recordedCore.length + unlocatedLogs.filter((item) => item.date === formatBeijingDate(now)).length), sub: '条' },
+                { icon: '📋', label: '流水条数', value: String(recordedCore.length + unlocatedLogs.filter((item) => item.date === formatBeijingDate(dayStart)).length), sub: '条' },
             ],
             l1,
             l2,
@@ -6348,7 +6355,7 @@ function buildLiveReportDay() {
         },
         parallel: {
             meta: {
-                title: formatBeijingDate(now),
+                title: formatBeijingDate(dayStart),
                 range: '并行活动',
                 footnote: '并行时段可重叠累计。',
             },
@@ -6365,7 +6372,7 @@ function buildLiveReportDay() {
 }
 
 function getReportPeriodData(period, options = {}) {
-    if (period === 'day') return buildLiveReportDay();
+    if (period === 'day') return buildLiveReportDay(Math.min(0, Number(options.rangeOffset) || 0));
     return buildLiveReportPeriod(period, options);
 }
 
@@ -6384,8 +6391,8 @@ function getBeijingReportRange(period, now, rangeOffset = 0) {
         const start = Date.UTC(y, m + rangeOffset, 1) - BJ_OFFSET;
         return { start, end: Date.UTC(y, m + rangeOffset + 1, 1) - BJ_OFFSET };
     }
-    const start = Date.UTC(y, 0, 1) - BJ_OFFSET;
-    return { start, end: Date.UTC(y + 1, 0, 1) - BJ_OFFSET };
+    const start = Date.UTC(y + rangeOffset, 0, 1) - BJ_OFFSET;
+    return { start, end: Date.UTC(y + rangeOffset + 1, 0, 1) - BJ_OFFSET };
 }
 
 function getReportPeriodTitle(period, range) {
@@ -6526,11 +6533,10 @@ function buildLiveReportPeriod(period, options = {}) {
     const unlocatedMs = mergeUnlocatedIntoChart(chartComposition, range.start, summaryEnd);
     const { l1, l2, l2Slices, sceneCoverage, sceneRange } = chartComposition;
     const paraAgg = aggregateReportSegments(paraSegs, displayName);
-    const paraL1 = paraAgg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), color: r.color }));
-    const mainHours = msToReportHours(recordedMainMs + unlocatedMs);
+    const paraL1 = paraAgg.map((r) => ({ name: r.name, hours: msToReportHours(r.ms), exactHours: r.ms / HOUR_MS, color: r.color }));
     const topL1 = l1[0];
     const focusPct = topL1 && accountedMs ? (Math.round(((topL1.exactHours ?? topL1.hours) / (accountedMs / HOUR_MS)) * 1000) / 10) + '%' : '0%';
-    const paraRatio = mainHours ? (Math.round((msToReportHours(paraMs) / mainHours) * 1000) / 10) + '%' : '0%';
+    const paraRatio = recordedMainMs + unlocatedMs ? (Math.round((paraMs / (recordedMainMs + unlocatedMs)) * 1000) / 10) + '%' : '0%';
     const hostMs = new Map();
     paraSegs.forEach((l) => {
         const host = parallelHostL1(l);
@@ -6560,7 +6566,7 @@ function buildLiveReportPeriod(period, options = {}) {
         _period: period,
         _range: { start: range.start, end: summaryEnd },
         events: buildEventReport(range.start, Math.min(range.end, now), period),
-        timeline: { title: period === 'week' ? `${periodTitle}每日时间构成` : period === 'month' ? `${periodTitle}每日时间构成` : '本年每月分类构成', hint: '时段按时间定位；未指定补录仅计入类别汇总', kind: 'bars', bars },
+        timeline: { title: period === 'year' ? `${periodTitle}每月分类构成` : `${periodTitle}每日时间构成`, hint: '时段按时间定位；未指定补录仅计入类别汇总', kind: 'bars', bars },
         main: {
             meta: { title: periodTitle, range: period === 'week' ? '周报主线' : period === 'month' ? '月报主线' : '本年主线', footnote: '指定时段按时间定位；未指定补录只计入时长。' },
             summary: [

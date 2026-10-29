@@ -3,11 +3,10 @@
  */
 (function () {
     const PERIOD_LABELS = { day: '日报', week: '周报', month: '月报', year: '年报' };
-    const REPORT_VERSION = 'v2.10';
 
     let state = {
         period: 'day',
-        periodOffsets: { week: 0, month: 0 },
+        periodOffsets: { day: 0, week: 0, month: 0, year: 0 },
         chartView: 'main',
         legendMode: 'l1',
         summaryModes: {
@@ -85,6 +84,7 @@
     }
 
     function fmtHours(h) {
+        if (h > 0 && h < 1) return h < 1 / 60 ? `${Math.max(1, Math.round(h * 3600))}秒` : `${Math.round(h * 60)}分钟`;
         return (Math.round(h * 10) / 10) + 'h';
     }
 
@@ -120,10 +120,13 @@
     }
 
     function syncSummaryModeButtons() {
+        const historical = (state.periodOffsets[state.period] || 0) < 0;
+        document.querySelectorAll('.summary-view-toggle').forEach(toggle => toggle.classList.toggle('hidden', historical));
         document.querySelectorAll('.summary-view-btn').forEach((button) => {
             const selected = state.summaryModes[button.dataset.summaryView] === button.dataset.summaryMode;
             button.classList.toggle('is-active', selected);
             button.setAttribute('aria-pressed', String(selected));
+            button.textContent = button.dataset.summaryMode === 'settled' ? '截至昨日' : '包含今天';
         });
     }
 
@@ -138,6 +141,17 @@
                 <div class="stat-indigo-label">${esc(m.label)}</div>
             </div>`;
         }).join('');
+        const note = box.parentElement.querySelector('.summary-scope-note');
+        const range = periodData._range;
+        if (note && range) {
+            const format = ms => {
+                const date = new Date(ms + 8 * 3600000);
+                return `${date.getUTCMonth() + 1}月${date.getUTCDate()}日`;
+            };
+            note.textContent = range.end > range.start
+                ? `摘要范围：${format(range.start)}—${format(range.end - 1)}`
+                : '当前范围内尚无已结束的自然日';
+        }
     }
 
     function formatEventClock(ms) {
@@ -204,7 +218,7 @@
                 const left = ((segStart - fromPct) / (toPct - fromPct)) * 100;
                 const width = ((segEnd - segStart) / (toPct - fromPct)) * 100;
                 const w = Math.max(width, 0.35);
-                segHtml += `<button type="button" class="timeline-block" style="left:${left}%;width:${w}%;background:${reportColor(s.color, s.label)}" title="${esc(s.title)}"></button>`;
+                segHtml += `<button type="button" class="timeline-block" style="left:${left}%;width:${w}%;background:${reportColor(s.color, s.label)}" title="${esc(s.title)}" aria-label="${esc(s.title)}"></button>`;
                 labels.push({ label: s.label, title: s.title, left: left + width / 2 });
             });
             if (tl.nowPct != null && tl.nowPct >= fromPct && tl.nowPct <= toPct) {
@@ -227,13 +241,19 @@
             body.innerHTML = `<div class="timeline-bars">${(tl.bars || []).map((b) => {
                 return `<div class="timeline-bar-row">
                     <span class="timeline-bar-label">${esc(b.label)}</span>
-                    <div class="timeline-bar-track">${(b.segments || []).map((s) => `<span class="timeline-bar-segment" style="width:${Math.max(0, s.width)}%;background:${reportColor(s.color, s.l1 || s.name)}" title="${esc(s.title || s.name)}"></span>`).join('')}</div>
+                    <div class="timeline-bar-track">${(b.segments || []).map((s) => `<button type="button" class="timeline-bar-segment" style="width:${Math.max(0, s.width)}%;background:${reportColor(s.color, s.l1 || s.name)}" title="${esc(b.label + ' · ' + (s.title || s.name))}" aria-label="${esc(b.label + ' · ' + (s.title || s.name))}"></button>`).join('')}</div>
                     <span class="timeline-bar-val">${esc(String(b.hours))}h</span>
                 </div>`;
             }).join('')}</div>`;
             scaleEl.classList.add('hidden');
             scaleEl.innerHTML = '';
         }
+        body.querySelectorAll('.timeline-block, .timeline-bar-segment').forEach(button => {
+            const show = e => showTip(e, button.title, '', '');
+            button.addEventListener('click', show);
+            button.addEventListener('focus', show);
+            button.addEventListener('blur', hideTip);
+        });
     }
 
     function render() {
@@ -251,9 +271,6 @@
         const badge = isLive
             ? '<span class="badge-live">当前周期</span>'
             : '<span class="badge-sample">历史周期</span>';
-
-        const verEl = document.getElementById('report-version');
-        if (verEl) verEl.textContent = REPORT_VERSION;
 
         const sub = document.getElementById('bill-subtitle');
         if (sub) {
@@ -282,6 +299,7 @@
 
         const total = chartBundle.l1.reduce((s, x) => s + (x.exactHours ?? x.hours), 0);
         const isMain = state.chartView === 'main';
+        document.getElementById('report-structure-card').dataset.devAddressBlock = isMain ? 'B17' : 'B92';
 
         document.getElementById('structure-title').textContent = '时间结构';
         document.getElementById('chart-legend-hint').textContent = isMain
@@ -290,18 +308,37 @@
 
         const chartL2 = isMain ? (chartBundle.l2Slices || chartBundle.l2) : chartBundle.l2;
         const activityColors = buildActivityColors((chartBundle.l2 || []).concat(chartL2 || []));
-        renderSunburst(chartBundle.l1, chartL2, total, isMain, chartBundle.sceneCoverage || [], chartBundle.sceneRange, activityColors);
-        renderLegend(chartBundle.l1, chartBundle.l2, total, isMain, activityColors);
-
-        const insight = document.getElementById('insight-block');
-        if (insight) insight.style.display = 'block';
+        document.querySelector('#report-structure-card .sunburst-layout').classList.toggle('hidden', !isMain);
+        const parallelChart = document.getElementById('parallel-duration-chart');
+        parallelChart.classList.toggle('hidden', isMain);
+        if (isMain) {
+            renderSunburst(chartBundle.l1, chartL2, total, true, chartBundle.sceneCoverage || [], chartBundle.sceneRange, activityColors);
+            renderLegend(chartBundle.l1, chartBundle.l2, total, true, activityColors);
+        } else {
+            renderParallelChart(parallelChart, chartBundle.l1, total);
+        }
 
         const foot = document.getElementById('footer-note');
         if (foot) {
-            foot.textContent = chartBundle.meta.footnote + ' · 周一起算 · ' + REPORT_VERSION;
+            foot.textContent = chartBundle.meta.footnote + (state.period === 'week' ? ' · 周一起算' : '');
         }
 
         syncToolbar();
+    }
+
+    function renderParallelChart(box, items, total) {
+        const rows = items.filter(item => (item.exactHours ?? item.hours) > 0)
+            .slice().sort((a, b) => (b.exactHours ?? b.hours) - (a.exactHours ?? a.hours));
+        if (!rows.length) {
+            box.innerHTML = '<div class="event-report-empty">这个周期还没有并行活动</div>';
+            return;
+        }
+        const max = rows[0].exactHours ?? rows[0].hours;
+        box.innerHTML = `<div class="parallel-chart-total"><span>并行累计</span><strong>${fmtHours(total)}</strong></div>` + rows.map(item => {
+            const hours = item.exactHours ?? item.hours;
+            const color = reportColor(item.color, item.name);
+            return `<div class="parallel-duration-row"><div class="parallel-duration-label"><span>${esc(item.name)}</span><strong>${fmtHours(hours)}</strong><span>${pct(hours, total)}</span></div><div class="parallel-duration-track"><span style="width:${hours / max * 100}%;background:${esc(color)}"></span></div></div>`;
+        }).join('');
     }
 
     function renderSunburst(l1, l2, total, isMain, sceneCoverage, sceneRange, activityColors) {
@@ -335,15 +372,7 @@
         html += `<text x="100" y="112" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="700">小时</text>`;
         svg.innerHTML = html;
 
-        svg.querySelectorAll('.inner-seg').forEach(bindSegTip);
-        svg.querySelectorAll('.outer-seg:not(.scene-remainder)').forEach((el) => {
-            el.addEventListener('mouseenter', (e) => showTipOuter(e, el.dataset.title, isMain ? '' : el.dataset.sub, el.dataset.hours, el.dataset.pct));
-            el.addEventListener('mouseleave', hideTip);
-        });
-        svg.querySelectorAll('.scene-coverage-seg').forEach((el) => {
-            el.addEventListener('mouseenter', (e) => showTip(e, el.dataset.title, el.dataset.hours, el.dataset.pct));
-            el.addEventListener('mouseleave', hideTip);
-        });
+        svg.querySelectorAll('.inner-seg, .outer-seg:not(.scene-remainder), .scene-coverage-seg').forEach(bindSegTip);
     }
 
     // 外环严格跟随内环父块；场景内未细分的部分已作为“自由时间”写入切片。
@@ -410,8 +439,18 @@
     }
 
     function bindSegTip(el) {
-        el.addEventListener('mouseenter', (e) => showTip(e, el.dataset.title, el.dataset.hours, el.dataset.pct));
+        const show = e => showTip(e, el.dataset.title, el.dataset.hours, el.dataset.pct);
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', `${el.dataset.title} ${el.dataset.hours} ${el.dataset.pct}`);
+        el.addEventListener('mouseenter', show);
         el.addEventListener('mouseleave', hideTip);
+        el.addEventListener('click', show);
+        el.addEventListener('focus', show);
+        el.addEventListener('blur', hideTip);
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(e); }
+        });
     }
 
     function renderLegend(l1, l2, total, isMain, activityColors) {
@@ -443,7 +482,7 @@
     }
 
     function legendRow(name, l1, hours, color, total, cat) {
-        const label = l1 ? `${l1} · <span class="legend-sub">${name}</span>` : name;
+        const label = l1 ? `${esc(l1)} · <span class="legend-sub">${esc(name)}</span>` : esc(name);
         return `<div class="legend-item" data-cat="${esc(cat)}"${l1 ? '' : ` data-activity="${esc(name)}"`}>
             <span class="legend-dot" style="background:${color}"></span>
             <span class="legend-name">${label}</span>
@@ -462,7 +501,7 @@
             btn.classList.toggle('chart-main', btn.dataset.chart === 'main');
             btn.classList.toggle('chart-parallel', btn.dataset.chart === 'parallel');
         });
-        const navigable = !!getPeriodData && (state.period === 'week' || state.period === 'month');
+        const navigable = !!getPeriodData;
         const offset = state.periodOffsets[state.period] || 0;
         const nav = document.getElementById('report-period-nav');
         const range = document.getElementById('report-period-range');
@@ -488,6 +527,11 @@
             const target = new Date(Date.UTC(year, month + offset, 1));
             return `${target.getUTCFullYear()}年${target.getUTCMonth() + 1}月`;
         }
+        if (period === 'year') return `${year + offset}年`;
+        if (period === 'day') {
+            const target = new Date(today + offset * 86400000);
+            return `${target.getUTCFullYear()}年${target.getUTCMonth() + 1}月${target.getUTCDate()}日`;
+        }
         const mondayOffset = (beijing.getUTCDay() + 6) % 7;
         const start = new Date(today - mondayOffset * 86400000 + offset * 7 * 86400000);
         const end = new Date(start.getTime() + 6 * 86400000);
@@ -498,13 +542,17 @@
     function bindEvents() {
         if (eventsBound) return;
         eventsBound = true;
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.inner-seg, .outer-seg, .scene-coverage-seg, .timeline-block, .timeline-bar-segment')) hideTip();
+        });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') hideTip(); });
+        document.addEventListener('scroll', hideTip, true);
         document.querySelectorAll('[data-period]').forEach((btn) => {
             btn.addEventListener('click', () => setPeriod(btn.dataset.period));
         });
         document.querySelectorAll('[data-report-nav]').forEach((btn) => {
             btn.addEventListener('click', () => {
                 const direction = btn.dataset.reportNav;
-                if (!['week', 'month'].includes(state.period)) return;
                 if (direction === 'previous') state.periodOffsets[state.period] -= 1;
                 if (direction === 'next') state.periodOffsets[state.period] = Math.min(0, state.periodOffsets[state.period] + 1);
                 if (direction === 'current') state.periodOffsets[state.period] = 0;
@@ -577,8 +625,9 @@
     function positionTip(e) {
         const tip = document.getElementById('tip');
         const r = e.target.getBoundingClientRect();
-        tip.style.left = Math.min(r.left + r.width / 2 - 60, window.innerWidth - 230) + 'px';
-        tip.style.top = Math.max(r.top - 48, 8) + 'px';
+        tip.style.left = Math.max(8, Math.min(r.left + r.width / 2 - tip.offsetWidth / 2, window.innerWidth - tip.offsetWidth - 8)) + 'px';
+        const top = r.top - tip.offsetHeight - 8;
+        tip.style.top = Math.max(8, Math.min(top >= 8 ? top : r.bottom + 8, window.innerHeight - tip.offsetHeight - 8)) + 'px';
     }
 
     window.hideTip = function () {
@@ -610,6 +659,7 @@
     };
 
     window.setPeriod = function (period) {
+        if (!Object.hasOwn(state.periodOffsets, period)) return;
         state.period = period;
         render();
     };
@@ -629,6 +679,11 @@
 
     window.renderReportBillboard = function () {
         render();
+    };
+
+    window.openReportEventCenter = function () {
+        const data = resolvePeriodData();
+        if (data?._range) window.openEventCenter('stats', { ...data._range, label: getPeriodRangeLabel(state.period, state.periodOffsets[state.period] || 0) });
     };
 
     document.addEventListener('DOMContentLoaded', () => {

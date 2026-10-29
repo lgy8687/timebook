@@ -264,12 +264,12 @@ body#report-standalone {
 .event-report-summary { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; padding: 8px 10px; border-radius: 8px; background: #f7fafb; color: #718096; font-size: 10px; font-weight: 800; }
 .event-report-summary strong { color: #35506a; font-size: 18px; font-variant-numeric: tabular-nums; }
 .event-report-list { display: grid; gap: 6px; }
-.event-report-row { display: grid; grid-template-columns: 8px 24px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; min-height: 36px; padding: 6px 8px; border: 1px solid #edf1f4; border-radius: 8px; background: #fff; color: #475569; }
+.event-report-row { display: grid; grid-template-columns: 8px 24px minmax(0, 1fr) auto; align-items: center; gap: 2px 6px; min-height: 60px; padding: 10px 0; border-bottom: 1px solid var(--rp-border); color: var(--rp-muted); }
 .event-report-dot { width: 7px; height: 7px; border-radius: 50%; }
 .event-report-icon { font-size: 14px; text-align: center; }
-.event-report-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 900; }
-.event-report-detail { color: #94a3b8; font-size: 9px; font-weight: 700; white-space: nowrap; }
-.event-report-row strong { color: #35506a; font-size: 12px; font-variant-numeric: tabular-nums; }
+.event-report-name { overflow-wrap: anywhere; font-size: 11px; font-weight: 900; }
+.event-report-detail { grid-column: 3 / -1; grid-row: 2; color: var(--rp-muted); font-size: 9px; font-weight: 700; }
+.event-report-row strong { grid-column: 4; grid-row: 1; color: #35506a; font-size: 12px; font-variant-numeric: tabular-nums; }
 .event-report-empty { padding: 18px 8px; color: #94a3b8; font-size: 11px; font-weight: 700; text-align: center; }
 
 

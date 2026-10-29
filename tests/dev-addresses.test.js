@@ -43,6 +43,13 @@ test('all C references resolve to a registered design template', () => {
     }
 });
 
+test('main rings and parallel duration ranking use separate B addresses', () => {
+    const byCode = new Map(readRegistryArray('blocks').map(([code, , selector]) => [code, selector]));
+    assert.equal(byCode.get('B17'), '#report-structure-card[data-dev-address-block="B17"]');
+    assert.equal(byCode.get('B92'), '#report-structure-card[data-dev-address-block="B92"]');
+    assert.match(report, /dataset\.devAddressBlock = isMain \? 'B17' : 'B92'/);
+});
+
 test('single-instance B selectors use unique static DOM IDs', () => {
     const blocks = readRegistryArray('blocks');
     for (const [code, , selector, , options = {}] of blocks) {

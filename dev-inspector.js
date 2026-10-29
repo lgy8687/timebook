@@ -16,7 +16,7 @@
         ['B14', '主线摘要', '#summary-block-main', 'C01'],
         ['B15', '并行摘要', '#summary-block-parallel', 'C01'],
         ['B16', '事件统计', '#event-report-block', 'C01'],
-        ['B17', '时间结构', '#report-structure-card', 'C01'],
+        ['B17', '主线时间结构', '#report-structure-card[data-dev-address-block="B17"]', 'C01'],
         ['B18', '日报 00:00–12:00 时间轴', '#timeline-card-a[data-dev-address-block="B18"]', 'C23'],
         ['B19', '设置入口', '#config-grid-card'],
         ['B21', '开始场景选择界面', '#scene-popover[data-dev-address-block="B21"] #scene-popover-card'],
@@ -77,7 +77,8 @@
         ['B88', '事件类型管理', '#event-center-manage'],
         ['B89', '事件记录编辑', '#event-record-editor-card'],
         ['B90', '仅日期的事件补录', '#event-modal[data-dev-address-block="B90"] #event-modal-card'],
-        ['B91', '事件确认和补录选择', '#event-modal[data-dev-address-block="B91"] #event-modal-card']
+        ['B91', '事件确认和补录选择', '#event-modal[data-dev-address-block="B91"] #event-modal-card'],
+        ['B92', '并行时长排行', '#report-structure-card[data-dev-address-block="B92"]', 'C01']
     ];
     // A Z address names a submodule prototype; repeated instances share one badge and contract.
     const submodules = [
@@ -96,7 +97,8 @@
         ['Z14-1', '主线摘要切换', '#summary-block-main .summary-view-toggle', 'C02'],
         ['Z15-1', '并行摘要切换', '#summary-block-parallel .summary-view-toggle', 'C02'],
         ['Z16-1', '事件统计切换', '#event-report-block .chart-mode-toggle', 'C02'],
-        ['Z17-1', '时间结构切换', '#page-report .structure-card .chart-mode-toggle', 'C02'],
+        ['Z17-1', '主线结构切换', '#report-structure-card[data-dev-address-block="B17"] .chart-mode-toggle', 'C02'],
+        ['Z92-1', '并行结构切换', '#report-structure-card[data-dev-address-block="B92"] .chart-mode-toggle', 'C02'],
         ['Z17-2', '活动分类与明细切换', '#legend-mode-toggle', 'C02'],
         ['Z30-1', '底部导航键', '#nav-record, #nav-calendar, #nav-report, #nav-mine', 'C08'],
         ['Z33-1', '报表周期切换', '#seg-period', 'C18'],

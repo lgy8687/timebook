@@ -61,7 +61,7 @@ function resolveReportMetric(metricSlot, periodData, view) {
     const summary = b.summary || [];
     const l1 = main.l1 || [];
     const mainTotal = l1.filter((x) => x.name !== '未记录时间').reduce((s, x) => s + (x.exactHours ?? x.hours), 0);
-    const paraTotal = (parallel.l1 || []).reduce((s, x) => s + x.hours, 0);
+    const paraTotal = (parallel.l1 || []).reduce((s, x) => s + (x.exactHours ?? x.hours), 0);
 
     const fromSummary = (icon, labelKey) => {
         const row = summary.find((r) => r.label === labelKey || r.icon === icon);
@@ -86,8 +86,12 @@ function resolveReportMetric(metricSlot, periodData, view) {
                 ? { value: top.name, label: '占比最高分类' }
                 : { value: '—', label: '占比最高分类' };
         }
-        case 'paraHours':
-            return fromSummary('⏳', '并行总时长') || { value: '—', label: '并行总时长' };
+        case 'paraHours': {
+            const value = paraTotal > 0 && paraTotal < 1
+                ? (paraTotal < 1 / 60 ? `${Math.max(1, Math.round(paraTotal * 3600))}秒` : `${Math.round(paraTotal * 60)}分钟`)
+                : `${Math.round(paraTotal * 10) / 10}h`;
+            return { value, label: '并行总时长' };
+        }
         case 'paraRatio':
             return fromSummary('📐', '叠在主线比') || { value: '—', label: '叠在主线比' };
         case 'topPara':
