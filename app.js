@@ -99,6 +99,13 @@ function isSystemSleepSelection(l1, l2) {
 }
 
 ensureSystemSleepCategory();
+if (!localStorage.getItem('v9_sleep_rest_category_created')) {
+    if (!cats.some((cat) => cat.name === '休息')) {
+        cats.push({ id: genId(), name: '休息', icon: '😴', color: '#8b9bb4', subs: [] });
+        localStorage.setItem('v9_cats', JSON.stringify(cats));
+    }
+    localStorage.setItem('v9_sleep_rest_category_created', '1');
+}
 const SCENE_COLOR_PALETTE = ['#0ea5e9', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444', '#f59e0b', '#6366f1', '#22c55e'];
 const DEFAULT_SCENE_COLORS = { '出差': '#0ea5e9', '旅行': '#8b5cf6', '聚会': '#ec4899' };
 let sceneSettings = safeJSON('v9_scene_settings', {}) || {};
@@ -7259,7 +7266,17 @@ function editS(id, oldName) {
     const cat = cats.find(c => c.id == id);
     if (!cat) return;
     if (isSystemSleep(cat, oldName)) {
-        showConfirm('睡觉为系统级设置', '睡觉用于睡眠统计，不支持重命名或更换图标。', '知道了', () => {});
+        const choices = cats.filter((item) => item.name !== '场景')
+            .map((item) => ({ value: String(item.id), label: item.name, color: item.color }));
+        openReportChoiceGrid('选择睡觉所属分类', choices, String(cat.id), (targetId) => {
+            const target = cats.find((item) => String(item.id) === String(targetId));
+            if (!target) return;
+            if (target !== cat && target.subs.includes('睡觉')) {
+                showConfirm('分类中已有睡觉', '目标分类已有同名活动，请先处理重名项。', '知道了', () => {});
+                return;
+            }
+            applySubCategoryEdit(cat, target, oldName, oldName);
+        });
         return;
     }
     showPrompt("编辑子分类", "输入新的子类名称", oldName, (name) => {
@@ -7305,6 +7322,7 @@ function applySubCategoryEdit(source, target, oldName, next) {
     const newL1 = target.name;
     const targetAlreadyHasName = source !== target && target.subs.includes(next);
     const carriedIcon = source.subIcons?.[oldName] || '';
+    const movingSystemSleep = isSystemSleep(source, oldName);
 
     if (source.name === '场景' && oldName !== next) {
         const oldColor = sceneSettings.colors[oldName];
@@ -7315,6 +7333,10 @@ function applySubCategoryEdit(source, target, oldName, next) {
     }
     source.subs = source.subs.filter((name) => name !== oldName);
     if (!targetAlreadyHasName) target.subs.push(next);
+    if (movingSystemSleep && source !== target) {
+        delete source.systemSleep;
+        target.systemSleep = true;
+    }
     if (source.subIcons) delete source.subIcons[oldName];
     if (carriedIcon && !targetAlreadyHasName) setSubIcon(target, next, carriedIcon);
 
@@ -7326,6 +7348,7 @@ function applySubCategoryEdit(source, target, oldName, next) {
     };
     logs.forEach(updateRecord);
     parallelHistory.forEach(updateRecord);
+    unlocatedLogs.forEach(updateRecord);
     updateRecord(current);
     updateRecord(parallelCurrent);
     shortcuts.forEach((shortcut) => {
@@ -7350,6 +7373,8 @@ function applySubCategoryEdit(source, target, oldName, next) {
         }
     });
     if (recentsChanged) localStorage.setItem('v9_recent_picks', JSON.stringify(recents));
+    Object.values(inputAliases).forEach(updateRecord);
+    localStorage.setItem('v9_input_aliases', JSON.stringify(inputAliases));
     updateReportSummaryCategoryRefs(oldL1, oldName, newL1, next);
 
     const previousIcon = target.subIcons?.[next] || carriedIcon;
@@ -7357,6 +7382,7 @@ function applySubCategoryEdit(source, target, oldName, next) {
         if (icon) setSubIcon(target, next, icon);
         else if (previousIcon) setSubIcon(target, next, previousIcon);
         localStorage.setItem('v9_parallel_history', JSON.stringify(parallelHistory));
+        localStorage.setItem('v9_unlocated_logs', JSON.stringify(unlocatedLogs));
         if (parallelCurrent) localStorage.setItem('v9_parallel', JSON.stringify(parallelCurrent));
         saveAll();
     });
