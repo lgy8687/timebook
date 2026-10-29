@@ -931,6 +931,7 @@ function renderAll() {
     renderLogs('calendar-log-list', viewDate);
     renderConfig();
     renderReport();
+    if (document.getElementById('page-events')?.classList.contains('active')) renderEventCenter();
     updateUI();
 }
 
@@ -4278,8 +4279,8 @@ function addEventType() {
 }
 window.addEventType = addEventType;
 
-function renderEventSettings() {
-    const host = document.getElementById('event-settings-ui');
+function renderEventSettings(hostId = 'event-settings-ui') {
+    const host = document.getElementById(hostId);
     if (!host) return;
     host.innerHTML = '';
     if (!eventTypes.length) {
@@ -4546,6 +4547,96 @@ let eventParentCandidate = null;
 
 function eventTypeById(id) {
     return eventTypes.find((item) => String(item.id) === String(id)) || null;
+}
+
+let eventCenterTab = 'history', eventCenterPeriod = 7, eventCenterReturn = 'record', eventEditId = null;
+function openEventCenter(tab = 'history') {
+    const active = document.querySelector('main > .tab-content.active');
+    if (active && active.id !== 'page-events') eventCenterReturn = active.id.replace('page-', '');
+    switchTab('events');
+    setEventCenterTab(tab);
+}
+function closeEventCenter() { switchTab(eventCenterReturn); }
+function setEventCenterTab(tab) {
+    if (!['history', 'stats', 'manage'].includes(tab)) return;
+    eventCenterTab = tab;
+    renderEventCenter();
+}
+function setEventCenterPeriod(days) { eventCenterPeriod = days; renderEventCenter(); }
+function renderEventCenter() {
+    if (!document.getElementById('event-center-list')) return;
+    ['history', 'stats', 'manage'].forEach(tab => {
+        document.getElementById('event-center-' + tab).classList.toggle('hidden', tab !== eventCenterTab);
+        const button = document.querySelector(`[data-event-center-tab="${tab}"]`);
+        button.classList.toggle('active', tab === eventCenterTab);
+        button.setAttribute('aria-selected', String(tab === eventCenterTab));
+    });
+    const filter = document.getElementById('event-center-filter');
+    const selected = filter.value;
+    filter.replaceChildren(new Option('全部事件', ''));
+    const types = new Map(eventTypes.map(type => [String(type.id), type.name]));
+    eventRecords.forEach(record => { if (!types.has(String(record.typeId))) types.set(String(record.typeId), record.typeName || '已删除事件'); });
+    types.forEach((name, id) => filter.add(new Option(name, id)));
+    filter.value = types.has(selected) ? selected : '';
+    const list = document.getElementById('event-center-list');
+    list.replaceChildren();
+    const records = eventRecords.filter(item => !filter.value || String(item.typeId) === filter.value).slice().sort((a, b) => b.occurredAt - a.occurredAt);
+    if (!records.length) list.textContent = '暂无事件记录';
+    records.forEach(record => {
+        const type = eventTypeById(record.typeId);
+        const row = document.createElement('div'); row.className = 'event-center-row';
+        const content = document.createElement('div'); content.className = 'event-center-row-content';
+        const name = document.createElement('strong'); name.textContent = `${type?.icon || record.icon || '•'} ${type?.name || record.typeName || '已删除事件'} · ${record.count || 1}次`;
+        const detail = document.createElement('span'); detail.textContent = `${formatBeijingDate(record.occurredAt)} ${record.dateOnly ? '仅日期' : formatBeijingClockSec(record.occurredAt)}${record.parentId ? ' · 已关联主线' : ' · 独立事件'}`;
+        content.append(name, detail);
+        const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = '编辑'; edit.addEventListener('click', () => openEventRecordEditor(record.id));
+        const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '删除'; remove.addEventListener('click', () => deleteEventCenterRecord(record.id));
+        row.append(content, edit, remove); list.appendChild(row);
+    });
+    document.querySelectorAll('[data-event-period]').forEach(button => button.classList.toggle('active', Number(button.dataset.eventPeriod) === eventCenterPeriod));
+    const end = beijingDateStrToDayStart(getTodayDateStr()) + DAY_MS;
+    const report = buildEventReport(eventCenterPeriod ? end - eventCenterPeriod * DAY_MS : 0, end, 'range');
+    const stats = document.getElementById('event-center-stat-content'); stats.replaceChildren();
+    const summary = document.createElement('p'); summary.className = 'event-center-summary'; summary.textContent = `总计 ${report.total} 次 · ${report.activeDays} 天`; stats.appendChild(summary);
+    if (!report.entries.length) { const empty = document.createElement('p'); empty.textContent = '这个时段没有事件记录'; stats.appendChild(empty); }
+    report.entries.forEach(item => { const row = document.createElement('div'); row.className = 'event-center-stat-row'; const name = document.createElement('span'); name.textContent = `${item.icon} ${item.name}`; const value = document.createElement('strong'); value.textContent = `${item.count} 次 · ${item.days} 天`; row.append(name, value); stats.appendChild(row); });
+    renderEventSettings('event-center-types');
+}
+function openEventRecordEditor(id) {
+    const record = eventRecords.find(item => String(item.id) === String(id)); if (!record) return;
+    eventEditId = record.id;
+    const select = document.getElementById('event-edit-type'); select.replaceChildren();
+    eventTypes.forEach(type => select.add(new Option(`${type.icon} ${type.name}`, String(type.id))));
+    if (!eventTypeById(record.typeId)) select.add(new Option(`${record.typeName || '已删除事件'}（已删除）`, String(record.typeId)));
+    select.value = String(record.typeId);
+    document.getElementById('event-edit-date').value = formatBeijingDate(record.occurredAt);
+    document.getElementById('event-edit-time').value = formatBeijingClockSec(record.occurredAt);
+    document.getElementById('event-edit-count').value = record.count || 1;
+    document.getElementById('event-edit-date-only').checked = !!record.dateOnly;
+    toggleEventEditTime(); document.getElementById('event-record-editor').classList.remove('hidden');
+}
+function toggleEventEditTime() { document.getElementById('event-edit-time').disabled = document.getElementById('event-edit-date-only').checked; }
+function closeEventRecordEditor() { eventEditId = null; document.getElementById('event-record-editor').classList.add('hidden'); }
+function saveEventRecordEdit() {
+    const record = eventRecords.find(item => String(item.id) === String(eventEditId)); if (!record) return;
+    const date = document.getElementById('event-edit-date').value, dateOnly = document.getElementById('event-edit-date-only').checked;
+    const time = dateOnly ? '00:00:00' : document.getElementById('event-edit-time').value;
+    const occurredAt = parseTimeOnBeijingDateParts(date, time), count = Number(document.getElementById('event-edit-count').value);
+    if (!Number.isFinite(occurredAt) || !Number.isInteger(count) || count < 1 || count > 999) { showConfirm('信息不正确', '请检查日期、时间和次数（1–999）。', '知道了', () => {}); return; }
+    if (record.parentId && (dateOnly !== !!record.dateOnly || occurredAt !== record.occurredAt)) {
+        const parent = logs.find(item => String(item.id) === String(record.parentId)) || (current && String(current.id) === String(record.parentId) ? current : null);
+        if (!parent || dateOnly || occurredAt < parent.startTime || occurredAt > logEndMs(parent, parent === current ? nowSecondMs() : undefined)) { showConfirm('时间超出归属主线', '请将时间调整到原主线范围内；若主线已不存在，请保留原时间。', '知道了', () => {}); return; }
+    }
+    const typeId = document.getElementById('event-edit-type').value, type = eventTypeById(typeId);
+    record.typeId = type ? type.id : record.typeId;
+    if (type) { record.typeName = type.name; record.icon = type.icon; record.color = type.color; }
+    record.occurredAt = occurredAt; record.count = count; record.dateOnly = dateOnly;
+    saveEventRecords(); closeEventRecordEditor(); renderAll();
+}
+function deleteEventCenterRecord(id) {
+    showConfirm('删除事件记录', '删除后无法撤销，主线时间不受影响。', '删除', ok => {
+        if (!ok) return; eventRecords = eventRecords.filter(item => String(item.id) !== String(id)); saveEventRecords(); renderAll();
+    }, '取消');
 }
 
 function setEventStage(stage) {
@@ -6076,10 +6167,14 @@ function buildEventReport(rangeStart, rangeEnd, period) {
                 count: 0,
                 days: new Set(),
                 latest: 0,
+                latestDateOnly: false,
             };
             item.count += record.count || 1;
             item.days.add(formatBeijingDate(record.occurredAt));
-            item.latest = Math.max(item.latest, record.occurredAt);
+            if (record.occurredAt >= item.latest) {
+                item.latest = record.occurredAt;
+                item.latestDateOnly = !!record.dateOnly;
+            }
             byType.set(key, item);
         });
     const entries = [...byType.values()]

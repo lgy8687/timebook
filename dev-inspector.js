@@ -73,7 +73,11 @@
         ['B81', '已分配主线删除归并方向界面', '#merge-direction-modal[data-dev-address-block="B81"] #merge-direction-card', 'C28'],
         ['B82', '未分配时段删除归并方向界面', '#merge-direction-modal[data-dev-address-block="B82"] #merge-direction-card', 'C28'],
         ['B83', '流水删除确认及清空界面', '#confirm-modal[data-dev-address-block="B83"] #confirm-modal-card', 'C29'],
-        ['B85', '正在进行的未分配主线', '.unassigned-live-wrap', null, { repeatable: true }]
+        ['B85', '正在进行的未分配主线', '.unassigned-live-wrap', null, { repeatable: true }],
+        ['B86', '事件记录列表', '#event-center-history'],
+        ['B87', '事件统计详情', '#event-center-stats'],
+        ['B88', '事件类型管理', '#event-center-manage'],
+        ['B89', '事件记录编辑', '#event-record-editor-card']
     ];
     // A Z address names a submodule prototype; repeated instances share one badge and contract.
     const submodules = [

@@ -165,7 +165,9 @@
         box.innerHTML = `<div class="event-report-summary"><span>${esc(label)}</span><strong>${esc(String(total))}</strong></div><div class="event-report-list">${data.entries.map((item) => {
             const value = mode === 'days' ? item.days : item.count;
             const suffix = mode === 'days' ? '天' : '次';
-            const detail = data.period === 'day' && item.latest ? `最近 ${formatEventClock(item.latest)}` : `${item.count} 次 · ${item.days} 天`;
+            const lastDate = item.latest ? new Date(item.latest + 8 * 60 * 60 * 1000).toISOString().slice(0, 10) : '';
+            const latest = item.latestDateOnly ? '仅日期' : formatEventClock(item.latest);
+            const detail = item.latest ? `最近 ${data.period === 'day' ? '' : lastDate + ' '}${latest}` : `${item.count} 次 · ${item.days} 天`;
             return `<div class="event-report-row"><span class="event-report-dot" style="background:${esc(reportColor(item.color, item.name))}"></span><span class="event-report-icon">${esc(item.icon)}</span><span class="event-report-name">${esc(item.name)}</span><span class="event-report-detail">${esc(detail)}</span><strong>${esc(String(value))}${suffix}</strong></div>`;
         }).join('')}</div>`;
     }
