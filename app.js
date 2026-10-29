@@ -2662,6 +2662,15 @@ function closeConfirm(result, action = 'dismiss') {
 let keyboardActiveModal = null;
 let keyboardShifts = new WeakMap();
 const KEYBOARD_GAP = 80;
+function initEventCountInput(input) {
+    if (!input) return;
+    const selectValue = () => input.select();
+    input.addEventListener('focus', selectValue);
+    input.addEventListener('click', selectValue);
+    input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').slice(0, 3); });
+}
+['calendar-backfill-event-count', 'event-edit-count', 'event-supplement-count']
+    .forEach(id => initEventCountInput(document.getElementById(id)));
 function keepFreeInputVisible() {
     const input = document.getElementById('free-input');
     if (!input || document.activeElement !== input) return;
