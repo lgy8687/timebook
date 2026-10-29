@@ -539,3 +539,6 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .event-record-editor-actions { display: flex; gap: 8px; margin-top: 4px; }
 .event-record-editor-actions button { flex: 1; min-height: 44px; border-radius: 8px; background: var(--ui-surface); color: var(--ui-ink); }
 .event-record-editor-actions button:last-child { background: var(--ui-accent); color: #fff; }
+.event-supplement-check { display: flex; align-items: center; gap: 8px; min-height: 40px; color: var(--ui-ink); font-size: var(--ui-body); }
+.event-supplement-check.hidden, .event-time-field.hidden, .event-record-editor-card label.hidden { display: none; }
+.calendar-event-marker { position: absolute; top: 2px; right: 2px; min-width: 14px; height: 14px; padding: 0 2px; border-radius: 7px; background: #b85d1c; color: #fff; font-size: 9px; line-height: 14px; text-align: center; }

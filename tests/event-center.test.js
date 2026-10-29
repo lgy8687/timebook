@@ -26,3 +26,22 @@ test('event statistics count occurrences and distinct days, preserving date-only
     assert.equal(report.entries[0].days, 2);
     assert.equal(report.entries[0].latestDateOnly, true);
 });
+
+test('independent supplement saves count without inventing a time', () => {
+    const fn = app.slice(app.indexOf('function saveTimedEvent()'), app.indexOf('\nwindow.saveTimedEvent', app.indexOf('function saveTimedEvent()')));
+    const fields = {
+        'event-date-input': { value: '2026-10-01' }, 'event-time-input': { value: '' },
+        'event-use-time': { checked: false }, 'event-supplement-count': { value: '3' },
+    };
+    let saved;
+    const context = {
+        eventDraft: { typeId: 'water', parentId: null },
+        document: { getElementById: id => fields[id] },
+        parseTimeOnBeijingDateParts(date, time) { assert.equal(time, '00:00:00'); return Date.parse(date + 'T00:00:00Z'); },
+        saveEventRecord: draft => { saved = { ...draft }; return true; },
+        closeEventModal() {}, renderAll() {}, showConfirm() { assert.fail('unexpected warning'); },
+    };
+    vm.createContext(context); vm.runInContext(fn, context); context.saveTimedEvent();
+    assert.equal(saved.dateOnly, true);
+    assert.equal(saved.count, 3);
+});

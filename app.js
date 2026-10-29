@@ -928,7 +928,7 @@ function renderAll() {
     renderParallelShortcuts();
     updateSceneEntryButton();
     renderHomeHistory();
-    renderLogs('calendar-log-list', viewDate);
+    renderCalendarPage();
     renderConfig();
     renderReport();
     if (document.getElementById('page-events')?.classList.contains('active')) renderEventCenter();
@@ -1658,7 +1658,7 @@ function getCalendarDaySummary(dateStr) {
     });
     return {
         totalMs: segments.reduce((sum, item) => sum + item.end - item.start, 0) + unlocated.reduce((sum, item) => sum + item.durationMs, 0),
-        count: segments.length + unlocated.length + eventRecords.filter((item) => item.dateOnly && formatBeijingDate(item.occurredAt) === dateStr).length,
+        count: segments.length + unlocated.length + eventRecords.filter((item) => formatBeijingDate(item.occurredAt) === dateStr).length,
         categories: [...byCategory.values()].sort((a, b) => b.ms - a.ms)
     };
 }
@@ -2171,10 +2171,11 @@ function renderCalendarBackfillRecords() {
     if (!host) return;
     const untimed = unlocatedLogs.filter((item) => item.date === viewDate)
         .map((item) => ({ kind: 'untimed', id: item.id, label: `${item.l2 || item.l1} · ${formatDuration(item.durationMs)}`, note: '未指定时段' }));
-    const events = eventRecords.filter((item) => item.dateOnly && formatBeijingDate(item.occurredAt) === viewDate)
+    const events = eventRecords.filter((item) => formatBeijingDate(item.occurredAt) === viewDate)
+        .sort((a, b) => b.occurredAt - a.occurredAt)
         .map((item) => {
             const type = eventTypeById(item.typeId);
-            return { kind: 'event', id: item.id, label: `${type?.icon || item.icon || '•'} ${type?.name || item.typeName} · ${item.count || 1} 次`, note: '事件次数' };
+            return { kind: 'event', id: item.id, label: `${type?.icon || item.icon || '•'} ${type?.name || item.typeName} · ${item.count || 1} 次`, note: item.dateOnly ? '事件 · 仅日期' : `事件 · ${formatBeijingClockSec(item.occurredAt)}` };
         });
     const rows = untimed.concat(events);
     host.replaceChildren();
@@ -2184,7 +2185,7 @@ function renderCalendarBackfillRecords() {
         const text = document.createElement('div');
         text.innerHTML = `<strong>${escHtml(item.label)}</strong><span>${item.note}</span>`;
         const edit = document.createElement('button');
-        edit.type = 'button'; edit.innerText = '编辑'; edit.addEventListener('click', () => editCalendarSupplement(item.kind, item.id));
+        edit.type = 'button'; edit.innerText = '编辑'; edit.addEventListener('click', () => item.kind === 'event' ? openEventRecordEditor(item.id) : editCalendarSupplement(item.kind, item.id));
         const del = document.createElement('button');
         del.type = 'button'; del.innerText = '删除'; del.addEventListener('click', () => deleteCalendarSupplement(item.kind, item.id));
         row.appendChild(text);
@@ -4610,12 +4611,16 @@ function openEventRecordEditor(id) {
     if (!eventTypeById(record.typeId)) select.add(new Option(`${record.typeName || '已删除事件'}（已删除）`, String(record.typeId)));
     select.value = String(record.typeId);
     document.getElementById('event-edit-date').value = formatBeijingDate(record.occurredAt);
-    document.getElementById('event-edit-time').value = formatBeijingClockSec(record.occurredAt);
+    document.getElementById('event-edit-time').value = record.dateOnly ? '' : formatBeijingClockSec(record.occurredAt);
     document.getElementById('event-edit-count').value = record.count || 1;
     document.getElementById('event-edit-date-only').checked = !!record.dateOnly;
     toggleEventEditTime(); document.getElementById('event-record-editor').classList.remove('hidden');
 }
-function toggleEventEditTime() { document.getElementById('event-edit-time').disabled = document.getElementById('event-edit-date-only').checked; }
+function toggleEventEditTime() {
+    const dateOnly = document.getElementById('event-edit-date-only').checked;
+    document.getElementById('event-edit-time').disabled = dateOnly;
+    document.getElementById('event-edit-time-row').classList.toggle('hidden', dateOnly);
+}
 function closeEventRecordEditor() { eventEditId = null; document.getElementById('event-record-editor').classList.add('hidden'); }
 function saveEventRecordEdit() {
     const record = eventRecords.find(item => String(item.id) === String(eventEditId)); if (!record) return;
@@ -4739,11 +4744,22 @@ function openIndependentEventTime() {
     if (!eventDraft) return;
     eventDraft.parentId = null;
     eventDraft.occurredAt = nowSecondMs();
+    eventDraft.dateOnly = true;
     document.getElementById('event-time-parent').innerText = '独立事件 · 不归属任何主线';
     fillEventTimeInputs(eventDraft.occurredAt);
+    document.getElementById('event-use-time-row').classList.remove('hidden');
+    document.getElementById('event-use-time').checked = false;
+    document.getElementById('event-supplement-count').value = '1';
     setEventStage('time');
+    toggleEventSupplementTime();
 }
 window.openIndependentEventTime = openIndependentEventTime;
+
+function toggleEventSupplementTime() {
+    const useTime = !!eventDraft?.parentId || document.getElementById('event-use-time').checked;
+    document.getElementById('event-time-input-row').classList.toggle('hidden', !useTime);
+    document.getElementById('event-modal').dataset.devAddressBlock = useTime ? 'B77' : 'B90';
+}
 
 function beginEventParentSelection() {
     if (!eventDraft) return;
@@ -4775,11 +4791,15 @@ function confirmEventParentSelection() {
     eventParentSelecting = false;
     eventParentCandidate = null;
     eventDraft.parentId = parent.id;
+    eventDraft.dateOnly = false;
     eventDraft.occurredAt = parent.startTime;
     document.getElementById('event-time-parent').innerText = `归属主线 · ${displayName(parent)}`;
     fillEventTimeInputs(parent.startTime);
+    document.getElementById('event-use-time-row').classList.add('hidden');
+    document.getElementById('event-supplement-count').value = '1';
     document.getElementById('event-modal')?.classList.remove('hidden');
     setEventStage('time');
+    toggleEventSupplementTime();
     renderAll();
 }
 window.confirmEventParentSelection = confirmEventParentSelection;
@@ -4787,13 +4807,23 @@ window.confirmEventParentSelection = confirmEventParentSelection;
 function saveTimedEvent() {
     if (!eventDraft) return;
     const date = document.getElementById('event-date-input').value;
-    const time = document.getElementById('event-time-input').value;
+    const dateOnly = !eventDraft.parentId && !document.getElementById('event-use-time').checked;
+    const time = dateOnly ? '00:00:00' : document.getElementById('event-time-input').value;
+    const count = Number(document.getElementById('event-supplement-count').value);
     const occurredAt = parseTimeOnBeijingDateParts(date, time);
-    if (!Number.isFinite(occurredAt)) {
-        showConfirm('时间格式不正确', '请选择发生日期和时间。', '知道了', () => {});
+    if (!Number.isFinite(occurredAt) || !Number.isInteger(count) || count < 1 || count > 999) {
+        showConfirm('信息不正确', '请选择日期，并填写 1 至 999 的次数；指定时间时请填写时间。', '知道了', () => {});
         return;
     }
+    if (eventDraft.parentId) {
+        const parent = logs.find(item => String(item.id) === String(eventDraft.parentId)) || (current && String(current.id) === String(eventDraft.parentId) ? current : null);
+        if (!parent || occurredAt < parent.startTime || occurredAt > logEndMs(parent, parent === current ? nowSecondMs() : undefined)) {
+            showConfirm('时间超出归属主线', '请选择该主线范围内的时间。', '知道了', () => {}); return;
+        }
+    }
     eventDraft.occurredAt = occurredAt;
+    eventDraft.dateOnly = dateOnly;
+    eventDraft.count = count;
     if (saveEventRecord(eventDraft)) {
         closeEventModal();
         renderAll();
@@ -7189,6 +7219,15 @@ function renderFlowCalendar() {
         if (dateStr === viewDate) btn.classList.add('is-selected');
         if (dateStr > todayStr) btn.classList.add('is-future');
         if (logDays.has(dateStr)) btn.classList.add('has-logs');
+        const eventCount = eventRecords.filter(item => formatBeijingDate(item.occurredAt) === dateStr).reduce((sum, item) => sum + (item.count || 1), 0);
+        if (eventCount) {
+            const marker = document.createElement('span');
+            marker.className = 'calendar-event-marker';
+            marker.textContent = eventCount > 99 ? '99+' : String(eventCount);
+            marker.setAttribute('aria-hidden', 'true');
+            btn.appendChild(marker);
+            btn.setAttribute('aria-label', `${dateStr}，${eventCount} 次事件`);
+        }
         if (daySummary.totalMs > 0) {
             const load = Math.min(1, daySummary.totalMs / DAY_MS);
             btn.style.setProperty('--calendar-load', String(load));

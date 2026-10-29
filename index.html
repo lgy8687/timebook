@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=5.56">
     <link rel="stylesheet" href="dev-theme.css?v=4.70">
     <link rel="stylesheet" href="report.css?v=2.2">
-    <link rel="stylesheet" href="design-system.css?v=5.61">
+    <link rel="stylesheet" href="design-system.css?v=5.62">
     <link rel="stylesheet" href="dev-inspector.css?v=5.39">
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden select-none font-sans text-base">
@@ -43,7 +43,7 @@
                 <span id="match-flame">🔥</span>
                 <div id="day-remain-label" class="day-remain-label">今天剩余 --%</div>
             </div>
-            <div id="cache-buster" class="version-below-daybar">v5.61</div>
+            <div id="cache-buster" class="version-below-daybar">v5.62</div>
             <div id="main-shortcut-section" class="space-y-3">
                 <div class="px-1">
                     <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">快捷入口</h3>
@@ -614,7 +614,7 @@
             <div class="event-modal-head"><h3 id="event-record-editor-title">修改事件记录</h3><button type="button" onclick="closeEventRecordEditor()" aria-label="关闭">×</button></div>
             <label>事件<select id="event-edit-type"></select></label>
             <label>日期<input id="event-edit-date" type="date"></label>
-            <label>时间<input id="event-edit-time" type="time" step="1"></label>
+            <label id="event-edit-time-row">时间<input id="event-edit-time" type="time" step="1"></label>
             <label class="event-date-only"><input id="event-edit-date-only" type="checkbox" onchange="toggleEventEditTime()">仅记录日期</label>
             <label>次数<input id="event-edit-count" type="number" min="1" max="999" inputmode="numeric"></label>
             <div class="event-record-editor-actions"><button type="button" onclick="closeEventRecordEditor()">取消</button><button type="button" onclick="saveEventRecordEdit()">保存</button></div>
@@ -649,7 +649,9 @@
             <div id="event-stage-time" class="hidden">
                 <div id="event-time-parent" class="event-time-parent"></div>
                 <label class="event-time-field">发生日期<input id="event-date-input" type="date"></label>
-                <label class="event-time-field">发生时间<input id="event-time-input" type="time" step="1"></label>
+                <label id="event-use-time-row" class="event-supplement-check"><input id="event-use-time" type="checkbox" onchange="toggleEventSupplementTime()">指定发生时间</label>
+                <label id="event-time-input-row" class="event-time-field">发生时间<input id="event-time-input" type="time" step="1"></label>
+                <label class="event-time-field">次数<input id="event-supplement-count" type="number" min="1" max="999" step="1" value="1" inputmode="numeric"></label>
                 <div class="event-modal-actions event-modal-actions--two">
                     <button type="button" class="event-btn event-btn--quiet" onclick="openEventSupplement()">返回</button>
                     <button type="button" class="event-btn event-btn--primary" onclick="saveTimedEvent()">确定</button>
@@ -764,12 +766,12 @@
     <script src="report-metrics.js?v=1.9"></script>
     <script src="report.js?v=2.12"></script>
     <script src="ui-theme.js?v=5.39"></script>
-    <script src="app.js?v=5.61"></script>
+    <script src="app.js?v=5.62"></script>
     <script src="backup.js?v=5"></script>
     <script src="sync-config.js?v=1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="sync.js?v=1"></script>
     <script src="dev-appearance.js?v=5.39"></script>
-    <script src="dev-inspector.js?v=5.61"></script>
+    <script src="dev-inspector.js?v=5.62"></script>
 </body>
 </html>
