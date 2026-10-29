@@ -116,7 +116,7 @@
         for (const [code, label, selector, contract] of submodules) {
             const address = contract ? `${code}/${contract}` : code;
             const parentBlock = `B${code.match(/^Z(\d+)-/)?.[1]}`;
-            const entry = floatingBadges.get(code);
+            let entry = floatingBadges.get(code);
             if (activeModal && activeModal.dataset.devAddressBlock !== parentBlock) {
                 if (entry) entry.badge.hidden = true;
                 continue;

@@ -473,6 +473,12 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 #page-report .timeline-hint,
 #page-report .legend-hint { font-size: var(--ui-caption); line-height: 1.5; }
 .sunburst-layout.hidden, .parallel-duration-chart.hidden, .summary-view-toggle.hidden { display: none !important; }
+#report-time-view.hidden, #report-time-detail.hidden, #event-report-block.hidden { display: none !important; }
+.report-kind-tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--ui-border); }
+.report-kind-tabs button { min-width: 64px; min-height: 44px; padding: 8px 4px; color: var(--ui-muted); font-size: var(--ui-heading-3); font-weight: 600; border-bottom: 3px solid transparent; }
+.report-kind-tabs button.active { color: var(--ui-accent); border-bottom-color: var(--ui-accent); }
+.report-event-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }
+.report-event-actions button { min-height: 44px; color: var(--ui-accent); font-size: var(--ui-body); font-weight: 600; }
 #page-report .report-period-nav { width: 100%; min-height: 48px; grid-template-columns: 44px minmax(0, 1fr) 44px; }
 #page-report .report-period-nav-btn { width: 44px; height: 46px; }
 #page-report .report-period-nav-range { flex-wrap: wrap; gap: 2px 8px; padding-block: 4px; white-space: normal; text-align: center; }

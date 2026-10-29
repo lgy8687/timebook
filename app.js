@@ -4577,7 +4577,7 @@ function eventTypeById(id) {
     return eventTypes.find((item) => String(item.id) === String(id)) || null;
 }
 
-let eventCenterTab = 'history', eventCenterPeriod = 7, eventCenterReturn = 'record', eventEditId = null;
+let eventCenterTab = 'history', eventCenterPeriod = 0, eventCenterReturn = 'record', eventEditId = null;
 let eventCenterRange = null;
 function openEventCenter(tab = 'history', range = null) {
     eventCenterRange = range && Number.isFinite(range.start) && Number.isFinite(range.end) ? range : null;
@@ -4610,7 +4610,8 @@ function renderEventCenter() {
     filter.value = types.has(selected) ? selected : '';
     const list = document.getElementById('event-center-list');
     list.replaceChildren();
-    const records = eventRecords.filter(item => !filter.value || String(item.typeId) === filter.value).slice().sort((a, b) => b.occurredAt - a.occurredAt);
+    document.getElementById('event-center-history-range').textContent = eventCenterRange ? `当前范围：${eventCenterRange.label}` : '全部日期';
+    const records = eventRecords.filter(item => (!filter.value || String(item.typeId) === filter.value) && (!eventCenterRange || (item.occurredAt >= eventCenterRange.start && item.occurredAt < eventCenterRange.end))).slice().sort((a, b) => b.occurredAt - a.occurredAt);
     if (!records.length) list.textContent = '暂无事件记录';
     records.forEach(record => {
         const type = eventTypeById(record.typeId);

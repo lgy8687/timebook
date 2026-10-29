@@ -6,6 +6,7 @@
 
     let state = {
         period: 'day',
+        kind: 'time',
         periodOffsets: { day: 0, week: 0, month: 0, year: 0 },
         chartView: 'main',
         legendMode: 'l1',
@@ -262,6 +263,14 @@
 
         const periodData = resolvePeriodData();
         if (!periodData) return;
+        document.getElementById('report-time-view').classList.toggle('hidden', state.kind !== 'time');
+        document.getElementById('report-time-detail').classList.toggle('hidden', state.kind !== 'time');
+        document.getElementById('event-report-block').classList.toggle('hidden', state.kind !== 'event');
+        document.querySelectorAll('[data-report-kind]').forEach(button => {
+            const selected = button.dataset.reportKind === state.kind;
+            button.classList.toggle('active', selected);
+            button.setAttribute('aria-selected', String(selected));
+        });
 
         const mainBundle = periodData.main;
         const parallelBundle = periodData.parallel;
@@ -542,6 +551,10 @@
     function bindEvents() {
         if (eventsBound) return;
         eventsBound = true;
+        document.querySelectorAll('[data-report-kind]').forEach(button => button.addEventListener('click', () => {
+            state.kind = button.dataset.reportKind;
+            render();
+        }));
         document.addEventListener('click', e => {
             if (!e.target.closest('.inner-seg, .outer-seg, .scene-coverage-seg, .timeline-block, .timeline-bar-segment')) hideTip();
         });
@@ -681,9 +694,9 @@
         render();
     };
 
-    window.openReportEventCenter = function () {
+    window.openReportEventCenter = function (tab = 'stats') {
         const data = resolvePeriodData();
-        if (data?._range) window.openEventCenter('stats', { ...data._range, label: getPeriodRangeLabel(state.period, state.periodOffsets[state.period] || 0) });
+        if (data?._range) window.openEventCenter(tab, { ...data._range, label: getPeriodRangeLabel(state.period, state.periodOffsets[state.period] || 0) });
     };
 
     document.addEventListener('DOMContentLoaded', () => {
