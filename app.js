@@ -4543,6 +4543,7 @@ function buildLogFlowBar(color, muted) {
 }
 
 let eventDraft = null;
+let eventConfirmationDraft = null;
 let eventParentSelecting = false;
 let eventParentCandidate = null;
 
@@ -4645,11 +4646,11 @@ function deleteEventCenterRecord(id) {
 }
 
 function setEventStage(stage) {
-    const stageBlocks = { choose: 'B22', confirm: 'B75', supplement: 'B76', time: 'B77' };
+    const stageBlocks = { choose: 'B22', confirm: 'B91', time: 'B77' };
     const blockCode = stageBlocks[stage];
     if (!blockCode) throw new Error(`Unregistered event interface stage: ${stage}`);
     document.getElementById('event-modal').dataset.devAddressBlock = blockCode;
-    ['choose', 'confirm', 'supplement', 'time'].forEach((name) => {
+    ['choose', 'confirm', 'time'].forEach((name) => {
         document.getElementById('event-stage-' + name)?.classList.toggle('hidden', name !== stage);
     });
 }
@@ -4658,6 +4659,7 @@ function openEventModal() {
     eventParentSelecting = false;
     eventParentCandidate = null;
     eventDraft = null;
+    eventConfirmationDraft = null;
     renderEventChoiceGrid();
     setEventStage('choose');
     document.getElementById('event-modal')?.classList.remove('hidden');
@@ -4667,6 +4669,7 @@ window.openEventModal = openEventModal;
 function closeEventModal() {
     document.getElementById('event-modal')?.classList.add('hidden');
     eventDraft = null;
+    eventConfirmationDraft = null;
     eventParentCandidate = null;
     if (eventParentSelecting) {
         eventParentSelecting = false;
@@ -4696,6 +4699,7 @@ function chooseEventType(typeId) {
     const type = eventTypeById(typeId);
     if (!type) return;
     eventDraft = { typeId, parentId: current?.id || null, occurredAt: nowSecondMs() };
+    eventConfirmationDraft = { ...eventDraft };
     document.getElementById('event-confirm-preview').innerText = `记录「${type.icon} ${type.name}」\n归属：当前主线 ${current ? '· ' + displayName(current) : '· 未开启主线'}`;
     setEventStage('confirm');
 }
@@ -4728,11 +4732,11 @@ function confirmCurrentEvent() {
 }
 window.confirmCurrentEvent = confirmCurrentEvent;
 
-function openEventSupplement() {
-    if (!eventDraft) return;
-    setEventStage('supplement');
+function returnToEventConfirmation() {
+    if (!eventConfirmationDraft) return;
+    eventDraft = { ...eventConfirmationDraft };
+    setEventStage('confirm');
 }
-window.openEventSupplement = openEventSupplement;
 
 function fillEventTimeInputs(ms) {
     const time = toSecondMs(ms || nowSecondMs());

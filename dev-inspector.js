@@ -64,8 +64,6 @@
         ['B72', '当前场景操作界面', '#scene-popover[data-dev-address-block="B72"] #scene-popover-card'],
         ['B73', '切换场景选择界面', '#scene-popover[data-dev-address-block="B73"] #scene-popover-card'],
         ['B74', '结束场景后选择主线界面', '#scene-popover[data-dev-address-block="B74"] #scene-popover-card'],
-        ['B75', '事件记录确认界面', '#event-modal[data-dev-address-block="B75"] #event-modal-card'],
-        ['B76', '事件补录方式选择界面', '#event-modal[data-dev-address-block="B76"] #event-modal-card'],
         ['B77', '事件日期时间编辑界面', '#event-modal[data-dev-address-block="B77"] #event-modal-card'],
         ['B78', '正在进行的并行记录修改界面', '#edit-modal[data-dev-address-block="B78"] #edit-modal-card'],
         ['B79', '结转主线记录修改界面', '#edit-modal[data-dev-address-block="B79"] #edit-modal-card'],
@@ -78,7 +76,8 @@
         ['B87', '事件统计详情', '#event-center-stats'],
         ['B88', '事件类型管理', '#event-center-manage'],
         ['B89', '事件记录编辑', '#event-record-editor-card'],
-        ['B90', '仅日期的事件补录', '#event-modal[data-dev-address-block="B90"] #event-modal-card']
+        ['B90', '仅日期的事件补录', '#event-modal[data-dev-address-block="B90"] #event-modal-card'],
+        ['B91', '事件确认和补录选择', '#event-modal[data-dev-address-block="B91"] #event-modal-card']
     ];
     // A Z address names a submodule prototype; repeated instances share one badge and contract.
     const submodules = [
