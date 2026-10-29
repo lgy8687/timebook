@@ -3853,6 +3853,7 @@ function editShortcut(idx) {
 function syncConfigSectionUI() {
     document.querySelectorAll('.config-tile[data-config-section]').forEach((el) => {
         el.classList.toggle('active', el.dataset.configSection === configSectionOpen);
+        el.setAttribute('aria-expanded', String(el.dataset.configSection === configSectionOpen));
     });
     const expand = document.getElementById('config-expand');
     if (expand) expand.classList.toggle('hidden', !configSectionOpen);
