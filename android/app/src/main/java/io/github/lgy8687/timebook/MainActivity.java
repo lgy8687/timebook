@@ -33,12 +33,17 @@ public class MainActivity extends Activity {
     private final Runnable widgetSync = new Runnable() {
         @Override public void run() {
             if (webView != null) {
-                webView.evaluateJavascript("(function(){try{const now=nowSecondMs();const gap=getActiveUnassignedSegment(formatBeijingDate(now),now);return JSON.stringify(current?{name:displayName(current),start:current.startTime}:gap?{name:'未分配',start:gap.start}:{name:'等待开启',start:0});}catch(e){return null}})()", value -> {
+                webView.evaluateJavascript("(function(){try{const now=nowSecondMs(),day=formatBeijingDate(now),rows=new Map();" +
+                    "function add(l1,l2,ms,live){if(!l1&&!l2)return;const id=JSON.stringify([l1||'',l2||'']);let row=rows.get(id)||{id,name:l2||l1,category:l1||'',ms:0,live:false};row.ms+=ms||0;row.live=row.live||!!live;rows.set(id,row)}" +
+                    "cats.forEach(c=>(c.subs||[]).forEach(s=>add(c.name,s,0,false)));shortcuts.forEach(s=>add(s.l1,s.l2,0,false));" +
+                    "getTodaySegments().filter(x=>!x.parallel&&!x.sceneActivity).forEach(x=>add(x.l1,x.l2,x.clippedEnd-x.clippedStart,x.live));" +
+                    "unlocatedLogs.filter(x=>x.date===day).forEach(x=>add(x.l1,x.l2,x.durationMs,false));" +
+                    "if(current)add(current.l1,current.l2,0,true);return JSON.stringify({day,at:now,rows:Array.from(rows.values())});}catch(e){return null}})()", value -> {
                     try {
                         Object decoded = new org.json.JSONTokener(value).nextValue();
                         if (!(decoded instanceof String)) return;
                         JSONObject state = new JSONObject((String) decoded);
-                        MainActivityWidget.saveState(MainActivity.this, state.optString("name", "等待开启"), state.optLong("start", 0));
+                        MainActivityWidget.saveState(MainActivity.this, state);
                     } catch (Exception ignored) { }
                 });
                 widgetHandler.postDelayed(this, 5000);
