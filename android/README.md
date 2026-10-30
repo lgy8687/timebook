@@ -18,3 +18,9 @@ Import backup. Export on the original phone, transfer the JSON file yourself,
 then import it in the app on the other phone. The backup is never uploaded by
 TimeBook. Do not delete the original browser copy until the imported records
 have been checked. The app still loads the live website and needs internet.
+
+The Android home-screen widget shows the latest main activity and a running
+chronometer. Open the app at least once to sync its state; while the app is in
+the foreground it refreshes the widget when the activity changes. The timer keeps
+running on the home screen, but changes from other devices and day-boundary
+transitions are not reflected until the app is opened again.

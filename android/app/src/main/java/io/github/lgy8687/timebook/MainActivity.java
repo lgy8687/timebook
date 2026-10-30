@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -18,6 +20,7 @@ import android.widget.Toast;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     private static final String APP_URL = "https://lgy8687.github.io/timebook/";
@@ -26,6 +29,32 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private String pendingBackup;
+    private final Handler widgetHandler = new Handler(Looper.getMainLooper());
+    private final Runnable widgetSync = new Runnable() {
+        @Override public void run() {
+            if (webView != null) {
+                webView.evaluateJavascript("(function(){try{const now=nowSecondMs();const gap=getActiveUnassignedSegment(formatBeijingDate(now),now);return JSON.stringify(current?{name:displayName(current),start:current.startTime}:gap?{name:'未分配',start:gap.start}:{name:'等待开启',start:0});}catch(e){return null}})()", value -> {
+                    try {
+                        Object decoded = new org.json.JSONTokener(value).nextValue();
+                        if (!(decoded instanceof String)) return;
+                        JSONObject state = new JSONObject((String) decoded);
+                        MainActivityWidget.saveState(MainActivity.this, state.optString("name", "等待开启"), state.optLong("start", 0));
+                    } catch (Exception ignored) { }
+                });
+                widgetHandler.postDelayed(this, 5000);
+            }
+        }
+    };
+
+    @Override protected void onResume() {
+        super.onResume();
+        widgetHandler.post(widgetSync);
+    }
+
+    @Override protected void onPause() {
+        widgetHandler.removeCallbacks(widgetSync);
+        super.onPause();
+    }
 
     private class BackupBridge {
         @JavascriptInterface
