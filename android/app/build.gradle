@@ -10,8 +10,8 @@ android {
         applicationId 'io.github.lgy8687.timebook'
         minSdk 24
         targetSdk 34
-        versionCode 6
-        versionName '0.6-widget-test'
+        versionCode 7
+        versionName '0.7-widget-test'
     }
 
     compileOptions {

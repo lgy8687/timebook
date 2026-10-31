@@ -11,6 +11,7 @@ import java.util.Set;
 public class WidgetSettingsActivity extends Activity {
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setResult(RESULT_CANCELED);
         android.content.SharedPreferences prefs = getSharedPreferences(MainActivityWidget.PREFS, MODE_PRIVATE);
         JSONArray rows;
         try { rows = new JSONObject(prefs.getString("daily", "{}")).optJSONArray("rows"); } catch (Exception e) { rows = null; }
@@ -36,6 +37,10 @@ public class WidgetSettingsActivity extends Activity {
                 for (int i = 0; i < ids.length; i++) if (checked[i]) selected.add(ids[i]);
                 prefs.edit().putStringSet("selected", selected).apply();
                 MainActivityWidget.refresh(this);
+                int widgetId = getIntent().getIntExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID);
+                if (widgetId != android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    setResult(RESULT_OK, new android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId));
+                }
                 finish();
             }).setNeutralButton("全选", null).setNegativeButton("全不选", null)
             .setOnCancelListener(d -> finish()).create();

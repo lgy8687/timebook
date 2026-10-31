@@ -19,8 +19,9 @@ then import it in the app on the other phone. The backup is never uploaded by
 TimeBook. Do not delete the original browser copy until the imported records
 have been checked. The app still loads the live website and needs internet.
 
-The Android home-screen widget shows daily main activity totals. Tap its settings
-button to choose activities; a running activity uses a chronometer. Open the app
+The Android home-screen widget shows daily main activity totals. Tap the widget
+to choose activities; supported Android launchers may also expose settings on
+long press. A running activity uses a chronometer and its activity color. Open the app
 to sync the current day and activity list. Background changes from other devices
 are not reflected until the app is opened; after a day change, the widget asks
 for a refresh rather than guessing the new day's totals. Widget refresh timing

@@ -1,0 +1,6 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp" android:minHeight="80dp" android:minResizeWidth="140dp" android:minResizeHeight="48dp"
+    android:targetCellWidth="3" android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000" android:initialLayout="@layout/main_widget"
+    android:configure="io.github.lgy8687.timebook.WidgetSettingsActivity" android:widgetFeatures="reconfigurable|configuration_optional"
+    android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen" />

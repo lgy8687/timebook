@@ -44,29 +44,44 @@ public class MainActivityWidget extends AppWidgetProvider {
             boolean compact = height < 100;
             RemoteViews views = new RemoteViews(context.getPackageName(), compact ? R.layout.main_widget_compact : R.layout.main_widget);
             views.removeAllViews(R.id.widget_rows);
-            int count = 0;
+            java.util.ArrayList<JSONObject> visibleRows = new java.util.ArrayList<>();
             if (rows != null && !stale) for (int i = 0; i < rows.length(); i++) {
                 JSONObject row = rows.optJSONObject(i);
                 if (row == null || (selected != null && !selected.contains(row.optString("id")))) continue;
                 long ms = Math.max(0, row.optLong("ms"));
                 boolean live = row.optBoolean("live");
                 if (selected == null && ms == 0 && !live) continue;
+                visibleRows.add(row);
+            }
+            int capacity = compact ? 1 : Math.max(1, (height - 24) / 44);
+            if (!compact && visibleRows.size() > capacity) capacity = Math.max(1, (height - 44) / 44);
+            int shown = Math.min(capacity, visibleRows.size());
+            for (int i = 0; i < shown; i++) {
+                JSONObject row = visibleRows.get(i);
+                long ms = Math.max(0, row.optLong("ms"));
+                boolean live = row.optBoolean("live");
                 RemoteViews item = new RemoteViews(context.getPackageName(), R.layout.main_widget_row);
                 item.setTextViewText(R.id.row_name, row.optString("name"));
                 item.setViewVisibility(R.id.row_timer, live ? View.VISIBLE : View.GONE);
                 item.setViewVisibility(R.id.row_duration, live ? View.GONE : View.VISIBLE);
-                if (live) item.setChronometer(R.id.row_timer, SystemClock.elapsedRealtime() - Math.max(0, System.currentTimeMillis() - at) - ms, null, true);
+                if (live) {
+                    int color;
+                    try { color = android.graphics.Color.parseColor(row.optString("color", "#526A91")); }
+                    catch (IllegalArgumentException error) { color = android.graphics.Color.rgb(82, 106, 145); }
+                    item.setTextColor(R.id.row_timer, color);
+                    item.setChronometer(R.id.row_timer, SystemClock.elapsedRealtime() - Math.max(0, System.currentTimeMillis() - at) - ms, null, true);
+                }
                 else item.setTextViewText(R.id.row_duration, String.format(java.util.Locale.ROOT, "%d:%02d:%02d", ms / 3600000, ms / 60000 % 60, ms / 1000 % 60));
-                if (!compact || count == 0) views.addView(R.id.widget_rows, item);
-                count++;
+                views.addView(R.id.widget_rows, item);
             }
-            if (compact && count > 1) views.setTextViewText(R.id.widget_title, "今日 +" + (count - 1));
-            views.setTextViewText(R.id.widget_empty, stale ? "打开应用更新今日统计" : selected != null && selected.isEmpty() ? "点击设置选择活动" : "今天暂无选中的活动");
-            views.setViewVisibility(R.id.widget_empty, count == 0 ? View.VISIBLE : View.GONE);
-            Intent open = new Intent(context, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            views.setOnClickPendingIntent(R.id.widget_title, PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-            Intent settings = new Intent(context, WidgetSettingsActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            views.setOnClickPendingIntent(R.id.widget_settings, PendingIntent.getActivity(context, 1, settings, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+            int remaining = visibleRows.size() - shown;
+            views.setTextViewText(R.id.widget_more, "+" + remaining);
+            views.setViewVisibility(R.id.widget_more, remaining > 0 ? View.VISIBLE : View.GONE);
+            views.setTextViewText(R.id.widget_empty, stale ? "点击打开应用更新" : selected != null && selected.isEmpty() ? "点击选择活动" : "暂无活动，点击设置");
+            views.setViewVisibility(R.id.widget_empty, visibleRows.isEmpty() ? View.VISIBLE : View.GONE);
+            views.setViewVisibility(R.id.widget_rows, visibleRows.isEmpty() ? View.GONE : View.VISIBLE);
+            Intent action = new Intent(context, stale ? MainActivity.class : WidgetSettingsActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            views.setOnClickPendingIntent(R.id.widget_root, PendingIntent.getActivity(context, 0, action, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
             manager.updateAppWidget(id, views);
         }
     }
