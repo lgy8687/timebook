@@ -4989,7 +4989,25 @@ function renderLogs(listId, dateStr) {
         inner.append(bar, body);
         liveCard.appendChild(inner);
         liveCard.title = recordMode === 'journal' && !current.scene ? '修改当前主线' : '补录一段已结束的并行活动';
+        let livePressTimer = null, liveLongPressed = false, livePressX = 0, livePressY = 0;
+        liveCard.addEventListener('pointerdown', (event) => {
+            if (eventParentSelecting || event.target.closest('button') || current?.scene) return;
+            liveLongPressed = false;
+            livePressX = event.clientX; livePressY = event.clientY;
+            livePressTimer = setTimeout(() => {
+                livePressTimer = null;
+                if (!current || current.scene) return;
+                liveLongPressed = true;
+                openSplitDrawer(current, { liveParent: true });
+            }, 500);
+        });
+        liveCard.addEventListener('pointermove', (event) => {
+            if (Math.abs(event.clientX - livePressX) > 10 || Math.abs(event.clientY - livePressY) > 10) clearTimeout(livePressTimer);
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => liveCard.addEventListener(type, () => clearTimeout(livePressTimer)));
+        liveCard.addEventListener('contextmenu', (event) => event.preventDefault());
         liveCard.addEventListener('click', () => {
+            if (liveLongPressed) { liveLongPressed = false; return; }
             if (eventParentSelecting) {
                 selectEventParent(current);
                 return;
@@ -5432,7 +5450,7 @@ function openBackfillDrawer(parentLog, options = {}) {
     renderDrawerToggle();
     showDrawer();
 }
-function openSplitDrawer(parentLog) {
+function openSplitDrawer(parentLog, options = {}) {
     if (parentLog.scene) {
         showConfirm('请切割场景活动', '场景是时间容器，请长按场景下方的活动来切割。', '知道了', () => {});
         return;
@@ -5440,7 +5458,9 @@ function openSplitDrawer(parentLog) {
     pickerMode = 'split';
     setDrawerDevAddress('B71');
     const pStart = parentLog.startTime;
-    const pEnd = parentLog.endTime || (pStart + (parentLog.duration || 60) * 60000);
+    const liveParent = options.liveParent === true;
+    const capturedParent = liveParent ? { ...parentLog } : parentLog;
+    const pEnd = liveParent ? nowSecondMs() : (parentLog.endTime || (pStart + (parentLog.duration || 60) * 60000));
     document.getElementById('drawer-title').innerText = `✂️ 切割 — ${displayName(parentLog)}`;
     document.getElementById('parallel-time-row').classList.remove('hidden');
     document.getElementById('drawer-footer').classList.remove('hidden');
@@ -5452,11 +5472,53 @@ function openSplitDrawer(parentLog) {
     setTimeInFields('pe', new Date(pEnd), { show24: endAtMidnight });
     setupBackfillDrag(parentLog, pEnd);
     syncBackfillProgress(parentLog, pEnd);
-    _parallelCallback = (l1, l2, selectedRange) => { executeSplit(parentLog, l1, l2, selectedRange); };
+    _parallelCallback = (l1, l2, selectedRange) => {
+        if (liveParent) executeLiveSplit(capturedParent, pEnd, l1, l2, selectedRange);
+        else executeSplit(parentLog, l1, l2, selectedRange);
+    };
     if (drawerViewMode === 'columns') drawerViewMode = 'flat';
     renderPicker();
     renderDrawerToggle();
     showDrawer();
+}
+function executeLiveSplit(parentLog, capturedEnd, l1, l2, selectedRange) {
+    const splitStart = selectedRange?.start, splitEnd = selectedRange?.end;
+    if (!current || current.id !== parentLog.id || current.startTime !== parentLog.startTime) {
+        showConfirm('主线已变化', '当前主线已经改变，请重新打开切割。', '知道了', () => {});
+        return;
+    }
+    if (!Number.isFinite(splitStart) || !Number.isFinite(splitEnd) || splitStart < parentLog.startTime
+        || splitEnd > capturedEnd || splitEnd - splitStart < 60000) {
+        showConfirm('时间不合法', '请选择打开切割时已过去的主线时间，且至少一分钟。', '知道了', () => {});
+        return;
+    }
+    const parentId = parentLog.id || parentLog.startTime;
+    const related = logs.some(item => item.parallel && String(item.parentId) === String(parentId))
+        || parallelHistory.some(item => String(item.parentId) === String(parentId))
+        || !!parallelCurrent;
+    if (related) {
+        showConfirm('存在关联并行活动', '这条主线有关联的并行活动，暂不能直接切割，请先处理并行活动。', '知道了', () => {});
+        return;
+    }
+    const before = splitStart > parentLog.startTime
+        ? { ...parentLog, id: genId(), endTime: splitStart, duration: Math.round((splitStart - parentLog.startTime) / 60000), manualSplit: true }
+        : null;
+    const cut = { id: genId(), startTime: splitStart, endTime: splitEnd,
+        duration: Math.round((splitEnd - splitStart) / 60000), l1, l2: l2 || '', tag: '',
+        note: document.getElementById('drawer-note').value || '', color: getCat(l1)?.color || '#cbd5e1', manualSplit: true,
+        ...(parentLog.journal ? { journal: true } : {}) };
+    if (before) logs.unshift(before);
+    logs.unshift(cut);
+    eventRecords.forEach(event => {
+        if (String(event.parentId) !== String(parentId) || event.occurredAt >= splitEnd) return;
+        event.parentId = event.occurredAt < splitStart && before ? before.id : cut.id;
+    });
+    current = { ...current, startTime: splitEnd };
+    localStorage.setItem('v9_logs', JSON.stringify(logs));
+    localStorage.setItem('v9_current', JSON.stringify(current));
+    saveEventRecords();
+    closeDrawer();
+    renderAll();
 }
 function executeSplit(parentLog, l1, l2, selectedRange) {
     const pStart = parentLog.startTime;
