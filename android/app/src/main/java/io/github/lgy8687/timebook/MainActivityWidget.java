@@ -40,9 +40,7 @@ public class MainActivityWidget extends AppWidgetProvider {
         String today = format.format(new java.util.Date());
         boolean stale = !today.equals(data.optString("day"));
         for (int id : ids) {
-            int height = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110);
-            boolean compact = height < 100;
-            RemoteViews views = new RemoteViews(context.getPackageName(), compact ? R.layout.main_widget_compact : R.layout.main_widget);
+            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.main_widget);
             views.removeAllViews(R.id.widget_rows);
             java.util.ArrayList<JSONObject> visibleRows = new java.util.ArrayList<>();
             if (rows != null && !stale) for (int i = 0; i < rows.length(); i++) {
@@ -53,10 +51,7 @@ public class MainActivityWidget extends AppWidgetProvider {
                 if (selected == null && ms == 0 && !live) continue;
                 visibleRows.add(row);
             }
-            int capacity = compact ? 1 : Math.max(1, (height - 24) / 44);
-            if (!compact && visibleRows.size() > capacity) capacity = Math.max(1, (height - 44) / 44);
-            int shown = Math.min(capacity, visibleRows.size());
-            for (int i = 0; i < shown; i++) {
+            for (int i = 0; i < visibleRows.size(); i++) {
                 JSONObject row = visibleRows.get(i);
                 long ms = Math.max(0, row.optLong("ms"));
                 boolean live = row.optBoolean("live");
@@ -74,9 +69,6 @@ public class MainActivityWidget extends AppWidgetProvider {
                 else item.setTextViewText(R.id.row_duration, String.format(java.util.Locale.ROOT, "%d:%02d:%02d", ms / 3600000, ms / 60000 % 60, ms / 1000 % 60));
                 views.addView(R.id.widget_rows, item);
             }
-            int remaining = visibleRows.size() - shown;
-            views.setTextViewText(R.id.widget_more, "+" + remaining);
-            views.setViewVisibility(R.id.widget_more, remaining > 0 ? View.VISIBLE : View.GONE);
             views.setTextViewText(R.id.widget_empty, stale ? "点击打开应用更新" : selected != null && selected.isEmpty() ? "点击选择活动" : "暂无活动，点击设置");
             views.setViewVisibility(R.id.widget_empty, visibleRows.isEmpty() ? View.VISIBLE : View.GONE);
             views.setViewVisibility(R.id.widget_rows, visibleRows.isEmpty() ? View.GONE : View.VISIBLE);

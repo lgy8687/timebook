@@ -1,7 +1,6 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:padding="12dp" android:background="@drawable/main_widget_background">
-    <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#526A91" android:textSize="15sp" />
+    android:orientation="vertical">
+    <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical" android:paddingStart="12dp" android:paddingEnd="12dp" android:background="@drawable/main_widget_background" android:textColor="#526A91" android:textSize="15sp" />
     <LinearLayout android:id="@+id/widget_rows" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
-    <TextView android:id="@+id/widget_more" android:layout_width="match_parent" android:layout_height="20dp" android:gravity="end|center_vertical" android:textColor="#526A91" android:textSize="13sp" />
 </LinearLayout>

@@ -21,7 +21,8 @@ test('activity selection provides both bulk actions and a compact resizable widg
     assert.match(settings, /setAll\(dialog, checked, true\)/);
     assert.match(settings, /setAll\(dialog, checked, false\)/);
     assert.match(provider, /onAppWidgetOptionsChanged/);
-    assert.match(provider, /main_widget_compact/);
+    assert.doesNotMatch(provider, /OPTION_APPWIDGET_MIN_HEIGHT/);
+    assert.match(provider, /i < visibleRows\.size\(\)/);
     assert.match(info, /android:resizeMode="horizontal\|vertical"/);
     assert.match(info, /android:minResizeHeight="48dp"/);
 });
