@@ -25,6 +25,9 @@ public class MainActivityWidget extends AppWidgetProvider {
         update(context, manager, manager.getAppWidgetIds(new ComponentName(context, MainActivityWidget.class)));
     }
     @Override public void onUpdate(Context context, AppWidgetManager manager, int[] ids) { update(context, manager, ids); }
+    @Override public void onAppWidgetOptionsChanged(Context context, AppWidgetManager manager, int id, android.os.Bundle options) {
+        update(context, manager, new int[] { id });
+    }
     private static void update(Context context, AppWidgetManager manager, int[] ids) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         Set<String> selected = prefs.getStringSet("selected", null);
@@ -37,7 +40,9 @@ public class MainActivityWidget extends AppWidgetProvider {
         String today = format.format(new java.util.Date());
         boolean stale = !today.equals(data.optString("day"));
         for (int id : ids) {
-            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.main_widget);
+            int height = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110);
+            boolean compact = height < 100;
+            RemoteViews views = new RemoteViews(context.getPackageName(), compact ? R.layout.main_widget_compact : R.layout.main_widget);
             views.removeAllViews(R.id.widget_rows);
             int count = 0;
             if (rows != null && !stale) for (int i = 0; i < rows.length(); i++) {
@@ -52,9 +57,10 @@ public class MainActivityWidget extends AppWidgetProvider {
                 item.setViewVisibility(R.id.row_duration, live ? View.GONE : View.VISIBLE);
                 if (live) item.setChronometer(R.id.row_timer, SystemClock.elapsedRealtime() - Math.max(0, System.currentTimeMillis() - at) - ms, null, true);
                 else item.setTextViewText(R.id.row_duration, String.format(java.util.Locale.ROOT, "%d:%02d:%02d", ms / 3600000, ms / 60000 % 60, ms / 1000 % 60));
-                views.addView(R.id.widget_rows, item);
+                if (!compact || count == 0) views.addView(R.id.widget_rows, item);
                 count++;
             }
+            if (compact && count > 1) views.setTextViewText(R.id.widget_title, "今日 +" + (count - 1));
             views.setTextViewText(R.id.widget_empty, stale ? "打开应用更新今日统计" : selected != null && selected.isEmpty() ? "点击设置选择活动" : "今天暂无选中的活动");
             views.setViewVisibility(R.id.widget_empty, count == 0 ? View.VISIBLE : View.GONE);
             Intent open = new Intent(context, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);

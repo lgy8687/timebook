@@ -5,10 +5,23 @@ const test = require('node:test');
 
 test('widget layouts use only views supported by Android RemoteViews', () => {
     const allowed = new Set(['LinearLayout', 'FrameLayout', 'RelativeLayout', 'GridLayout', 'TextView', 'Button', 'ImageView', 'ImageButton', 'Chronometer', 'ProgressBar', 'TextClock', 'AnalogClock', 'ListView', 'GridView', 'StackView', 'ViewFlipper', 'AdapterViewFlipper', 'ViewStub']);
-    for (const name of ['main_widget.xml', 'main_widget_row.xml']) {
+    for (const name of ['main_widget.xml', 'main_widget_compact.xml', 'main_widget_row.xml']) {
         const source = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'res', 'layout', name), 'utf8');
         for (const match of source.matchAll(/<([A-Za-z][\w.]*)\b/g)) {
             assert.ok(allowed.has(match[1]), `${name}: unsupported RemoteViews element ${match[1]}`);
         }
     }
+});
+
+test('activity selection provides both bulk actions and a compact resizable widget', () => {
+    const root = path.join(__dirname, '..', 'android', 'app', 'src', 'main');
+    const settings = fs.readFileSync(path.join(root, 'java', 'io', 'github', 'lgy8687', 'timebook', 'WidgetSettingsActivity.java'), 'utf8');
+    const provider = fs.readFileSync(path.join(root, 'java', 'io', 'github', 'lgy8687', 'timebook', 'MainActivityWidget.java'), 'utf8');
+    const info = fs.readFileSync(path.join(root, 'res', 'xml', 'main_widget_info.xml'), 'utf8');
+    assert.match(settings, /setAll\(dialog, checked, true\)/);
+    assert.match(settings, /setAll\(dialog, checked, false\)/);
+    assert.match(provider, /onAppWidgetOptionsChanged/);
+    assert.match(provider, /main_widget_compact/);
+    assert.match(info, /android:resizeMode="horizontal\|vertical"/);
+    assert.match(info, /android:minResizeHeight="48dp"/);
 });

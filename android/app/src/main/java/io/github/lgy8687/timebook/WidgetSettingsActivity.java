@@ -29,7 +29,7 @@ public class WidgetSettingsActivity extends Activity {
             labels[i] = row.optString("category") + " · " + row.optString("name");
             checked[i] = old == null || old.contains(ids[i]);
         }
-        new AlertDialog.Builder(this).setTitle("选择桌面显示的活动")
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("选择桌面显示的活动")
             .setMultiChoiceItems(labels, checked, (d, index, value) -> checked[index] = value)
             .setPositiveButton("完成", (d, w) -> {
                 Set<String> selected = new HashSet<>();
@@ -37,6 +37,19 @@ public class WidgetSettingsActivity extends Activity {
                 prefs.edit().putStringSet("selected", selected).apply();
                 MainActivityWidget.refresh(this);
                 finish();
-            }).setNegativeButton("取消", (d, w) -> finish()).setOnCancelListener(d -> finish()).show();
+            }).setNeutralButton("全选", null).setNegativeButton("全不选", null)
+            .setOnCancelListener(d -> finish()).create();
+        dialog.setOnShowListener(ignored -> {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> setAll(dialog, checked, true));
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> setAll(dialog, checked, false));
+        });
+        dialog.show();
+    }
+
+    private void setAll(AlertDialog dialog, boolean[] checked, boolean value) {
+        for (int i = 0; i < checked.length; i++) {
+            checked[i] = value;
+            dialog.getListView().setItemChecked(i, value);
+        }
     }
 }
